@@ -296,11 +296,12 @@ erDiagram
 ### Phase 1 — 프로젝트 초기 설정
 - **목표**: 실행 가능한 최소 골격 구축, Supabase PostgreSQL 연결 확립
 - **구현 내용**:
-  - `application.yml`(properties 대체 또는 profile 분리: `local`/`prod`) 작성, Supabase 접속 정보는 환경변수로 주입
+  - `application.yml` 공통 DataSource에 Supabase Shared Pooler의 **Session mode** 연결을 설정하고, `local`/`prod` 프로필에서 함께 사용
+  - Session Pooler의 host, port(`5432`), username(`postgres.<project-ref>`), DB password는 환경변수로 주입하고 JDBC SSL을 기본 적용
   - `spring.jpa.hibernate.ddl-auto=update`(개발 단계) 설정
   - 필요 의존성 추가 검토: JWT 라이브러리(예: `io.jsonwebtoken:jjwt`), `spring-boot-starter-webflux` 또는 `RestClient` 기반 외부 API 호출용 설정(OpenAI, Supabase Storage REST 호출용)
   - `.env`/환경변수 관리 방식 정의(민감정보 Git 미포함 확인)
-- **완료 조건**: `./gradlew bootRun`으로 앱이 기동되고 Supabase DB에 커넥션이 성공적으로 맺어짐(로그로 확인)
+- **완료 조건**: `./gradlew bootRun`으로 앱이 기동되고 Supabase Session Pooler를 통해 DB 커넥션이 성공적으로 맺어짐(로그로 확인)
 - **선행 작업**: 없음
 - **산출물**: `application.yml`, DB 연결 확인 로그, 갱신된 `build.gradle`
 

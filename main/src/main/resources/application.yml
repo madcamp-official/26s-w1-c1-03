@@ -3,3 +3,10 @@ spring:
     name: main
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:local}
+
+  datasource:
+    # Supabase Shared Pooler의 Session mode 접속 정보(포트 5432)를 사용합니다.
+    url: jdbc:postgresql://${SUPABASE_DB_POOLER_HOST}:${SUPABASE_DB_POOLER_PORT:5432}/${SUPABASE_DB_NAME:postgres}?sslmode=${SUPABASE_DB_SSL_MODE:require}
+    username: ${SUPABASE_DB_USERNAME}
+    password: ${SUPABASE_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver

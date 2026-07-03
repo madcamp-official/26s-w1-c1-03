@@ -158,8 +158,18 @@
 - **실행 방법:**
 
 ```bash
-# 실행 방법 작성
+cd main
+cp .env.example .env
+# .env에 Supabase Dashboard > Connect > Session pooler 값을 입력합니다.
+set -a
+source .env
+set +a
+bash gradlew bootRun
 ```
+
+DB 연결은 Supabase Shared Pooler의 **Session mode**를 사용합니다. Session
+Pooler는 포트 `5432`, 사용자명 `postgres.<project-ref>` 형식이며, 연결
+정보는 저장소에 커밋하지 않습니다.
 
 ---
 
