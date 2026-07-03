@@ -12,8 +12,9 @@
 
 | 이름 | GitHub | 역할 |
 |---|---|---|
-|  |  |  |
-|  |  |  |
+| 권순호 | [rth934](https://github.com/rth934) | FrontEnd Dev |
+| 이지민 | [ljm030206](https://github.com/ljm030206) | BackEnd Dev |
+| 정서영 | [seooyy](https://github.com/seooyy) | BackEnd Dev |
 
 ---
 
