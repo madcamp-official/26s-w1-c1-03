@@ -329,7 +329,7 @@ erDiagram
 ### Phase 4 — 인증(JWT 로그인/비밀번호 변경)
 - **목표**: `auth` 도메인 완성, 이후 모든 API의 인가 기반 마련
 - **구현 내용**:
-  - `JwtTokenProvider`(Access/Refresh 토큰 발급·검증), `JwtAuthenticationFilter`
+  - `JwtTokenProviderg`(Access/Refresh 토큰 발급·검증), `JwtAuthenticationFilter`
   - 로그인 API(`POST /api/auth/login`), 비밀번호 변경 API(`PATCH /api/auth/password`, 최초 로그인 시 `password_changed=false`이면 다른 API 접근 제한)
   - `SecurityConfig` 완성: 인증 필요 경로/공개 경로 구분, `SecurityContext`에서 `userId` 추출 유틸
 - **완료 조건**: 로그인 성공 시 JWT 발급, 보호된 API에 토큰 없이 접근 시 401, 최초 로그인 사용자는 비밀번호 변경 전까지 다른 API 접근 차단
