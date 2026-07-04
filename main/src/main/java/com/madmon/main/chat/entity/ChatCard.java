@@ -1,6 +1,5 @@
 package com.madmon.main.chat.entity;
 
-import com.madmon.main.common.entity.BaseEntity;
 import com.madmon.main.user.entity.User;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -24,7 +23,7 @@ import lombok.NoArgsConstructor;
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ChatCard extends BaseEntity {
+public class ChatCard {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

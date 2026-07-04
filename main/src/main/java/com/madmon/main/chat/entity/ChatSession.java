@@ -8,6 +8,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -17,7 +18,12 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @Entity
-@Table(name = "chat_sessions")
+@Table(
+        name = "chat_sessions",
+        indexes = {
+                @Index(name = "idx_chat_sessions_user_id", columnList = "user_id")
+        }
+)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ChatSession extends BaseEntity {
 
@@ -29,19 +35,19 @@ public class ChatSession extends BaseEntity {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(nullable = false, length = 100)
-    private String title;
+    @Column(name = "session_title", nullable = false, length = 100)
+    private String sessionTitle;
 
-    private ChatSession(User user, String title) {
+    private ChatSession(User user, String sessionTitle) {
         this.user = user;
-        this.title = title;
+        this.sessionTitle = sessionTitle;
     }
 
-    public static ChatSession create(User user, String title) {
-        return new ChatSession(user, title);
+    public static ChatSession create(User user, String sessionTitle) {
+        return new ChatSession(user, sessionTitle);
     }
 
-    public void rename(String title) {
-        this.title = title;
+    public void rename(String sessionTitle) {
+        this.sessionTitle = sessionTitle;
     }
 }

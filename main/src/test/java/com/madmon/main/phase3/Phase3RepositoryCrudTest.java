@@ -28,6 +28,7 @@ import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -74,6 +75,7 @@ class Phase3RepositoryCrudTest {
     @Test
     void user_and_user_stats_crud() {
         User user = userRepository.save(User.create(
+                "2026001",
                 "hashed-password",
                 "kim-dev",
                 null,
@@ -90,8 +92,8 @@ class Phase3RepositoryCrudTest {
         UserStats userStats = userStatsRepository.save(UserStats.createFrom(user));
 
         assertNotNull(user.getId());
-        assertTrue(userRepository.existsByName("kim-dev"));
-        assertEquals(2.0, userStats.getAttackScore());
+        assertTrue(userRepository.existsByUserId("2026001"));
+        assertEquals(0, BigDecimal.valueOf(2).compareTo(userStats.getAttackScore()));
         assertEquals(0, userStats.getEvaluationCount());
         assertEquals(user.getId(), userStats.getUserId());
         assertTrue(userStatsRepository.findById(user.getId()).isPresent());
@@ -99,8 +101,8 @@ class Phase3RepositoryCrudTest {
 
     @Test
     void team_and_member_crud() {
-        User owner = userRepository.save(User.create("owner-password", "owner", null, null, 1, 1, 1, 1, 1, 1, false));
-        User member = userRepository.save(User.create("member-password", "member", null, null, 1, 1, 1, 1, 1, 1, false));
+        User owner = userRepository.save(User.create("2026002", "owner-password", "owner", null, null, 1, 1, 1, 1, 1, 1, false));
+        User member = userRepository.save(User.create("2026003", "member-password", "member", null, null, 1, 1, 1, 1, 1, 1, false));
         Team team = teamRepository.save(Team.create("Alpha Team", "A1B2C3", owner));
         TeamMember teamMember = teamMemberRepository.save(TeamMember.join(team, member));
 
@@ -113,8 +115,8 @@ class Phase3RepositoryCrudTest {
 
     @Test
     void evaluation_title_vote_and_title_stats_crud() {
-        User evaluator = userRepository.save(User.create("evaluator-password", "evaluator", null, null, 1, 1, 1, 1, 1, 1, false));
-        User target = userRepository.save(User.create("target-password", "target", null, null, 1, 1, 1, 1, 1, 1, false));
+        User evaluator = userRepository.save(User.create("2026004", "evaluator-password", "evaluator", null, null, 1, 1, 1, 1, 1, 1, false));
+        User target = userRepository.save(User.create("2026005", "target-password", "target", null, null, 1, 1, 1, 1, 1, 1, false));
         Team team = teamRepository.save(Team.create("Beta Team", "D4E5F6", evaluator));
         Title title = titleRepository.save(Title.create("프론트엔드 장인", "화면을 잘 만드는 사람", "frontend-master"));
 
@@ -135,8 +137,8 @@ class Phase3RepositoryCrudTest {
 
     @Test
     void chat_session_card_and_message_crud() {
-        User host = userRepository.save(User.create("host-password", "host", null, null, 1, 1, 1, 1, 1, 1, false));
-        User target = userRepository.save(User.create("chat-target-password", "chat-target", null, null, 1, 1, 1, 1, 1, 1, false));
+        User host = userRepository.save(User.create("2026006", "host-password", "host", null, null, 1, 1, 1, 1, 1, 1, false));
+        User target = userRepository.save(User.create("2026007", "chat-target-password", "chat-target", null, null, 1, 1, 1, 1, 1, 1, false));
         ChatSession session = chatSessionRepository.save(ChatSession.create(host, "팀 시너지 분석"));
         ChatCard chatCard = chatCardRepository.save(ChatCard.create(session, target));
         ChatMessage userMessage = chatMessageRepository.save(ChatMessage.create(session, ChatMessageRole.USER, "이 팀의 강점은?"));
@@ -148,6 +150,6 @@ class Phase3RepositoryCrudTest {
         assertEquals(ChatMessageRole.USER, userMessage.getRole());
         assertEquals(ChatMessageRole.ASSISTANT, assistantMessage.getRole());
         assertEquals(target.getId(), chatCard.getTargetUser().getId());
-        assertFalse(session.getTitle().isBlank());
+        assertFalse(session.getSessionTitle().isBlank());
     }
 }

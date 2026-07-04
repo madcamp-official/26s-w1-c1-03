@@ -1,5 +1,6 @@
 package com.madmon.main.title.entity;
 
+import jakarta.persistence.Column;
 import java.io.Serializable;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,6 +17,9 @@ public class UserTitleStatsId implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
+    @Column(name = "user_id")
     private Long userId;
+
+    @Column(name = "title_id")
     private Long titleId;
 }

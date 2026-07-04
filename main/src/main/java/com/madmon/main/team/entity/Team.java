@@ -8,6 +8,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -21,6 +22,9 @@ import lombok.NoArgsConstructor;
         name = "teams",
         uniqueConstraints = {
                 @jakarta.persistence.UniqueConstraint(name = "uk_teams_invite_code", columnNames = "invite_code")
+        },
+        indexes = {
+                @Index(name = "idx_teams_owner_id", columnList = "owner_id")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

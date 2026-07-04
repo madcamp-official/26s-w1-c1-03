@@ -1,12 +1,13 @@
 package com.madmon.main.title.entity;
 
-import com.madmon.main.common.entity.BaseEntity;
+import com.madmon.main.common.entity.BaseCreatedAtEntity;
 import com.madmon.main.evaluation.entity.Evaluation;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -21,10 +22,13 @@ import lombok.NoArgsConstructor;
         name = "title_votes",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_title_votes_evaluation_title", columnNames = {"evaluation_id", "title_id"})
+        },
+        indexes = {
+                @Index(name = "idx_title_votes_title_id", columnList = "title_id")
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class TitleVote extends BaseEntity {
+public class TitleVote extends BaseCreatedAtEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -1,6 +1,6 @@
 package com.madmon.main.evaluation.entity;
 
-import com.madmon.main.common.entity.BaseEntity;
+import com.madmon.main.common.entity.BaseCreatedAtEntity;
 import com.madmon.main.team.entity.Team;
 import com.madmon.main.user.entity.User;
 import jakarta.persistence.Column;
@@ -9,6 +9,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -16,6 +17,7 @@ import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.hibernate.annotations.Check;
 
 @Getter
 @Entity
@@ -26,10 +28,17 @@ import lombok.NoArgsConstructor;
                         name = "uk_evaluations_team_evaluator_target",
                         columnNames = {"team_id", "evaluator_id", "target_id"}
                 )
+        },
+        indexes = {
+                @Index(name = "idx_evaluations_evaluator_id", columnList = "evaluator_id"),
+                @Index(name = "idx_evaluations_target_id", columnList = "target_id")
         }
 )
+@Check(constraints = "attack BETWEEN 1 AND 10 AND defense BETWEEN 1 AND 10 AND speed BETWEEN 1 AND 10 "
+        + "AND teamwork BETWEEN 1 AND 10 AND creativity BETWEEN 1 AND 10 AND problem_solving BETWEEN 1 AND 10 "
+        + "AND total_score BETWEEN 6 AND 60 AND evaluator_id <> target_id")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Evaluation extends BaseEntity {
+public class Evaluation extends BaseCreatedAtEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
