@@ -128,6 +128,11 @@
 > 서비스의 전체 페이지 구조와 페이지 간 이동 흐름; 각 페이지의 주요 UI 구성, 입력 요소, 버튼, 사용자 행동 흐름 등을 간단한 와이어프레임 형태로 정리
 
 <!-- Figma 링크 또는 이미지 첨부 -->
+![Wireframe Overview](./wireframe_overview.png)
+
+자세한 와이어프레임은 아래 Figma 링크에서 확인할 수 있습니다.
+
+[Figma Wireframe 보기](https://www.figma.com/design/WMpfUenDYD9xxfdElZkIfv/%EB%A7%A4%EB%93%9C%EB%AA%AC-%EB%8F%84%EA%B0%90-%EC%99%80%EC%9D%B4%EC%96%B4%ED%94%84%EB%A0%88%EC%9E%84?node-id=0-1&t=XtlvI7OwAqt8XBG2-1)
 
 ---
 
