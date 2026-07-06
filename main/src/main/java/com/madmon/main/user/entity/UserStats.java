@@ -22,8 +22,8 @@ import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 @Entity
 @Table(name = "user_stats")
 @Check(constraints = "attack_score BETWEEN 1 AND 10 AND defense_score BETWEEN 1 AND 10 "
-        + "AND speed_score BETWEEN 1 AND 10 AND teamwork_score BETWEEN 1 AND 10 "
-        + "AND creativity_score BETWEEN 1 AND 10 AND problem_solving_score BETWEEN 1 AND 10 "
+        + "AND agility_score BETWEEN 1 AND 10 AND teamwork_score BETWEEN 1 AND 10 "
+        + "AND mana_score BETWEEN 1 AND 10 AND health_score BETWEEN 1 AND 10 "
         + "AND evaluation_count >= 0")
 @EntityListeners(AuditingEntityListener.class)
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
@@ -44,17 +44,17 @@ public class UserStats {
     @Column(name = "defense_score", nullable = false, precision = 5, scale = 2)
     private BigDecimal defenseScore;
 
-    @Column(name = "speed_score", nullable = false, precision = 5, scale = 2)
-    private BigDecimal speedScore;
+    @Column(name = "agility_score", nullable = false, precision = 5, scale = 2)
+    private BigDecimal agilityScore;
 
     @Column(name = "teamwork_score", nullable = false, precision = 5, scale = 2)
     private BigDecimal teamworkScore;
 
-    @Column(name = "creativity_score", nullable = false, precision = 5, scale = 2)
-    private BigDecimal creativityScore;
+    @Column(name = "mana_score", nullable = false, precision = 5, scale = 2)
+    private BigDecimal manaScore;
 
-    @Column(name = "problem_solving_score", nullable = false, precision = 5, scale = 2)
-    private BigDecimal problemSolvingScore;
+    @Column(name = "health_score", nullable = false, precision = 5, scale = 2)
+    private BigDecimal healthScore;
 
     @Column(name = "evaluation_count", nullable = false)
     private int evaluationCount;
@@ -67,10 +67,10 @@ public class UserStats {
         this.user = user;
         this.attackScore = BigDecimal.valueOf(user.getInitialAttack());
         this.defenseScore = BigDecimal.valueOf(user.getInitialDefense());
-        this.speedScore = BigDecimal.valueOf(user.getInitialSpeed());
+        this.agilityScore = BigDecimal.valueOf(user.getInitialAgility());
         this.teamworkScore = BigDecimal.valueOf(user.getInitialTeamwork());
-        this.creativityScore = BigDecimal.valueOf(user.getInitialCreativity());
-        this.problemSolvingScore = BigDecimal.valueOf(user.getInitialProblemSolving());
+        this.manaScore = BigDecimal.valueOf(user.getInitialMana());
+        this.healthScore = BigDecimal.valueOf(user.getInitialHealth());
         this.evaluationCount = 0;
     }
 
@@ -81,17 +81,17 @@ public class UserStats {
     public void replaceScores(
             BigDecimal attackScore,
             BigDecimal defenseScore,
-            BigDecimal speedScore,
+            BigDecimal agilityScore,
             BigDecimal teamworkScore,
-            BigDecimal creativityScore,
-            BigDecimal problemSolvingScore
+            BigDecimal manaScore,
+            BigDecimal healthScore
     ) {
         this.attackScore = attackScore;
         this.defenseScore = defenseScore;
-        this.speedScore = speedScore;
+        this.agilityScore = agilityScore;
         this.teamworkScore = teamworkScore;
-        this.creativityScore = creativityScore;
-        this.problemSolvingScore = problemSolvingScore;
+        this.manaScore = manaScore;
+        this.healthScore = healthScore;
     }
 
     public void incrementEvaluationCount() {

@@ -22,8 +22,8 @@ import org.hibernate.annotations.Check;
         }
 )
 @Check(constraints = "initial_attack BETWEEN 1 AND 10 AND initial_defense BETWEEN 1 AND 10 "
-        + "AND initial_speed BETWEEN 1 AND 10 AND initial_teamwork BETWEEN 1 AND 10 "
-        + "AND initial_creativity BETWEEN 1 AND 10 AND initial_problem_solving BETWEEN 1 AND 10")
+        + "AND initial_agility BETWEEN 1 AND 10 AND initial_teamwork BETWEEN 1 AND 10 "
+        + "AND initial_mana BETWEEN 1 AND 10 AND initial_health BETWEEN 1 AND 10")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User extends BaseEntity {
 
@@ -52,17 +52,17 @@ public class User extends BaseEntity {
     @Column(name = "initial_defense")
     private Integer initialDefense;
 
-    @Column(name = "initial_speed")
-    private Integer initialSpeed;
+    @Column(name = "initial_agility")
+    private Integer initialAgility;
 
     @Column(name = "initial_teamwork")
     private Integer initialTeamwork;
 
-    @Column(name = "initial_creativity")
-    private Integer initialCreativity;
+    @Column(name = "initial_mana")
+    private Integer initialMana;
 
-    @Column(name = "initial_problem_solving")
-    private Integer initialProblemSolving;
+    @Column(name = "initial_health")
+    private Integer initialHealth;
 
     @Column(name = "password_changed", nullable = false)
     private boolean passwordChanged;
@@ -75,10 +75,10 @@ public class User extends BaseEntity {
             String biography,
             Integer initialAttack,
             Integer initialDefense,
-            Integer initialSpeed,
+            Integer initialAgility,
             Integer initialTeamwork,
-            Integer initialCreativity,
-            Integer initialProblemSolving,
+            Integer initialMana,
+            Integer initialHealth,
             boolean passwordChanged
     ) {
         this.userId = userId;
@@ -88,10 +88,10 @@ public class User extends BaseEntity {
         this.biography = biography;
         this.initialAttack = initialAttack;
         this.initialDefense = initialDefense;
-        this.initialSpeed = initialSpeed;
+        this.initialAgility = initialAgility;
         this.initialTeamwork = initialTeamwork;
-        this.initialCreativity = initialCreativity;
-        this.initialProblemSolving = initialProblemSolving;
+        this.initialMana = initialMana;
+        this.initialHealth = initialHealth;
         this.passwordChanged = passwordChanged;
     }
 
@@ -103,10 +103,10 @@ public class User extends BaseEntity {
             String biography,
             Integer initialAttack,
             Integer initialDefense,
-            Integer initialSpeed,
+            Integer initialAgility,
             Integer initialTeamwork,
-            Integer initialCreativity,
-            Integer initialProblemSolving,
+            Integer initialMana,
+            Integer initialHealth,
             boolean passwordChanged
     ) {
         return new User(
@@ -117,10 +117,10 @@ public class User extends BaseEntity {
                 biography,
                 initialAttack,
                 initialDefense,
-                initialSpeed,
+                initialAgility,
                 initialTeamwork,
-                initialCreativity,
-                initialProblemSolving,
+                initialMana,
+                initialHealth,
                 passwordChanged
         );
     }
@@ -137,17 +137,17 @@ public class User extends BaseEntity {
     public void updateInitialStats(
             Integer initialAttack,
             Integer initialDefense,
-            Integer initialSpeed,
+            Integer initialAgility,
             Integer initialTeamwork,
-            Integer initialCreativity,
-            Integer initialProblemSolving
+            Integer initialMana,
+            Integer initialHealth
     ) {
         this.initialAttack = initialAttack;
         this.initialDefense = initialDefense;
-        this.initialSpeed = initialSpeed;
+        this.initialAgility = initialAgility;
         this.initialTeamwork = initialTeamwork;
-        this.initialCreativity = initialCreativity;
-        this.initialProblemSolving = initialProblemSolving;
+        this.initialMana = initialMana;
+        this.initialHealth = initialHealth;
     }
 
     public void changePassword(String passwordHash) {

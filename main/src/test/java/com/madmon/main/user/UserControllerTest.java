@@ -127,10 +127,10 @@ class UserControllerTest {
         UserStats stats = userStatsRepository.findById(user.getId()).orElseThrow();
         assertEquals(0, BigDecimal.valueOf(5).compareTo(stats.getAttackScore()));
         assertEquals(0, BigDecimal.valueOf(6).compareTo(stats.getDefenseScore()));
-        assertEquals(0, BigDecimal.valueOf(7).compareTo(stats.getSpeedScore()));
+        assertEquals(0, BigDecimal.valueOf(7).compareTo(stats.getAgilityScore()));
         assertEquals(0, BigDecimal.valueOf(8).compareTo(stats.getTeamworkScore()));
-        assertEquals(0, BigDecimal.valueOf(9).compareTo(stats.getCreativityScore()));
-        assertEquals(0, BigDecimal.valueOf(10).compareTo(stats.getProblemSolvingScore()));
+        assertEquals(0, BigDecimal.valueOf(9).compareTo(stats.getManaScore()));
+        assertEquals(0, BigDecimal.valueOf(10).compareTo(stats.getHealthScore()));
         assertEquals(0, stats.getEvaluationCount());
     }
 
@@ -189,9 +189,9 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.UNAUTHORIZED.name()));
     }
 
-    private String initialStatsBody(int attack, int defense, int speed, int teamwork, int creativity, int problemSolving) {
-        return "{\"attack\":" + attack + ",\"defense\":" + defense + ",\"speed\":" + speed
-                + ",\"teamwork\":" + teamwork + ",\"creativity\":" + creativity + ",\"problemSolving\":" + problemSolving + "}";
+    private String initialStatsBody(int attack, int defense, int agility, int teamwork, int mana, int health) {
+        return "{\"attack\":" + attack + ",\"defense\":" + defense + ",\"agility\":" + agility
+                + ",\"teamwork\":" + teamwork + ",\"mana\":" + mana + ",\"health\":" + health + "}";
     }
 
     private String login() throws Exception {

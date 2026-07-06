@@ -77,7 +77,8 @@ class ChatControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"content\":\"이 사람과 잘 맞을까요?\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.assistantMessage.content").value("컨트롤러 테스트 응답"));
+                .andExpect(jsonPath("$.data.content").value("컨트롤러 테스트 응답"))
+                .andExpect(jsonPath("$.data.role").value("ASSISTANT"));
     }
 
     @Test

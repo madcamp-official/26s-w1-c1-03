@@ -50,10 +50,10 @@ public class UserService {
         user.updateInitialStats(
                 request.attack(),
                 request.defense(),
-                request.speed(),
+                request.agility(),
                 request.teamwork(),
-                request.creativity(),
-                request.problemSolving()
+                request.mana(),
+                request.health()
         );
 
         UserStats stats = userStatsRepository.save(UserStats.createFrom(user));

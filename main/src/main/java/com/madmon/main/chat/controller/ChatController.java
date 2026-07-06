@@ -1,11 +1,11 @@
 package com.madmon.main.chat.controller;
 
 import com.madmon.main.auth.jwt.AuthenticatedUser;
+import com.madmon.main.chat.dto.ChatMessageResponse;
 import com.madmon.main.chat.dto.ChatSessionDetailResponse;
 import com.madmon.main.chat.dto.ChatSessionResponse;
 import com.madmon.main.chat.dto.CreateSessionRequest;
 import com.madmon.main.chat.dto.SendMessageRequest;
-import com.madmon.main.chat.dto.SendMessageResponse;
 import com.madmon.main.chat.service.ChatService;
 import com.madmon.main.common.response.ApiResponse;
 import jakarta.validation.Valid;
@@ -48,7 +48,7 @@ public class ChatController {
     }
 
     @PostMapping("/{sessionId}/messages")
-    public ApiResponse<SendMessageResponse> sendMessage(
+    public ApiResponse<ChatMessageResponse> sendMessage(
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @PathVariable Long sessionId,
             @Valid @RequestBody SendMessageRequest request

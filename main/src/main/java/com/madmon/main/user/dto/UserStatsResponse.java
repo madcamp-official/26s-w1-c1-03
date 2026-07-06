@@ -6,10 +6,10 @@ import java.math.BigDecimal;
 public record UserStatsResponse(
         BigDecimal attack,
         BigDecimal defense,
-        BigDecimal speed,
+        BigDecimal agility,
         BigDecimal teamwork,
-        BigDecimal creativity,
-        BigDecimal problemSolving,
+        BigDecimal mana,
+        BigDecimal health,
         int evaluationCount
 ) {
 
@@ -17,10 +17,10 @@ public record UserStatsResponse(
         return new UserStatsResponse(
                 stats.getAttackScore(),
                 stats.getDefenseScore(),
-                stats.getSpeedScore(),
+                stats.getAgilityScore(),
                 stats.getTeamworkScore(),
-                stats.getCreativityScore(),
-                stats.getProblemSolvingScore(),
+                stats.getManaScore(),
+                stats.getHealthScore(),
                 stats.getEvaluationCount()
         );
     }

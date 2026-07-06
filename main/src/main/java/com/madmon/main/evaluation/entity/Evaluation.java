@@ -34,8 +34,8 @@ import org.hibernate.annotations.Check;
                 @Index(name = "idx_evaluations_target_id", columnList = "target_id")
         }
 )
-@Check(constraints = "attack BETWEEN 1 AND 10 AND defense BETWEEN 1 AND 10 AND speed BETWEEN 1 AND 10 "
-        + "AND teamwork BETWEEN 1 AND 10 AND creativity BETWEEN 1 AND 10 AND problem_solving BETWEEN 1 AND 10 "
+@Check(constraints = "attack BETWEEN 1 AND 10 AND defense BETWEEN 1 AND 10 AND agility BETWEEN 1 AND 10 "
+        + "AND teamwork BETWEEN 1 AND 10 AND mana BETWEEN 1 AND 10 AND health BETWEEN 1 AND 10 "
         + "AND total_score BETWEEN 6 AND 60 AND evaluator_id <> target_id")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Evaluation extends BaseCreatedAtEntity {
@@ -63,16 +63,16 @@ public class Evaluation extends BaseCreatedAtEntity {
     private int defense;
 
     @Column(nullable = false)
-    private int speed;
+    private int agility;
 
     @Column(nullable = false)
     private int teamwork;
 
     @Column(nullable = false)
-    private int creativity;
+    private int mana;
 
-    @Column(name = "problem_solving", nullable = false)
-    private int problemSolving;
+    @Column(name = "health", nullable = false)
+    private int health;
 
     @Column(name = "total_score", nullable = false)
     private int totalScore;
@@ -83,21 +83,21 @@ public class Evaluation extends BaseCreatedAtEntity {
             User target,
             int attack,
             int defense,
-            int speed,
+            int agility,
             int teamwork,
-            int creativity,
-            int problemSolving
+            int mana,
+            int health
     ) {
         this.team = team;
         this.evaluator = evaluator;
         this.target = target;
         this.attack = attack;
         this.defense = defense;
-        this.speed = speed;
+        this.agility = agility;
         this.teamwork = teamwork;
-        this.creativity = creativity;
-        this.problemSolving = problemSolving;
-        this.totalScore = attack + defense + speed + teamwork + creativity + problemSolving;
+        this.mana = mana;
+        this.health = health;
+        this.totalScore = attack + defense + agility + teamwork + mana + health;
     }
 
     public static Evaluation create(
@@ -106,11 +106,11 @@ public class Evaluation extends BaseCreatedAtEntity {
             User target,
             int attack,
             int defense,
-            int speed,
+            int agility,
             int teamwork,
-            int creativity,
-            int problemSolving
+            int mana,
+            int health
     ) {
-        return new Evaluation(team, evaluator, target, attack, defense, speed, teamwork, creativity, problemSolving);
+        return new Evaluation(team, evaluator, target, attack, defense, agility, teamwork, mana, health);
     }
 }
