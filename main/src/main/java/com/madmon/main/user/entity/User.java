@@ -125,9 +125,16 @@ public class User extends BaseEntity {
         );
     }
 
+    // PATCH /users/me는 부분 수정을 의도하므로, 요청에 값이 없는(null) 필드는 기존 값을
+    // 유지한다. 그렇지 않으면 자기소개만 수정하는 요청이 방금 업로드한 프로필 사진 URL을
+    // null로 덮어써버리는 문제가 생긴다.
     public void updateProfile(String profileImageUrl, String biography) {
-        this.profileImageUrl = profileImageUrl;
-        this.biography = biography;
+        if (profileImageUrl != null) {
+            this.profileImageUrl = profileImageUrl;
+        }
+        if (biography != null) {
+            this.biography = biography;
+        }
     }
 
     public void updateProfileImage(String profileImageUrl) {
