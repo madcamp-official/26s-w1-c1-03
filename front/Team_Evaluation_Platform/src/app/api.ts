@@ -199,6 +199,7 @@ export interface TeamSummaryDto {
   ownerId: number;
   ownerName: string;
   memberCount: number;
+  projectDeadline: string;
 }
 
 export interface TeamDetailDto {
@@ -214,8 +215,8 @@ export function getTeam(teamId: number): Promise<TeamDetailDto> {
   return request<TeamDetailDto>(`/teams/${teamId}`, { method: "GET" });
 }
 
-export function createTeam(name: string): Promise<TeamSummaryDto> {
-  return request<TeamSummaryDto>("/teams", { method: "POST", body: JSON.stringify({ name }) });
+export function createTeam(name: string, projectDeadline: string): Promise<TeamSummaryDto> {
+  return request<TeamSummaryDto>("/teams", { method: "POST", body: JSON.stringify({ name, projectDeadline }) });
 }
 
 export function joinTeam(inviteCode: string): Promise<TeamSummaryDto> {

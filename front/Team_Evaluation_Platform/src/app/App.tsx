@@ -17,7 +17,7 @@ import {
   listTitles, listEvaluationTargets, submitEvaluation,
   listCards, getCard,
   createChatSession, sendChatMessage,
-  type CardSummaryDto, type CardDetailDto, type TeamDetailDto, type TitleDto, type UserProfileDto,
+  type CardSummaryDto, type CardDetailDto, type TeamDetailDto, type TeamSummaryDto, type TitleDto, type UserProfileDto,
   type EvaluationTargetDto,
 } from "./api";
 
@@ -70,6 +70,29 @@ function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
   if (e.currentTarget.src !== FALLBACK_AVATAR) e.currentTarget.src = FALLBACK_AVATAR;
 }
 
+// navigator.clipboard.writeText는 비보안 컨텍스트/포커스 상실 등에서 조용히 reject될 수 있어,
+// 성공 여부를 실제로 확인하고 실패 시 구형 execCommand 방식으로 한 번 더 시도한다.
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
 // StorageService(백엔드) 검증 규칙과 동일하게 클라이언트에서도 먼저 걸러준다.
 const ALLOWED_IMAGE_TYPES = ["image/png","image/jpeg","image/webp"];
 const MAX_IMAGE_SIZE_BYTES = 5*1024*1024;
@@ -97,6 +120,11 @@ function rarityFromPower(power: number): Rarity {
   if (power>=70) return "epic";
   if (power>=55) return "rare";
   return "common";
+}
+// 잠긴 카드는 stats가 null로 내려오므로(등급을 매길 근거가 없음), 그 경우 null을 반환한다.
+function rarityFromCardStats(stats: CardSummaryDto["stats"] | null): Rarity | null {
+  if (!stats) return null;
+  return rarityFromPower(totalPower(dtoStatsToStats(stats)));
 }
 // 카드 도감(목록/상세) API 응답을 기존 화면 컴포넌트가 쓰는 User 모양으로 변환한다.
 function cardToUser(c: CardSummaryDto | CardDetailDto): User {
@@ -177,9 +205,9 @@ function Btn({ children, variant="primary", onClick, disabled=false, size="md", 
   );
 }
 
-function Field({ label, type="text", value, onChange, placeholder, error, right, autoComplete }: {
+function Field({ label, type="text", value, onChange, placeholder, error, right, autoComplete, min }: {
   label?: string; type?: string; value: string; onChange: (v:string)=>void;
-  placeholder?: string; error?: string; right?: React.ReactNode; autoComplete?: string;
+  placeholder?: string; error?: string; right?: React.ReactNode; autoComplete?: string; min?: string;
 }) {
   const [show, setShow] = useState(false);
   const isPass = type === "password";
@@ -193,6 +221,7 @@ function Field({ label, type="text", value, onChange, placeholder, error, right,
           onChange={e=>onChange(e.target.value)}
           placeholder={placeholder}
           autoComplete={autoComplete}
+          min={min}
           style={{ ...DS.input, width:"100%", padding:"11px 14px", paddingRight: isPass||right ? 42 : 14, boxSizing:"border-box", fontSize:14 }}
         />
         {isPass && (
@@ -939,34 +968,65 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
 }
 
 // ─── Teams Screen ─────────────────────────────────────────────────────────────
+function formatDeadline(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n:number)=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// <input type="datetime-local"> min 속성 및 유효성 검사에 쓸, 로컬 타임존 기준 "지금"을 만든다.
+function nowForDatetimeLocal(): string {
+  const d = new Date();
+  d.setSeconds(0,0);
+  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+}
+
 function TeamsScreen() {
   const [tab, setTab] = useState<"list"|"create"|"join">("list");
   const [myTeams, setMyTeams] = useState<TeamDetailDto[]|null>(null);
+  const [rarityMap, setRarityMap] = useState<Record<number, Rarity|null>>({});
+  const [evalTargets, setEvalTargets] = useState<EvaluationTargetDto[]>([]);
   const [tname, setTname] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [deadlineError, setDeadlineError] = useState("");
   const [code, setCode] = useState("");
   const [created, setCreated] = useState<string|null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string|null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function loadTeams() {
     try {
-      const summaries = await listMyTeams();
+      const [summaries, cards, targets] = await Promise.all([
+        listMyTeams(), listCards(), listEvaluationTargets().catch(()=>[] as EvaluationTargetDto[]),
+      ]);
       const details = await Promise.all(summaries.map(t=>getTeam(t.id)));
       setMyTeams(details);
+      setRarityMap(Object.fromEntries(cards.map(c=>[c.userId, rarityFromCardStats(c.stats)])));
+      setEvalTargets(targets);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "팀 목록을 불러오지 못했습니다.");
     }
   }
   useEffect(()=>{ loadTeams(); },[]);
 
+  function teamStatus(team: TeamSummaryDto): "done"|"pending" {
+    if (new Date(team.projectDeadline).getTime() > Date.now()) return "pending";
+    const mine = evalTargets.filter(t=>t.teamId===team.id);
+    return (mine.length===0 || mine.every(t=>t.alreadyEvaluated)) ? "done" : "pending";
+  }
+
   async function create() {
     if (!tname) return;
-    setError(""); setBusy(true);
+    const deadlineMs = new Date(deadline).getTime();
+    if (!deadline || isNaN(deadlineMs) || deadlineMs <= Date.now()) {
+      setDeadlineError("유효한 기한을 입력해주세요.");
+      return;
+    }
+    setDeadlineError(""); setError(""); setBusy(true);
     try {
-      const team = await createTeam(tname);
+      const team = await createTeam(tname, new Date(deadline).toISOString());
       setCreated(team.inviteCode);
-      setTname("");
+      setTname(""); setDeadline("");
       loadTeams();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "팀 생성 중 오류가 발생했습니다.");
@@ -986,7 +1046,12 @@ function TeamsScreen() {
       setBusy(false);
     }
   }
-  function copy(c:string){navigator.clipboard.writeText(c);setCopied(true);setTimeout(()=>setCopied(false),2000);}
+  async function copy(key:string, text:string) {
+    const ok = await copyToClipboard(text);
+    if (!ok) { setError("클립보드 복사에 실패했습니다."); return; }
+    setCopiedKey(key);
+    setTimeout(()=>setCopiedKey(k=>k===key?null:k), 2000);
+  }
 
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
@@ -1004,30 +1069,42 @@ function TeamsScreen() {
           <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>아직 소속된 팀이 없습니다. 팀을 만들거나 초대 코드로 참여해보세요.</p>
         ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          {myTeams.map(({team, members})=>(
+          {myTeams.map(({team, members})=>{
+            const status = teamStatus(team);
+            const teamKey = String(team.id);
+            return (
             <div key={team.id} style={{ ...DS.card, padding:"18px 20px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-                <div>
-                  <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{team.name}</div>
-                  <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>멤버 {team.memberCount}명 · 팀장 {team.ownerName}</div>
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
-                  <Hash size={9}/>{team.inviteCode}
-                  <button onClick={()=>copy(team.inviteCode)} style={{background:"none",border:"none",color:"#4a5a7a",cursor:"pointer",padding:2}}><Copy size={10}/></button>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{team.name}</div>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
+                  <Pill label={status==="done"?"완료됨":"진행 중"} color={status==="done"?"#34d399":"#00c8ff"} small/>
+                  <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:"#8899bb", fontFamily:"'Orbitron',monospace" }}>
+                    <Hash size={9}/>{team.inviteCode}
+                    <button onClick={()=>copy(teamKey,team.inviteCode)} title="초대 코드 복사" style={{ background:"none", border:"none", color:copiedKey===teamKey?"#34d399":"#8899bb", cursor:"pointer", padding:2, display:"flex", alignItems:"center" }}>
+                      {copiedKey===teamKey ? <Check size={11}/> : <Copy size={11}/>}
+                    </button>
+                  </div>
                 </div>
               </div>
+              <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:2 }}>멤버 {team.memberCount}명</div>
+              <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:14 }}>마감 {formatDeadline(team.projectDeadline)}</div>
               <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                {members.map(m=>(
-                  <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                    <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff" }}>
-                      <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                {members.map(m=>{
+                  const rarity = rarityMap[m.userId];
+                  const borderColor = rarity ? RARITY[rarity].color : "#4a5a7a";
+                  return (
+                    <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                      <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:`2px solid ${borderColor}` }}>
+                        <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                      </div>
+                      <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{m.name}</span>
                     </div>
-                    <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{m.name}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         )
       )}
@@ -1035,14 +1112,15 @@ function TeamsScreen() {
         <div style={{ ...DS.card, padding:"24px", maxWidth:420 }}>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <Field label="팀 이름" value={tname} onChange={setTname} placeholder="예) 감마팀"/>
+            <Field label="프로젝트 마감기한" type="datetime-local" value={deadline} min={nowForDatetimeLocal()} onChange={v=>{setDeadline(v);setDeadlineError("");}} error={deadlineError||undefined}/>
             <Btn icon={<Plus size={13}/>} onClick={create} disabled={busy}>{busy?"생성 중...":"팀 생성"}</Btn>
             {created && (
               <div style={{ padding:"16px", borderRadius:10, background:"rgba(52,211,153,0.06)", border:"1px solid rgba(52,211,153,0.25)" }}>
                 <p style={{ fontSize:12, color:"#34d399", fontFamily:"'Noto Sans KR'", marginBottom:8 }}>✓ 팀이 생성되었습니다! 초대 코드를 공유하세요.</p>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <span style={{ fontSize:24, fontFamily:"'Orbitron',monospace", color:"#34d399", fontWeight:700, letterSpacing:"0.15em" }}>{created}</span>
-                  <button onClick={()=>copy(created)} style={{ padding:"6px 12px", borderRadius:8, background:"rgba(52,211,153,0.15)", color:"#34d399", border:"1px solid rgba(52,211,153,0.3)", cursor:"pointer", fontSize:12, fontFamily:"'Noto Sans KR'", display:"flex", alignItems:"center", gap:5 }}>
-                    {copied?<Check size={12}/>:<Copy size={12}/>}{copied?"복사됨":"복사"}
+                  <button onClick={()=>copy("created",created)} style={{ padding:"6px 12px", borderRadius:8, background:"rgba(52,211,153,0.15)", color:"#34d399", border:"1px solid rgba(52,211,153,0.3)", cursor:"pointer", fontSize:12, fontFamily:"'Noto Sans KR'", display:"flex", alignItems:"center", gap:5 }}>
+                    {copiedKey==="created"?<Check size={12}/>:<Copy size={12}/>}{copiedKey==="created"?"복사됨":"복사"}
                   </button>
                 </div>
               </div>
