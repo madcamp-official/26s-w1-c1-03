@@ -18,6 +18,7 @@ import {
   listCards, getCard,
   createChatSession, sendChatMessage,
   type CardSummaryDto, type CardDetailDto, type TeamDetailDto, type TitleDto, type UserProfileDto,
+  type EvaluationTargetDto,
 } from "./api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -326,7 +327,7 @@ function BigHex({ stats, size=260, users, colors }: { stats?:Stats; size?:number
   return (
     <div style={{ width:"100%", height:size }}>
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} outerRadius="65%" margin={{top:10,right:25,bottom:10,left:25}}>
+        <RadarChart data={data} outerRadius="58%" margin={{top:20,right:25,bottom:20,left:25}}>
           <PolarGrid stroke="rgba(0,200,255,0.15)"/>
           <PolarAngleAxis dataKey="stat" tick={{fill:"#8899bb",fontSize:12,fontFamily:"'Noto Sans KR'"}}/>
           {stats && <Radar dataKey="value" stroke="#00c8ff" fill="#00c8ff" fillOpacity={0.22} dot={{fill:"#00c8ff",r:3}}/>}
@@ -555,7 +556,7 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
             <Lock size={16} style={{color:"#a855f7"}}/>
           </div>
           <div>
-            <h2 style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>비밀번호 변경</h2>
+            <h2 style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>비밀번호 변경</h2>
             <p style={{ fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>최초 로그인 시 비밀번호를 변경해주세요</p>
           </div>
         </div>
@@ -781,7 +782,7 @@ function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen
             <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:12, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{me?.name ?? "..."}</div>
+            <div style={{ fontSize:12, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{me?.name ?? "..."}</div>
           </div>
           <button onClick={onLogout} style={{ background:"none", border:"none", color:"#4a5a7a", cursor:"pointer", padding:4 }} title="로그아웃"><LogOut size={13}/></button>
         </div>
@@ -887,9 +888,12 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
             }}><ArrowUpDown size={10}/>능력치{sort==="stat" && `: ${STATS.find(s=>s.key===sortStat)?.label}`}</button>
             {statMenuOpen && (
               <div style={{
-                position:"absolute", top:"100%", left:0, marginTop:4, zIndex:70,
+                position:"absolute", top:"100%", left:0, paddingTop:4, zIndex:70,
+                display:"flex", flexDirection:"column", minWidth:110,
+              }}>
+              <div style={{
                 background:"#0e1526", border:"1px solid rgba(168,85,247,0.25)", borderRadius:9,
-                boxShadow:"0 10px 30px rgba(0,0,0,0.5)", padding:4, display:"flex", flexDirection:"column", minWidth:110,
+                boxShadow:"0 10px 30px rgba(0,0,0,0.5)", padding:4, display:"flex", flexDirection:"column",
               }}>
                 {STATS.map(s=>(
                   <button key={s.key} onClick={()=>{setSort("stat");setSortStat(s.key);setStatMenuOpen(false);}} style={{
@@ -898,6 +902,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
                     color:sort==="stat"&&sortStat===s.key?"#a855f7":"#c7d2e6", border:"none", cursor:"pointer", textAlign:"left",
                   }}><s.Icon size={11} style={{color:s.color}}/>{s.label}</button>
                 ))}
+              </div>
               </div>
             )}
           </div>
@@ -985,7 +990,7 @@ function TeamsScreen() {
 
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
-      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:20 }}>팀 관리</h1>
+      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:20 }}>팀 관리</h1>
       {error && <p style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'", marginBottom:14 }}>{error}</p>}
       <div style={{ display:"flex", gap:6, marginBottom:24 }}>
         {[{k:"list",l:"내 팀",Icon:Users},{k:"create",l:"팀 만들기",Icon:Plus},{k:"join",l:"팀 참여",Icon:UserPlus}].map(({k,l,Icon})=>(
@@ -1003,7 +1008,7 @@ function TeamsScreen() {
             <div key={team.id} style={{ ...DS.card, padding:"18px 20px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
                 <div>
-                  <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>{team.name}</div>
+                  <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{team.name}</div>
                   <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>멤버 {team.memberCount}명 · 팀장 {team.ownerName}</div>
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
@@ -1063,9 +1068,7 @@ function TeamsScreen() {
 
 // ─── Evaluate Screen ──────────────────────────────────────────────────────────
 function EvaluateScreen({ onDone }: { onDone:()=>void }) {
-  const [teamId, setTeamId] = useState<number|null>(null);
-  const [teamName, setTeamName] = useState("");
-  const [teammates, setTeammates] = useState<{userId:number;name:string;profileImageUrl:string|null}[]|null>(null);
+  const [teammates, setTeammates] = useState<EvaluationTargetDto[]|null>(null);
   const [titleOptions, setTitleOptions] = useState<TitleDto[]|null>(null);
   const [error, setError] = useState("");
   const [ratings, setRatings] = useState<Record<number,Partial<Stats>>>({});
@@ -1076,29 +1079,32 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
   useEffect(()=>{
     (async () => {
       try {
-        const teams = await listMyTeams();
-        const team = teams[0];
-        if (!team) { setTeammates([]); return; }
-        setTeamId(team.id); setTeamName(team.name);
-        const [targets, titleList] = await Promise.all([listEvaluationTargets(team.id), listTitles()]);
+        const [targets, titleList] = await Promise.all([listEvaluationTargets(), listTitles()]);
         setTeammates(targets);
         setTitleOptions(titleList);
         setRatings(Object.fromEntries(targets.map(t=>[t.userId,{attack:5,defense:5,agility:5,teamwork:5,health:5,mana:5}])));
+        setDone(targets.filter(t=>t.alreadyEvaluated).map(t=>t.userId));
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "평가 대상자를 불러오지 못했습니다.");
       }
     })();
   },[]);
 
+  const teamName = teammates && teammates.length>0
+    ? Array.from(new Set(teammates.map(t=>t.teamName))).join(", ")
+    : "";
+
   function setR(uid:number,key:string,v:number){setRatings(p=>({...p,[uid]:{...p[uid],[key]:v}}))}
 
   async function submit(uid:number) {
     const titleId = titles[uid];
-    if (!titleId || teamId===null) return;
+    const target = teammates?.find(t=>t.userId===uid);
+    if (!titleId || !target) return;
     const r = ratings[uid] ?? {};
     setSubmitting(uid); setError("");
     try {
-      await submitEvaluation(teamId, {
+      await submitEvaluation({
+        teamId: target.teamId,
         targetUserId: uid,
         attack: r.attack??5, defense: r.defense??5, agility: r.agility??5,
         teamwork: r.teamwork??5, mana: r.mana??5, health: r.health??5,
@@ -1132,7 +1138,7 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
       <div style={{ marginBottom:20 }}>
-        <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:4 }}>팀원 평가</h1>
+        <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:4 }}>팀원 평가</h1>
         <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:12 }}>{teamName} — 프로젝트 종료 후 평가</p>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ flex:1 }}><Progress value={progress} color={progress===100?"#34d399":"#00c8ff"}/></div>
@@ -1157,7 +1163,7 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
               <div style={{ padding:"14px 18px", background:isDone?"rgba(52,211,153,0.04)":"rgba(255,255,255,0.01)", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ width:40, height:40, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff", flexShrink:0 }}><img src={u.profileImageUrl || FALLBACK_AVATAR} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#00c8ff" }}>{u.name}</div>
+                  <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#00c8ff" }}>{u.name}</div>
                 </div>
                 {isDone && <Pill label="✓ 완료" color="#34d399" small/>}
               </div>
@@ -1263,7 +1269,7 @@ function AIScreen() {
             <div key={u.id} onClick={()=>toggleSel(u.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.02)", border:`1px solid ${sel?r.border:"rgba(255,255,255,0.06)"}`, transition:"all 0.15s" }}>
               <div style={{ width:28, height:28, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?r.color:"transparent"}`, flexShrink:0 }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:11, fontWeight:700, fontFamily:"'Black Han Sans'", color:sel?r.color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name}</div>
+                <div style={{ fontSize:11, fontWeight:700, fontFamily:"'Noto Sans KR'", color:sel?r.color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name}</div>
               </div>
               {sel && <Check size={11} style={{color:r.color,flexShrink:0}}/>}
             </div>
@@ -1275,7 +1281,7 @@ function AIScreen() {
         <div style={{ padding:"16px 20px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ width:28, height:28, borderRadius:8, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}><Bot size={14} style={{color:"#a855f7"}}/></div>
           <div>
-            <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>AI 팀 분석</div>
+            <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>AI 팀 분석</div>
             <div style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{selUsers.length}명 선택됨</div>
           </div>
         </div>
@@ -1311,7 +1317,7 @@ function AIScreen() {
         </div>
         {/* Input */}
         <div style={{ padding:"12px 20px 20px", display:"flex", gap:8 }}>
-          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}}} placeholder="질문을 입력하세요..." style={{ ...DS.input, flex:1, padding:"11px 14px", fontSize:13 }}/>
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}}} placeholder="질문을 입력하세요" style={{ ...DS.input, flex:1, padding:"11px 14px", fontSize:13 }}/>
           <button onClick={()=>send(input)} disabled={!input.trim()||typing} style={{ width:42, height:42, borderRadius:10, background:input.trim()&&!typing?"linear-gradient(135deg,#00c8ff,#0080b0)":"rgba(255,255,255,0.05)", color:input.trim()&&!typing?"#060c18":"#4a5a7a", border:"none", cursor:input.trim()&&!typing?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Send size={16}/></button>
         </div>
       </div>
@@ -1340,7 +1346,7 @@ function CompareScreen() {
 
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
-      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:20 }}>카드 비교</h1>
+      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:20 }}>카드 비교</h1>
       {/* User selector */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:20 }}>
         {cards.map(u=>{
@@ -1349,7 +1355,7 @@ function CompareScreen() {
           return (
             <button key={u.id} onClick={()=>toggle(u.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.03)", border:`1.5px solid ${sel?(colors[ci]??r.color):"rgba(255,255,255,0.07)"}`, transition:"all 0.15s" }}>
               <div style={{ width:22, height:22, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?(colors[ci]??r.color):"transparent"}` }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
-              <span style={{ fontSize:12, fontFamily:"'Black Han Sans'", color:sel?(colors[ci]??r.color):"#8899bb" }}>{u.name}</span>
+              <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Noto Sans KR'", color:sel?(colors[ci]??r.color):"#8899bb" }}>{u.name}</span>
               {sel && <div style={{ width:8, height:8, borderRadius:999, background:colors[ci]??r.color }}/>}
             </button>
           );
@@ -1373,7 +1379,7 @@ function CompareScreen() {
           </div>
           {/* Radar comparison */}
           <div style={{ ...DS.card, padding:"20px" }}>
-            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:12 }}>능력치 비교</h3>
+            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:12 }}>능력치 비교</h3>
             <BigHex users={selUsers} size={280} colors={colors}/>
             {/* Stat table */}
             <div style={{ marginTop:16, overflowX:"auto" }}>
@@ -1381,7 +1387,7 @@ function CompareScreen() {
                 <thead>
                   <tr>
                     <th style={{ textAlign:"left", padding:"6px 8px", color:"#4a5a7a", fontWeight:400 }}>능력치</th>
-                    {selUsers.map((u,i)=><th key={u.id} style={{ textAlign:"center", padding:"6px 8px", color:colors[i], fontFamily:"'Black Han Sans'" }}>{u.name}</th>)}
+                    {selUsers.map((u,i)=><th key={u.id} style={{ textAlign:"center", padding:"6px 8px", color:colors[i], fontWeight:700, fontFamily:"'Noto Sans KR'" }}>{u.name}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -1469,7 +1475,7 @@ function ProfileScreen() {
   const u = card; const r = RARITY[u.rarity];
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
-      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:24 }}>내 프로필</h1>
+      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:24 }}>내 프로필</h1>
       <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
         {/* Left: card preview */}
         <div style={{ display:"flex", flexDirection:"column", gap:14, alignItems:"flex-start" }}>
@@ -1480,7 +1486,7 @@ function ProfileScreen() {
         {/* Right: edit */}
         <div style={{ flex:1, minWidth:280, display:"flex", flexDirection:"column", gap:16 }}>
           <div style={{ ...DS.card, padding:"20px" }}>
-            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:14 }}>프로필 수정</h3>
+            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:14 }}>프로필 수정</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
               {/* Photo */}
               <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -1502,7 +1508,7 @@ function ProfileScreen() {
           </div>
           {/* Stats overview */}
           <div style={{ ...DS.card, padding:"20px" }}>
-            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:12 }}>초기 능력치 현황</h3>
+            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:12 }}>초기 능력치</h3>
             <BigHex stats={u.stats} size={220}/>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 16px", marginTop:8 }}>
               {STATS.map(s=>(
@@ -1516,7 +1522,7 @@ function ProfileScreen() {
           </div>
           {/* Titles */}
           <div style={{ ...DS.card, padding:"20px" }}>
-            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:12 }}>받은 칭호</h3>
+            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:12 }}>받은 칭호</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               {u.titleVotes.map(tv=>(
                 <div key={tv.title} style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
