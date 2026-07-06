@@ -22,3 +22,7 @@ app:
     url: ${SUPABASE_STORAGE_URL}
     service-role-key: ${SUPABASE_SERVICE_ROLE_KEY}
     bucket: ${SUPABASE_STORAGE_BUCKET:profile-images}
+  openai:
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    api-key: ${OPENAI_API_KEY}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
