@@ -49,14 +49,10 @@ public class TeamMember {
     @Column(name = "left_at")
     private Instant leftAt;
 
-    @Column(name = "project_finished", nullable = false)
-    private boolean projectFinished;
-
     private TeamMember(Team team, User user) {
         this.team = team;
         this.user = user;
         this.joinedAt = Instant.now();
-        this.projectFinished = false;
     }
 
     public static TeamMember join(Team team, User user) {
@@ -72,7 +68,12 @@ public class TeamMember {
         this.joinedAt = Instant.now();
     }
 
-    public void markProjectFinished() {
-        this.projectFinished = true;
+    // 마감기한이 지났고(now >= project_deadline), 그 이전에 합류한 멤버십만 평가 대상으로 본다.
+    // 마감 이후에 새로 합류한 사람은 해당 프로젝트 기간에 속하지 않았으므로 제외한다.
+    public boolean isEvaluationEligible() {
+        Instant deadline = team.getProjectDeadline();
+        boolean deadlinePassed = !Instant.now().isBefore(deadline);
+        boolean joinedBeforeDeadline = !joinedAt.isAfter(deadline);
+        return deadlinePassed && joinedBeforeDeadline;
     }
 }

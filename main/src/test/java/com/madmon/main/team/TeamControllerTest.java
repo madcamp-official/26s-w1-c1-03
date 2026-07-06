@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -12,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.madmon.main.common.exception.ErrorCode;
 import com.madmon.main.user.entity.User;
 import com.madmon.main.user.repository.UserRepository;
+import java.time.Instant;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,7 +58,7 @@ class TeamControllerTest {
         mockMvc.perform(post("/api/teams")
                         .header("Authorization", "Bearer " + login("2027001"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Alpha Team\"}"))
+                        .content(createTeamJson("Alpha Team")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.name").value("Alpha Team"))
                 .andExpect(jsonPath("$.data.ownerName").value("user-2027001"))
@@ -71,7 +71,7 @@ class TeamControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/teams")
                         .header("Authorization", "Bearer " + login("2027001"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Beta Team\"}"))
+                        .content(createTeamJson("Beta Team")))
                 .andReturn();
         String inviteCode = extract(INVITE_CODE_PATTERN, createResult.getResponse().getContentAsString());
 
@@ -98,7 +98,7 @@ class TeamControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/teams")
                         .header("Authorization", "Bearer " + login("2027001"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Gamma Team\"}"))
+                        .content(createTeamJson("Gamma Team")))
                 .andReturn();
         String inviteCode = extract(INVITE_CODE_PATTERN, createResult.getResponse().getContentAsString());
 
@@ -115,7 +115,7 @@ class TeamControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/teams")
                         .header("Authorization", "Bearer " + login("2027001"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Delta Team\"}"))
+                        .content(createTeamJson("Delta Team")))
                 .andReturn();
         String inviteCode = extract(INVITE_CODE_PATTERN, createResult.getResponse().getContentAsString());
         String memberToken = login("2027002");
@@ -148,11 +148,11 @@ class TeamControllerTest {
         String tokenB = login("2027002");
 
         mockMvc.perform(post("/api/teams").header("Authorization", "Bearer " + tokenA)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Team1\"}"));
+                        .contentType(MediaType.APPLICATION_JSON).content(createTeamJson("Team1")));
         mockMvc.perform(post("/api/teams").header("Authorization", "Bearer " + tokenA)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Team2\"}"));
+                        .contentType(MediaType.APPLICATION_JSON).content(createTeamJson("Team2")));
         mockMvc.perform(post("/api/teams").header("Authorization", "Bearer " + tokenB)
-                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Team3\"}"));
+                        .contentType(MediaType.APPLICATION_JSON).content(createTeamJson("Team3")));
 
         mockMvc.perform(get("/api/teams").header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isOk())
@@ -164,7 +164,7 @@ class TeamControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/teams")
                         .header("Authorization", "Bearer " + login("2027001"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Epsilon Team\"}"))
+                        .content(createTeamJson("Epsilon Team")))
                 .andReturn();
         Long teamId = extractTeamId(createResult.getResponse().getContentAsString());
 
@@ -178,7 +178,7 @@ class TeamControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/teams")
                         .header("Authorization", "Bearer " + login("2027001"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Zeta Team\"}"))
+                        .content(createTeamJson("Zeta Team")))
                 .andReturn();
         Long teamId = extractTeamId(createResult.getResponse().getContentAsString());
 
@@ -197,42 +197,16 @@ class TeamControllerTest {
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.UNAUTHORIZED.name()));
     }
 
-    @Test
-    void 팀장이_아니면_프로젝트_종료를_할_수_없다() throws Exception {
-        MvcResult createResult = mockMvc.perform(post("/api/teams")
-                        .header("Authorization", "Bearer " + login("2027001"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Eta Team\"}"))
-                .andReturn();
-        Long teamId = extractTeamId(createResult.getResponse().getContentAsString());
-
-        mockMvc.perform(patch("/api/teams/" + teamId + "/finish")
-                        .header("Authorization", "Bearer " + login("2027002")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value(ErrorCode.NOT_TEAM_OWNER.name()));
-    }
-
-    @Test
-    void 팀장이_프로젝트_종료를_요청하면_성공한다() throws Exception {
-        MvcResult createResult = mockMvc.perform(post("/api/teams")
-                        .header("Authorization", "Bearer " + login("2027001"))
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"Theta Team\"}"))
-                .andReturn();
-        Long teamId = extractTeamId(createResult.getResponse().getContentAsString());
-
-        mockMvc.perform(patch("/api/teams/" + teamId + "/finish")
-                        .header("Authorization", "Bearer " + login("2027001")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-    }
-
     private Long extractTeamId(String json) {
         Matcher matcher = Pattern.compile("\"id\":(\\d+)").matcher(json);
         if (!matcher.find()) {
             throw new IllegalStateException("응답에서 팀 id를 찾을 수 없습니다: " + json);
         }
         return Long.valueOf(matcher.group(1));
+    }
+
+    private String createTeamJson(String name) {
+        return "{\"name\":\"" + name + "\",\"projectDeadline\":\"" + Instant.now().plusSeconds(86400) + "\"}";
     }
 
     private String extract(Pattern pattern, String content) {

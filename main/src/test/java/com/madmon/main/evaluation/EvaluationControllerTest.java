@@ -3,7 +3,6 @@ package com.madmon.main.evaluation;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -16,6 +15,7 @@ import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 class EvaluationControllerTest {
 
     private static final String RAW_PASSWORD = "initial-password";
+    private static final long DEADLINE_BUFFER_MS = 300;
     private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"accessToken\":\"([^\"]+)\"");
     private static final Pattern INVITE_CODE_PATTERN = Pattern.compile("\"inviteCode\":\"([^\"]+)\"");
     private static final Pattern ID_PATTERN = Pattern.compile("\"id\":(\\d+)");
@@ -79,7 +80,7 @@ class EvaluationControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/teams")
                         .header("Authorization", "Bearer " + evaluatorToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"평가팀\"}"))
+                        .content(createTeamJson("평가팀", Instant.now().plusMillis(DEADLINE_BUFFER_MS))))
                 .andReturn();
         String body = createResult.getResponse().getContentAsString();
         teamId = Long.valueOf(extract(ID_PATTERN, body));
@@ -95,8 +96,8 @@ class EvaluationControllerTest {
         target.updateInitialStats(5, 5, 5, 5, 5, 5);
         userStatsRepository.save(UserStats.createFrom(target));
 
-        mockMvc.perform(patch("/api/teams/" + teamId + "/finish")
-                .header("Authorization", "Bearer " + evaluatorToken));
+        // 마감기한(DEADLINE_BUFFER_MS)이 실제로 지나야 평가가 가능해지므로 그만큼 대기한다.
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
     }
 
     @Test
@@ -166,7 +167,7 @@ class EvaluationControllerTest {
         MvcResult createResult = mockMvc.perform(post("/api/teams")
                         .header("Authorization", "Bearer " + evaluatorToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"미종료팀\"}"))
+                        .content(createTeamJson("미종료팀", Instant.now().plusSeconds(86400))))
                 .andReturn();
         String body = createResult.getResponse().getContentAsString();
         Long newTeamId = Long.valueOf(extract(ID_PATTERN, body));
@@ -235,6 +236,10 @@ class EvaluationControllerTest {
                         .content(evaluationBody(5, 5, 5, 5, 5, 5, List.of())))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.UNAUTHORIZED.name()));
+    }
+
+    private String createTeamJson(String name, Instant projectDeadline) {
+        return "{\"name\":\"" + name + "\",\"projectDeadline\":\"" + projectDeadline + "\"}";
     }
 
     private Long selfId(String token) throws Exception {

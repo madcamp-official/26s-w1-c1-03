@@ -29,6 +29,7 @@ import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -103,7 +104,7 @@ class Phase3RepositoryCrudTest {
     void team_and_member_crud() {
         User owner = userRepository.save(User.create("2026002", "owner-password", "owner", null, null, 1, 1, 1, 1, 1, 1, false));
         User member = userRepository.save(User.create("2026003", "member-password", "member", null, null, 1, 1, 1, 1, 1, 1, false));
-        Team team = teamRepository.save(Team.create("Alpha Team", "A1B2C3", owner));
+        Team team = teamRepository.save(Team.create("Alpha Team", "A1B2C3", owner, Instant.now().plusSeconds(86400)));
         TeamMember teamMember = teamMemberRepository.save(TeamMember.join(team, member));
 
         assertTrue(teamRepository.findByInviteCode("A1B2C3").isPresent());
@@ -117,7 +118,7 @@ class Phase3RepositoryCrudTest {
     void evaluation_title_vote_and_title_stats_crud() {
         User evaluator = userRepository.save(User.create("2026004", "evaluator-password", "evaluator", null, null, 1, 1, 1, 1, 1, 1, false));
         User target = userRepository.save(User.create("2026005", "target-password", "target", null, null, 1, 1, 1, 1, 1, 1, false));
-        Team team = teamRepository.save(Team.create("Beta Team", "D4E5F6", evaluator));
+        Team team = teamRepository.save(Team.create("Beta Team", "D4E5F6", evaluator, Instant.now().plusSeconds(86400)));
         Title title = titleRepository.save(Title.create("프론트엔드 장인", "화면을 잘 만드는 사람", "frontend-master"));
 
         Evaluation evaluation = evaluationRepository.save(Evaluation.create(team, evaluator, target, 10, 9, 8, 7, 6, 5));

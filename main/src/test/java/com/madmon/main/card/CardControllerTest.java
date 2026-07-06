@@ -55,21 +55,21 @@ class CardControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data[0].userId").value(viewer.getId()))
                 .andExpect(jsonPath("$.data[0].name").value("카드뷰어"))
-                .andExpect(jsonPath("$.data[0].isUnlocked").value(true))
-                .andExpect(jsonPath("$.data[0].stats").exists());
+                .andExpect(jsonPath("$.data[0].isUnlocked").value(false))
+                .andExpect(jsonPath("$.data[0].stats").doesNotExist());
     }
 
     @Test
-    void 평가_대상이_없는_사용자는_카드_상세를_바로_볼_수_있다() throws Exception {
+    void 팀에_속해_있지_않으면_카드_상세도_잠긴다() throws Exception {
         User viewer = createOnboardedUser("card-ctrl-viewer2", "뷰어2");
         User target = createOnboardedUser("card-ctrl-target2", "타겟2");
 
         mockMvc.perform(get("/api/cards/" + target.getId())
                         .header("Authorization", "Bearer " + login(viewer.getUserId())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.isUnlocked").value(true))
+                .andExpect(jsonPath("$.data.isUnlocked").value(false))
                 .andExpect(jsonPath("$.data.remainingCount").value(0))
-                .andExpect(jsonPath("$.data.biography").exists());
+                .andExpect(jsonPath("$.data.biography").doesNotExist());
     }
 
     private User createOnboardedUser(String userId, String name) {
