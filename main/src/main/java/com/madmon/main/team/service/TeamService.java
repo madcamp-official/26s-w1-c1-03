@@ -79,6 +79,16 @@ public class TeamService {
     }
 
     @Transactional
+    public void finishProject(Long userId, Long teamId) {
+        Team team = getTeam(teamId);
+        if (!team.getOwner().getId().equals(userId)) {
+            throw new BusinessException(ErrorCode.NOT_TEAM_OWNER);
+        }
+        teamMemberRepository.findAllByTeamIdAndLeftAtIsNull(teamId)
+                .forEach(TeamMember::markProjectFinished);
+    }
+
+    @Transactional
     public void leaveTeam(Long userId, Long teamId) {
         TeamMember member = teamMemberRepository.findByTeamIdAndUserId(teamId, userId)
                 .filter(m -> m.getLeftAt() == null)
