@@ -374,12 +374,15 @@ erDiagram
 ### Phase 9 — Card API (도감 조회 + 잠금)
 - **목표**: 여러 도메인을 조합한 읽기 전용 카드 도감 API 완성
 - **구현 내용**:
-  - 카드 목록 조회(앞면 정보만 축약 — 잠금 여부와 무관하게 항상 노출)
-  - 카드 상세 조회(뒷면 포함) — 평가 완료 여부 판정 로직(`isUnlocked`) 적용: 사용자가 속한 `project_finished=true` 팀들의 팀원 전원에 대한 평가를 모두 제출했는지 검사
-  - 대표 칭호 계산(§3.4 로직 재사용)
-  - (선택) 이름/능력치/칭호 검색·정렬 필터
-- **완료 조건**: 평가 미완료 사용자는 카드 상세에서 잠금 응답(`isUnlocked=false` + `remainingCount`)을 받고, 완료 시 즉시 해제됨
-- **선행 작업**: Phase 8
+  - `GET /api/cards` — 카드 목록 조회. `UserStats`가 있는(=온보딩을 마친) 사용자만 노출한다. 이름/프로필/대표 칭호는 잠금과 무관하게 항상 보이지만, **능력치(`stats`)는 조회하는 사람이 자기 평가를 끝냈는지에 따라 목록의 모든 카드에 동일하게 적용**되어 잠겨 있으면 `null`로 가려진다(자기 카드 포함). 각 항목에 `isUnlocked`/`remainingCount`도 함께 내려준다.
+  - `GET /api/cards/{userId}` — 카드 상세 조회. `isUnlocked=false`일 때는 `stats`, `biography`, 전체 획득 칭호 목록(`titles`)을 모두 `null`로 가린다.
+  - 잠금 여부는 **보는 사람(viewer) 한 명당 한 번만 계산**하는 값이라(카드마다 달라지는 게 아니라 "내가 평가를 끝냈는가"이므로), 목록 조회 시 `evaluateLockStatus`를 카드 수만큼이 아니라 1회만 호출해 모든 카드에 동일하게 적용한다.
+  - 평가 완료 여부 판정(`CardService.evaluateLockStatus`): 사용자가 현재 소속(`left_at IS NULL`)하면서 `project_finished=true`인 팀들의 팀원 전원에 대해 평가를 제출했는지 확인. 그런 팀이 하나도 없으면(평가 대상 자체가 없으면) §13 열린 질문 #2의 기본안대로 잠금 없이 허용한다. Phase 10(AI Chat)에서 동일 판정이 필요하므로 `LockStatus`를 공개 타입으로 두어 재사용 가능하게 했다.
+  - 대표 칭호 계산(§3.4 로직 재사용): 최다 득표 칭호를 반환하고 동점이면 전부 반환.
+  - **아키텍처 원칙과의 의도적 차이**: §2.2는 "card 서비스가 다른 도메인의 Service를 호출"하도록 설계했지만, 이 시점엔 Team/Evaluation/Title의 Service 계층(Phase 7~8)이 아직 없어 `CardService`가 해당 도메인의 Repository를 직접 사용한다. Phase 7~8 Service가 만들어지면 그쪽 호출로 교체할 것을 권장.
+  - (선택 기능인 이름/능력치/칭호 검색·정렬 필터는 이번 Phase 범위에서 제외)
+- **완료 조건**: 평가 미완료 사용자는 카드 목록·상세 모두에서 능력치가 가려진 잠금 응답(`isUnlocked=false` + `remainingCount`)을 받고, 완료 시 즉시 해제됨 — `CardServiceTest`(온보딩 필터링, 무평가대상 자동해제, 미완료 시 상세 잠금, 미완료 시 목록 전체 능력치 은닉, 완료 시 즉시 해제, 동점 칭호) + `CardControllerTest`(인증/HTTP 응답 형태) 총 9개 테스트로 검증
+- **선행 작업**: Phase 8 (단, 실제로는 Phase 3의 Entity/Repository만으로 구현했고 Phase 7~8의 Service 계층에는 의존하지 않음 — 위 참고)
 - **산출물**: `card` 패키지 전체
 
 ### Phase 10 — AI Chat API
