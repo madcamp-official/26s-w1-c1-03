@@ -32,6 +32,9 @@ public enum ErrorCode {
     TITLE_NOT_FOUND(HttpStatus.NOT_FOUND, "존재하지 않는 칭호입니다."),
     ONBOARDING_NOT_COMPLETED(HttpStatus.CONFLICT, "대상자가 아직 초기 능력치를 설정하지 않았습니다.");
 
+    CHAT_LOCKED(HttpStatus.FORBIDDEN, "동료 평가를 완료해야 AI 질문 기능을 사용할 수 있습니다."),
+    OPENAI_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "AI 응답을 가져오지 못했습니다. 잠시 후 다시 시도해주세요.");
+
     private final HttpStatus status;
     private final String message;
 

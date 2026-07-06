@@ -3,8 +3,8 @@ import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Lege
 import {
   Lock, Eye, EyeOff, Search, X, Plus, Copy, Notebook, UserPlus, Check,
   Sparkles, Hash, Camera, Users, Star, Send, BarChart2, ChevronRight,
-  User, LogOut, BookOpen, Swords, Shield, Zap, MessageCircle, Puzzle,
-  Lightbulb, CheckCircle2, Bot, SlidersHorizontal, ArrowUpDown,
+  User, LogOut, BookOpen, Swords, Shield, Zap, Heart, Info,
+  CheckCircle2, Bot, SlidersHorizontal, ArrowUpDown,
   ChevronLeft, RefreshCw, Upload, AlertTriangle, Filter,
 } from "lucide-react";
 import {
@@ -36,13 +36,21 @@ const RARITY: Record<Rarity, { label: string; color: string; glow: string; borde
   legendary: { label: "전설", color: "#fbbf24", glow: "0 0 28px rgba(251,191,36,0.65), 0 0 55px rgba(251,191,36,0.28)", border: "rgba(251,191,36,0.8)", bg: "rgba(251,191,36,0.06)" },
 };
 
+// key는 백엔드 UserStats 필드명과 1:1로 맞물려 있어 그대로 두고, 사용자에게 보이는
+// label/설명/아이콘만 새 여섯 스탯(체력/공격력/방어력/마력/민첩성/협동력)으로 바꿨다.
 const STATS = [
-  { key: "attack",        label: "공격력",   Icon: Swords,        color: "#ff6b35" },
-  { key: "defense",       label: "방어력",   Icon: Shield,        color: "#60a5fa" },
-  { key: "speed",         label: "속도",     Icon: Zap,           color: "#fbbf24" },
-  { key: "teamwork",       label: "협업",           Icon: MessageCircle, color: "#34d399" },
-  { key: "creativity",     label: "창의성",         Icon: Lightbulb,     color: "#a78bfa" },
-  { key: "problemSolving", label: "문제 해결 능력", Icon: Puzzle,        color: "#f472b6" },
+  { key: "problemSolving", label: "체력",   Icon: Heart,    color: "#ef4444",
+    desc: "프로젝트가 길어질수록 빛나는 생존형 스탯입니다.\n처음에는 모두가 의욕이 넘치지만, 마감이 가까워질수록 진짜 중요한 것은 끝까지 앉아 있는 힘입니다.\n\n체력이 높은 개발자는 오류가 계속 나도 쉽게 쓰러지지 않고, \"이거 한 번만 더 해보자\"를 반복하며 결국 결과물을 완성합니다.\n단, 체력만 믿고 무리하면 회복 포션인 커피가 필요해질 수 있습니다." },
+  { key: "attack",        label: "공격력", Icon: Swords,   color: "#ff6b35",
+    desc: "개발자가 코드를 통해 실제 기능을 만들어내는 힘입니다.\n공격력이 높은 개발자는 \"일단 만들어보자\" 정신으로 기능 구현을 빠르게 시작하고, 막히는 부분이 있어도 끝까지 밀고 나갑니다.\n\n다만 공격력만 너무 높으면 코드가 거칠어질 수 있습니다.\n\"돌아가긴 하는데 왜 돌아가는지는 모름\", \"내 컴퓨터에서는 됨\" 같은 부작용이 생길 수 있으므로 방어력과 함께 성장시키는 것이 좋습니다." },
+  { key: "defense",       label: "방어력", Icon: Shield,   color: "#60a5fa",
+    desc: "버그와 예외 상황을 막아내는 능력입니다.\n입력값이 이상할 때, 서버가 응답하지 않을 때, 데이터가 비어 있을 때도 서비스가 쉽게 무너지지 않게 버티는 힘입니다.\n\n방어력이 높은 개발자는 예상치 못한 상황에도 침착하게 대응합니다." },
+  { key: "creativity",    label: "마력",   Icon: Sparkles, color: "#a78bfa",
+    desc: "아이디어와 집중력, 문제를 새롭게 바라보는 능력입니다.\n기능 이름을 재밌게 짓거나, 화면 흐름을 더 자연스럽게 만들거나, 팀 분위기를 살리는 능력이 포함됩니다.\n\n마나가 높은 개발자는 평범한 기능도 그럴듯하게 포장하는 힘이 있습니다.\n다만 마나를 너무 많이 쓰면 \"이 기능도 넣으면 재밌지 않을까?\" 하다가 프로젝트 범위가 과도하게 커질 수 있습니다." },
+  { key: "speed",         label: "민첩성", Icon: Zap,      color: "#fbbf24",
+    desc: "수정 요청이나 새로운 기술에 빠르게 반응하는 능력입니다.\n에러가 생겼을 때 검색하고, 고치고, 다시 시도하는 속도라고 볼 수 있습니다.\n\n민첩성이 높은 개발자는 피드백을 받으면 빠르게 움직이고, 필요한 내용을 금방 찾아 적용합니다.\n다만 가끔 너무 빨리 움직여서 같은 버그를 두 번 밟는 경우가 있습니다." },
+  { key: "teamwork",      label: "협동력", Icon: Users,    color: "#34d399",
+    desc: "팀 프로젝트에서 가장 중요한 스탯입니다.\n말을 잘 전달하고, 역할을 나누고, 다른 사람의 코드를 이해하고, 충돌이 생겼을 때 분위기를 망치지 않는 능력입니다.\n\n협동력이 높은 개발자는 혼자만 잘하는 것이 아니라 팀 전체가 앞으로 가도록 돕습니다." },
 ];
 
 const AI_QUESTIONS = [
@@ -84,8 +92,8 @@ function rarityFromPower(power: number): Rarity {
 // 카드 도감(목록/상세) API 응답을 기존 화면 컴포넌트가 쓰는 User 모양으로 변환한다.
 function cardToUser(c: CardSummaryDto | CardDetailDto): User {
   const stats = dtoStatsToStats(c.stats);
-  const titleVotes: TitleVote[] = "titleVotes" in c
-    ? c.titleVotes.map(tv=>({ title: tv.name, votes: tv.voteCount }))
+  const titleVotes: TitleVote[] = "titles" in c
+    ? c.titles.map(tv=>({ title: tv.name, votes: tv.voteCount }))
     : c.representativeTitles.map(name=>({ title: name, votes: 1 }));
   return {
     id: c.userId,
@@ -189,15 +197,63 @@ function Field({ label, type="text", value, onChange, placeholder, error, right 
   );
 }
 
-function StatSlider({ label, value, onChange, color, Icon }: { label:string; value:number; onChange:(v:number)=>void; color:string; Icon:any }) {
+// 능력치 이름/수치처럼 텍스트가 드래그·복사되는 대신, 마우스를 올리면 근처 고정
+// 위치에 말풍선으로 설명을 띄우는 공용 처리. 능력치가 표시되는 다른 화면에서도 재사용한다.
+function InfoTooltip({ children, text }: { children: React.ReactNode; text: string }) {
+  const [open, setOpen] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  function handleEnter() {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) setAlignRight(rect.left + rect.width / 2 > window.innerWidth / 2);
+    setOpen(true);
+  }
+
+  return (
+    <div
+      ref={ref}
+      onMouseEnter={handleEnter}
+      onMouseLeave={()=>setOpen(false)}
+      style={{ position:"relative", display:"inline-flex", alignItems:"center", cursor:"help" }}
+    >
+      {children}
+      {open && (
+        <div style={{
+          position:"absolute", top:"calc(100% + 9px)", zIndex:80,
+          ...(alignRight ? { right:0 } : { left:0 }),
+          width:260, padding:"11px 14px", borderRadius:10,
+          background:"#0e1526", border:"1px solid rgba(0,200,255,0.25)",
+          boxShadow:"0 10px 30px rgba(0,0,0,0.5)",
+          fontSize:11, lineHeight:1.65, color:"#c7d2e6", fontFamily:"'Noto Sans KR'",
+          whiteSpace:"pre-line", pointerEvents:"none",
+        }}>
+          <div style={{
+            position:"absolute", top:-6, ...(alignRight ? { right:14 } : { left:14 }),
+            width:11, height:11, background:"#0e1526",
+            borderLeft:"1px solid rgba(0,200,255,0.25)", borderTop:"1px solid rgba(0,200,255,0.25)",
+            transform:"rotate(45deg)",
+          }}/>
+          {text}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatSlider({ label, desc, value, onChange, color, Icon }: { label:string; desc?:string; value:number; onChange:(v:number)=>void; color:string; Icon:any }) {
+  const labelNode = (
+    <div style={{ display:"flex", alignItems:"center", gap:5, userSelect:"none" }}>
+      <Icon size={13} style={{ color }} />
+      <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{label}</span>
+      {desc && <Info size={11} style={{ color:"#4a5a7a" }}/>}
+    </div>
+  );
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
       <div style={{ display:"flex", alignItems:"center", gap:6, justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:5 }}>
-          <Icon size={13} style={{ color }} />
-          <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{label}</span>
-        </div>
-        <span style={{ fontSize:13, fontFamily:"'Orbitron',monospace", color, fontWeight:700 }}>{value}</span>
+        {desc ? <InfoTooltip text={desc}>{labelNode}</InfoTooltip> : labelNode}
+        <span style={{ fontSize:13, fontFamily:"'Orbitron',monospace", color, fontWeight:700, userSelect:"none" }}>{value}</span>
       </div>
       <input type="range" min={1} max={10} value={value} onChange={e=>onChange(+e.target.value)}
         style={{ width:"100%", accentColor:color, height:4 }} />
@@ -512,6 +568,14 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const steps = ["photo","bio","stats"];
   const stepIdx = steps.indexOf(step);
+  const statSum = STATS.reduce((sum,s)=>sum+stats[s.key as keyof typeof stats],0);
+  const statsValid = statSum>=6 && statSum<=40;
+
+  function handleEnterKey(e: React.KeyboardEvent, action: ()=>void) {
+    if (e.key!=="Enter" || (e.target as HTMLElement).tagName==="TEXTAREA") return;
+    e.preventDefault();
+    action();
+  }
 
   async function handlePhotoSelected(file: File) {
     const invalid = validateProfileImage(file);
@@ -571,7 +635,7 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
         </div>
 
         {step==="photo" && (
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
+          <div onKeyDown={e=>handleEnterKey(e,()=>{ if(!photoUploading) setStep("bio"); })} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
             <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display:"none" }}
               onChange={e=>{ const f=e.target.files?.[0]; if(f) handlePhotoSelected(f); e.target.value=""; }}/>
             <div
@@ -590,15 +654,15 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
             </div>
             {photoUrl && <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#34d399", fontFamily:"'Noto Sans KR'" }}><CheckCircle2 size={14}/>사진이 설정되었습니다</div>}
             {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
-            <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:8 }}>
-              <Btn full onClick={()=>setStep("bio")} disabled={photoUploading}>다음</Btn>
+            <div style={{ width:"100%", display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
               <Btn full variant="ghost" onClick={()=>setStep("bio")} disabled={photoUploading}>나중에 설정</Btn>
+              <Btn full onClick={()=>setStep("bio")} disabled={photoUploading}>다음</Btn>
             </div>
           </div>
         )}
 
         {step==="bio" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+          <div onKeyDown={e=>handleEnterKey(e,()=>{ if(!loading) saveBioAndContinue(); })} style={{ display:"flex", flexDirection:"column", gap:16 }}>
             <div>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                 <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>한줄 자기소개</span>
@@ -607,36 +671,38 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
               <textarea
                 value={bio}
                 onChange={e=>e.target.value.length<=50&&setBio(e.target.value)}
-                placeholder="나를 한 문장으로 소개한다면..."
+                placeholder="나를 한 문장으로 소개한다면?"
                 rows={3}
                 style={{ ...DS.input, width:"100%", padding:"11px 14px", resize:"none", fontFamily:"'Noto Sans KR'", fontSize:14, lineHeight:1.6, boxSizing:"border-box" }}
               />
             </div>
             {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
-            <div style={{ display:"flex", gap:8 }}>
-              <Btn variant="ghost" onClick={()=>setStep("photo")}>이전</Btn>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <Btn full variant="ghost" onClick={()=>setStep("photo")}>이전</Btn>
               <Btn full onClick={saveBioAndContinue} disabled={loading}>{loading?"저장 중...":"다음"}</Btn>
             </div>
           </div>
         )}
 
         {step==="stats" && (
-          <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+          <div onKeyDown={e=>handleEnterKey(e,()=>{ if(!loading&&statsValid) saveStatsAndFinish(); })} style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:2 }}>자신의 초기 능력치를 입력하세요 (1-10)</p>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 24px" }}>
               {STATS.map(s=>(
-                <StatSlider key={s.key} label={s.label} value={stats[s.key as keyof typeof stats]} onChange={v=>setStats(p=>({...p,[s.key]:v}))} color={s.color} Icon={s.Icon}/>
+                <StatSlider key={s.key} label={s.label} desc={s.desc} value={stats[s.key as keyof typeof stats]} onChange={v=>setStats(p=>({...p,[s.key]:v}))} color={s.color} Icon={s.Icon}/>
               ))}
             </div>
-            <div style={{ padding:"12px", borderRadius:10, background:"rgba(0,200,255,0.04)", border:"1px solid rgba(0,200,255,0.1)", marginTop:4 }}>
+            <div style={{ padding:"12px", borderRadius:10, background:"rgba(0,200,255,0.04)", border:"1px solid rgba(0,200,255,0.1)", marginTop:4, position:"relative" }}>
               <div style={{ display:"flex", justifyContent:"center" }}>
                 <MiniHex stats={Object.fromEntries(STATS.map(s=>[s.key, stats[s.key as keyof typeof stats]*10])) as unknown as Stats} size={100} color="#00c8ff"/>
               </div>
+              <span style={{ position:"absolute", left:14, bottom:12, fontSize:20, fontFamily:"'Orbitron',monospace", fontWeight:800, color: statsValid?"#00c8ff":"#ef4444" }}>{statSum}</span>
             </div>
+            {!statsValid && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>초기 능력치 총합을 6-40 사이로 설정해주세요.</span>}
             {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
-            <div style={{ display:"flex", gap:8 }}>
-              <Btn variant="ghost" onClick={()=>setStep("bio")}>이전</Btn>
-              <Btn full variant="purple" onClick={saveStatsAndFinish} disabled={loading} icon={loading?undefined:<CheckCircle2 size={14}/>}>{loading?"저장 중...":"완료"}</Btn>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
+              <Btn full variant="ghost" onClick={()=>setStep("bio")}>이전</Btn>
+              <Btn full variant="purple" onClick={saveStatsAndFinish} disabled={loading||!statsValid} icon={loading?undefined:<CheckCircle2 size={14}/>}>{loading?"저장 중...":"완료"}</Btn>
             </div>
           </div>
         )}
@@ -881,23 +947,20 @@ function TeamsScreen() {
           <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>아직 소속된 팀이 없습니다. 팀을 만들거나 초대 코드로 참여해보세요.</p>
         ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          {myTeams.map(team=>(
+          {myTeams.map(({team, members})=>(
             <div key={team.id} style={{ ...DS.card, padding:"18px 20px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
                 <div>
                   <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>{team.name}</div>
-                  <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>멤버 {team.memberCount}명</div>
+                  <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>멤버 {team.memberCount}명 · 팀장 {team.ownerName}</div>
                 </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
-                  <Pill label={team.projectFinished?"✓ 완료":"진행 중"} color={team.projectFinished?"#34d399":"#00c8ff"} small/>
-                  <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
-                    <Hash size={9}/>{team.inviteCode}
-                    <button onClick={()=>copy(team.inviteCode)} style={{background:"none",border:"none",color:"#4a5a7a",cursor:"pointer",padding:2}}><Copy size={10}/></button>
-                  </div>
+                <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
+                  <Hash size={9}/>{team.inviteCode}
+                  <button onClick={()=>copy(team.inviteCode)} style={{background:"none",border:"none",color:"#4a5a7a",cursor:"pointer",padding:2}}><Copy size={10}/></button>
                 </div>
               </div>
               <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                {team.members.map(m=>(
+                {members.map(m=>(
                   <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                     <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff" }}>
                       <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
@@ -1059,7 +1122,7 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 24px" }}>
                     {STATS.map(s=>(
-                      <StatSlider key={s.key} label={s.label} value={(ratings[u.userId]?.[s.key as keyof Stats]??5) as number} onChange={v=>setR(u.userId,s.key,v)} color={s.color} Icon={s.Icon}/>
+                      <StatSlider key={s.key} label={s.label} desc={s.desc} value={(ratings[u.userId]?.[s.key as keyof Stats]??5) as number} onChange={v=>setR(u.userId,s.key,v)} color={s.color} Icon={s.Icon}/>
                     ))}
                   </div>
                   <div style={{ display:"flex", justifyContent:"flex-end" }}>

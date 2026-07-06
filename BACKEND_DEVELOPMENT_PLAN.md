@@ -388,14 +388,20 @@ erDiagram
 ### Phase 10 — AI Chat API
 - **목표**: OpenAI API 연동을 통한 카드 질문/비교/팀 분석 기능 완성
 - **구현 내용**:
-  - `chat.client.OpenAiClient`(Chat Completions 호출, API Key는 환경변수)
-  - 세션 생성/조회 API, 메시지 전송 API(개별 카드 질문/비교/팀 분석 — `ChatCard` 개수로 유형 구분)
-  - 프롬프트 빌더: Card 도메인 데이터(능력치, 칭호, 자기소개)를 컨텍스트로 구성
-  - 대화 이력 저장 및 이어가기, 잠금 상태 연동(카드가 잠긴 사용자는 AI 질문 API 자체를 403 처리)
-  - (선택) Rate Limiting 적용(예: 분당 요청 수 제한)
-- **완료 조건**: 카드 1개/2개 이상/팀 단위 질문이 각각 정상 동작하고, 동일 세션 내 후속 질문이 이전 맥락을 반영함을 확인
+  - `chat.client.OpenAiClient` 인터페이스 + `OpenAiChatClient`(`RestClient`로 OpenAI `/chat/completions` 호출). `config.OpenAiConfig`가 `Authorization: Bearer` 헤더를 미리 넣은 `RestClient` 빈을 제공하고, API Key/모델/base-url은 `OPENAI_API_KEY`/`OPENAI_MODEL`/`OPENAI_BASE_URL` 환경변수로 주입한다(뒤 둘은 기본값 있음).
+  - API:
+    - `POST /api/chat/sessions` — 세션 생성(`targetUserIds` 1개 이상 + 선택적 `title`). 대상 카드 수만큼 `ChatCard`를 함께 저장한다.
+    - `GET /api/chat/sessions` / `GET /api/chat/sessions/{id}` — 내 세션 목록/상세(상세는 대화 이력 포함) 조회. 계획서엔 "메시지 조회 API"가 별도 항목처럼 적혀 있었지만, 세션 상세에 이력을 포함시키는 게 자연스러워 하나로 합쳤다.
+    - `POST /api/chat/sessions/{id}/messages` — 질문 전송. 사용자 메시지 저장 → 세션의 전체 이력 + 새 메시지로 프롬프트 구성 → OpenAI 호출 → 응답 메시지 저장 → 둘 다 반환.
+  - 프롬프트 빌더: `ChatCard` 개수로 분기(1개 = 개별 카드 질문 프롬프트, 2개 이상 = 비교/팀 분석 프롬프트 — 기능명세서 5.2/5.3 모두 "2명 이상"을 요구해 실질적인 차이가 없어 하나의 분기로 처리). 대상자 정보(능력치/대표 칭호/자기소개)는 `CardService.getCardDetail()`을 그대로 재사용해 조합한다.
+  - 대화 이어가기: 세션의 `ChatMessage` 전체를 `system` 프롬프트 뒤에 시간순으로 붙여 매 요청마다 전달한다(별도 요약/트리밍 없음 — MVP 범위에서는 세션이 길어질 때의 토큰 초과는 다루지 않음).
+  - 잠금 연동: `CardService.evaluateLockStatus()`(Phase 9)를 그대로 재사용해, 질문자가 잠겨 있으면 세션 생성/메시지 전송 모두 `403 CHAT_LOCKED`로 차단한다. 단, 이미 만들어진 세션·이력 조회(`GET`)는 막지 않는다(나중에 다시 잠기더라도 과거 대화는 볼 수 있어야 한다고 판단).
+  - OpenAI 호출 실패(네트워크 오류, 빈 응답 등)는 `502 OPENAI_REQUEST_FAILED`로 표준 에러 변환.
+  - (선택 기능인 Rate Limiting은 이번 Phase 범위에서 제외)
+- **테스트에 관한 참고**: 이 샌드박스에 외부 네트워크 접근이 없어 실제 OpenAI 호출은 검증 불가. `StorageServiceTest`(Phase 6, 팀원 작성)와 동일한 방식으로 `OpenAiClient`를 `@MockitoBean`/Mockito로 대체해 세션·이력·잠금 로직만 검증했다. `OpenAiChatClient`의 실제 HTTP 왕복은 배포 환경에서 실제 키로 별도 확인이 필요하다.
+- **완료 조건**: 카드 1개/2개 이상 질문이 각각 정상 동작하고, 동일 세션 내 후속 질문이 이전 맥락을 반영함을 확인 — `ChatServiceTest`(잠금 시 세션 생성·메시지 전송 차단, 기본 제목 생성, 다중 카드 연결, AI 응답 저장, 대화 맥락 누적, 소유자 검증, 세션 목록 정렬) 8개 + `ChatControllerTest`(인증/HTTP 응답 형태, 없는 대상 404) 4개, 총 12개 테스트로 검증
 - **선행 작업**: Phase 9
-- **산출물**: `chat` 패키지 전체
+- **산출물**: `chat` 패키지 전체, `config.OpenAiConfig`
 
 ### Phase 11 — 통합 테스트 정리 및 배포 준비
 - **목표**: 전체 API 회귀 테스트, 배포 환경 구성
