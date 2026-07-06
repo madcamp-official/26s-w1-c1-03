@@ -84,8 +84,8 @@ function rarityFromPower(power: number): Rarity {
 // 카드 도감(목록/상세) API 응답을 기존 화면 컴포넌트가 쓰는 User 모양으로 변환한다.
 function cardToUser(c: CardSummaryDto | CardDetailDto): User {
   const stats = dtoStatsToStats(c.stats);
-  const titleVotes: TitleVote[] = "titleVotes" in c
-    ? c.titleVotes.map(tv=>({ title: tv.name, votes: tv.voteCount }))
+  const titleVotes: TitleVote[] = "titles" in c
+    ? c.titles.map(tv=>({ title: tv.name, votes: tv.voteCount }))
     : c.representativeTitles.map(name=>({ title: name, votes: 1 }));
   return {
     id: c.userId,
@@ -881,23 +881,20 @@ function TeamsScreen() {
           <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>아직 소속된 팀이 없습니다. 팀을 만들거나 초대 코드로 참여해보세요.</p>
         ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          {myTeams.map(team=>(
+          {myTeams.map(({team, members})=>(
             <div key={team.id} style={{ ...DS.card, padding:"18px 20px" }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
                 <div>
                   <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>{team.name}</div>
-                  <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>멤버 {team.memberCount}명</div>
+                  <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>멤버 {team.memberCount}명 · 팀장 {team.ownerName}</div>
                 </div>
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
-                  <Pill label={team.projectFinished?"✓ 완료":"진행 중"} color={team.projectFinished?"#34d399":"#00c8ff"} small/>
-                  <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
-                    <Hash size={9}/>{team.inviteCode}
-                    <button onClick={()=>copy(team.inviteCode)} style={{background:"none",border:"none",color:"#4a5a7a",cursor:"pointer",padding:2}}><Copy size={10}/></button>
-                  </div>
+                <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
+                  <Hash size={9}/>{team.inviteCode}
+                  <button onClick={()=>copy(team.inviteCode)} style={{background:"none",border:"none",color:"#4a5a7a",cursor:"pointer",padding:2}}><Copy size={10}/></button>
                 </div>
               </div>
               <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                {team.members.map(m=>(
+                {members.map(m=>(
                   <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                     <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff" }}>
                       <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
