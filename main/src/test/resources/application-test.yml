@@ -20,6 +20,10 @@ app:
     url: http://localhost:54321/storage/v1
     service-role-key: test-only-service-role-key
     bucket: profile-images-test
+  openai:
+    base-url: http://localhost:54322/v1
+    api-key: test-only-api-key
+    model: gpt-4o-mini
 
 logging:
   level:

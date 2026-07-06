@@ -24,7 +24,10 @@ public enum ErrorCode {
 
     TEAM_NOT_FOUND(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다. 초대 코드를 확인해주세요."),
     ALREADY_TEAM_MEMBER(HttpStatus.CONFLICT, "이미 참여 중인 팀입니다."),
-    NOT_TEAM_MEMBER(HttpStatus.FORBIDDEN, "해당 팀의 멤버가 아닙니다.");
+    NOT_TEAM_MEMBER(HttpStatus.FORBIDDEN, "해당 팀의 멤버가 아닙니다."),
+
+    CHAT_LOCKED(HttpStatus.FORBIDDEN, "동료 평가를 완료해야 AI 질문 기능을 사용할 수 있습니다."),
+    OPENAI_REQUEST_FAILED(HttpStatus.BAD_GATEWAY, "AI 응답을 가져오지 못했습니다. 잠시 후 다시 시도해주세요.");
 
     private final HttpStatus status;
     private final String message;
