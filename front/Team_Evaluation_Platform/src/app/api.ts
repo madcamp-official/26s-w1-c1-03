@@ -1,6 +1,6 @@
 // 백엔드(main/) API 클라이언트. BACKEND_DEVELOPMENT_PLAN.md §7, 실제 auth/user 컨트롤러 기준.
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://api.madmon.madcamp-kaist.org/api";
 
 const ACCESS_TOKEN_KEY = "madmon_access_token";
 const REFRESH_TOKEN_KEY = "madmon_refresh_token";
@@ -45,8 +45,9 @@ async function request<T>(
   options: RequestInit = {},
   { auth = true, retry = true }: { auth?: boolean; retry?: boolean } = {}
 ): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string> | undefined),
   };
   if (auth) {
@@ -165,6 +166,12 @@ export function updateProfile(input: { profileImageUrl?: string | null; biograph
 
 export function setInitialStats(input: InitialStatsInput): Promise<UserProfileDto> {
   return request<UserProfileDto>("/users/me/initial-stats", { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export function uploadProfileImage(file: File): Promise<UserProfileDto> {
+  const form = new FormData();
+  form.append("file", file);
+  return request<UserProfileDto>("/users/me/profile-image", { method: "POST", body: form });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
