@@ -1,21 +1,30 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Legend } from "recharts";
 import {
-  Lock, Eye, EyeOff, Search, X, Plus, Copy, Trophy, UserPlus, Check,
+  Lock, Eye, EyeOff, Search, X, Plus, Copy, Notebook, UserPlus, Check,
   Sparkles, Hash, Camera, Users, Star, Send, BarChart2, ChevronRight,
-  User, LogOut, BookOpen, Swords, Shield, Zap, MessageCircle, Heart,
+  User, LogOut, BookOpen, Swords, Shield, Zap, MessageCircle, Puzzle,
   Lightbulb, CheckCircle2, Bot, SlidersHorizontal, ArrowUpDown,
   ChevronLeft, RefreshCw, Upload, AlertTriangle, Filter,
 } from "lucide-react";
+import {
+  login as apiLogin, changePassword as apiChangePassword, getMyProfile,
+  updateProfile as apiUpdateProfile, setInitialStats as apiSetInitialStats,
+  getAccessToken, clearTokens, ApiError,
+  listMyTeams, createTeam, joinTeam, getTeam,
+  listTitles, listEvaluationTargets, submitEvaluation,
+  listCards, getCard,
+  createChatSession, sendChatMessage,
+  type CardSummaryDto, type CardDetailDto, type TeamDetailDto, type TitleDto, type UserProfileDto,
+} from "./api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Rarity = "common" | "rare" | "epic" | "legendary";
 type AuthPhase = "login" | "change-password" | "profile-setup";
 type MainScreen = "pokedex" | "teams" | "evaluate" | "ai-analysis" | "compare" | "profile";
-interface Stats { attack: number; defense: number; speed: number; communication: number; support: number; creativity: number; }
+interface Stats { attack: number; defense: number; speed: number; teamwork: number; creativity: number; problemSolving: number; }
 interface TitleVote { title: string; votes: number; }
-interface User { id: number; name: string; role: string; photo: string; bio: string; stats: Stats; titleVotes: TitleVote[]; rarity: Rarity; }
-interface Team { id: number; name: string; code: string; memberIds: number[]; isCompleted: boolean; project: string; }
+interface User { id: number; name: string; role: string; photo: string; bio: string; stats: Stats; titleVotes: TitleVote[]; rarity: Rarity; isUnlocked?: boolean; remainingCount?: number; }
 interface ChatMessage { role: "user" | "ai"; text: string; }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -30,15 +39,9 @@ const STATS = [
   { key: "attack",        label: "공격력",   Icon: Swords,        color: "#ff6b35" },
   { key: "defense",       label: "방어력",   Icon: Shield,        color: "#60a5fa" },
   { key: "speed",         label: "속도",     Icon: Zap,           color: "#fbbf24" },
-  { key: "communication", label: "협업",     Icon: MessageCircle, color: "#34d399" },
-  { key: "support",       label: "서포트",   Icon: Heart,         color: "#f472b6" },
-  { key: "creativity",    label: "창의성",   Icon: Lightbulb,     color: "#a78bfa" },
-];
-
-const TITLES = [
-  "코드의 마법사","버그 헌터","팀의 기둥","아이디어 뱅크","속도의 신",
-  "완벽주의자","분위기 메이커","풀스택 마스터","야근의 왕","문서화 달인",
-  "디버깅 장인","든든한 서포터","깃허브 마스터","발표의 달인","창의력 폭발",
+  { key: "teamwork",       label: "협업",           Icon: MessageCircle, color: "#34d399" },
+  { key: "creativity",     label: "창의성",         Icon: Lightbulb,     color: "#a78bfa" },
+  { key: "problemSolving", label: "문제 해결 능력", Icon: Puzzle,        color: "#f472b6" },
 ];
 
 const AI_QUESTIONS = [
@@ -46,53 +49,47 @@ const AI_QUESTIONS = [
   "팀의 시너지는?", "부족한 역할은?", "누굴 추가하면 좋을까?",
 ];
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const USERS: User[] = [
-  { id:1, name:"김민준", role:"Frontend Dev", rarity:"legendary", bio:"UI는 사용자의 첫인상. 매 픽셀에 의미를 담습니다.",
-    photo:"https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=300&h=380&fit=crop&auto=format",
-    stats:{attack:88,defense:65,speed:92,communication:75,support:60,creativity:85},
-    titleVotes:[{title:"속도의 신",votes:5},{title:"코드의 마법사",votes:3},{title:"야근의 왕",votes:2}] },
-  { id:2, name:"이서연", role:"Backend Dev", rarity:"epic", bio:"견고한 서버가 모든 것의 시작이라고 생각합니다.",
-    photo:"https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&h=380&fit=crop&auto=format",
-    stats:{attack:72,defense:90,speed:68,communication:85,support:88,creativity:70},
-    titleVotes:[{title:"팀의 기둥",votes:6},{title:"든든한 서포터",votes:4}] },
-  { id:3, name:"박준혁", role:"Full Stack", rarity:"legendary", bio:"프론트부터 DB까지, 전체 그림을 봅니다.",
-    photo:"https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=300&h=380&fit=crop&auto=format",
-    stats:{attack:95,defense:78,speed:80,communication:70,support:65,creativity:92},
-    titleVotes:[{title:"코드의 마법사",votes:7},{title:"풀스택 마스터",votes:5}] },
-  { id:4, name:"최유진", role:"UI/UX Designer", rarity:"rare", bio:"사용자의 감정을 설계합니다. 디자인은 소통이에요.",
-    photo:"https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=300&h=380&fit=crop&auto=format",
-    stats:{attack:60,defense:55,speed:72,communication:92,support:75,creativity:95},
-    titleVotes:[{title:"아이디어 뱅크",votes:6},{title:"창의력 폭발",votes:4}] },
-  { id:5, name:"정현우", role:"DevOps", rarity:"epic", bio:"배포 파이프라인을 예술로 만드는 사람입니다.",
-    photo:"https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=300&h=380&fit=crop&auto=format",
-    stats:{attack:70,defense:95,speed:75,communication:65,support:80,creativity:60},
-    titleVotes:[{title:"완벽주의자",votes:5},{title:"버그 헌터",votes:3}] },
-  { id:6, name:"강서윤", role:"Product Manager", rarity:"rare", bio:"팀이 같은 방향을 보게 만드는 것이 제 역할입니다.",
-    photo:"https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300&h=380&fit=crop&auto=format",
-    stats:{attack:65,defense:70,speed:78,communication:98,support:85,creativity:80},
-    titleVotes:[{title:"분위기 메이커",votes:7},{title:"발표의 달인",votes:4}] },
-  { id:7, name:"윤재원", role:"Backend Dev", rarity:"common", bio:"코드 한 줄 한 줄에 이유가 있어야 합니다.",
-    photo:"https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=300&h=380&fit=crop&auto=format",
-    stats:{attack:78,defense:82,speed:65,communication:60,support:70,creativity:55},
-    titleVotes:[{title:"디버깅 장인",votes:4},{title:"문서화 달인",votes:2}] },
-  { id:8, name:"한다은", role:"Frontend Dev", rarity:"epic", bio:"인터랙션 하나에 사용자의 마음을 훔칠 수 있습니다.",
-    photo:"https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=300&h=380&fit=crop&auto=format",
-    stats:{attack:82,defense:60,speed:85,communication:78,support:72,creativity:90},
-    titleVotes:[{title:"창의력 폭발",votes:5},{title:"속도의 신",votes:3}] },
-];
-
-const TEAMS: Team[] = [
-  { id:1, name:"알파팀", code:"ALPHA42", memberIds:[1,2,3,4], isCompleted:true,  project:"AI 기반 학습 플랫폼" },
-  { id:2, name:"베타팀", code:"BETA87",  memberIds:[1,5,6,7], isCompleted:false, project:"실시간 협업 도구" },
-];
-const CURRENT_USER_ID = 1;
-const CURRENT_USER = USERS[0];
+// 프로필 사진이 없을 때(스토리지 연동 전) 쓰는 기본 아바타
+const FALLBACK_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#1a2438"/><circle cx="50" cy="38" r="18" fill="#3a4a6a"/><ellipse cx="50" cy="92" rx="32" ry="24" fill="#3a4a6a"/></svg>'
+);
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const topTitles = (v: TitleVote[]) => { if (!v.length) return []; const m = Math.max(...v.map(x=>x.votes)); return v.filter(x=>x.votes===m).map(x=>x.title); };
 const totalPower = (s: Stats) => Math.round(Object.values(s).reduce((a,b)=>a+b,0)/6);
-const avg = (arr: number[]) => Math.round(arr.reduce((a,b)=>a+b,0)/arr.length);
+
+// 카드 도감 수치(1~10 EMA 점수)를 기존 육각형 차트가 가정하는 0~100 스케일로 맞춘다.
+function dtoStatsToStats(s: CardSummaryDto["stats"]): Stats {
+  return {
+    attack: s.attack*10, defense: s.defense*10, speed: s.speed*10,
+    teamwork: s.teamwork*10, creativity: s.creativity*10, problemSolving: s.problemSolving*10,
+  };
+}
+function rarityFromPower(power: number): Rarity {
+  if (power>=85) return "legendary";
+  if (power>=70) return "epic";
+  if (power>=55) return "rare";
+  return "common";
+}
+// 카드 도감(목록/상세) API 응답을 기존 화면 컴포넌트가 쓰는 User 모양으로 변환한다.
+function cardToUser(c: CardSummaryDto | CardDetailDto): User {
+  const stats = dtoStatsToStats(c.stats);
+  const titleVotes: TitleVote[] = "titleVotes" in c
+    ? c.titleVotes.map(tv=>({ title: tv.name, votes: tv.voteCount }))
+    : c.representativeTitles.map(name=>({ title: name, votes: 1 }));
+  return {
+    id: c.userId,
+    name: c.name,
+    role: "",
+    photo: c.profileImageUrl || FALLBACK_AVATAR,
+    bio: "biography" in c ? (c.biography ?? "") : "",
+    stats,
+    titleVotes,
+    rarity: rarityFromPower(totalPower(stats)),
+    isUnlocked: "isUnlocked" in c ? c.isUnlocked : undefined,
+    remainingCount: "remainingCount" in c ? c.remainingCount : undefined,
+  };
+}
 
 function hexPoints(vals: number[], cx=50, cy=50, r=40): string {
   return vals.map((v,i)=>{
@@ -107,24 +104,7 @@ function hexRing(scale: number, cx=50, cy=50, r=40): string {
   }).join(" ");
 }
 
-function aiResponse(q: string, users: User[]): string {
-  const u = users[0];
-  if (!u) return "분석할 카드를 먼저 선택해주세요.";
-  const p = totalPower(u.stats);
-  const topStat = STATS.reduce((a,b)=>u.stats[a.key as keyof Stats]>u.stats[b.key as keyof Stats]?a:b);
-  const lowStat = STATS.reduce((a,b)=>u.stats[a.key as keyof Stats]<u.stats[b.key as keyof Stats]?a:b);
-  if (q.includes("강점") || q.includes("장점")) return `✨ **${u.name}**의 핵심 강점은 **${topStat.label}(${u.stats[topStat.key as keyof Stats]}pt)**입니다.\n\n${topTitles(u.titleVotes).join(", ")} 칭호에서 알 수 있듯 팀원들도 이 점을 높이 평가합니다. 전체 전투력 **${p}pt**로 상위권에 속하며, 특히 빠른 실행력이 돋보입니다.`;
-  if (q.includes("백엔드")) return `🔧 백엔드 적합도 분석:\n\n**${u.name}** — 방어력 ${u.stats.defense}pt, 문제해결 ${u.stats.creativity}pt\n\n안정성(방어력)이 높을수록 백엔드 적합도가 올라갑니다. ${u.stats.defense > 75 ? "이 분은 백엔드 포지션에 매우 적합합니다! 🏆" : "프론트엔드 쪽이 더 어울릴 수 있습니다."}`;
-  if (q.includes("팀") && users.length > 1) {
-    const as = avg(users.map(u=>u.stats.attack));
-    const ds = avg(users.map(u=>u.stats.defense));
-    const cs = avg(users.map(u=>u.stats.communication));
-    return `⚔️ **팀 조합 분석** (${users.length}명)\n\n• 평균 공격력: ${as}pt ${as>78?"🔥":"⚠️"}\n• 평균 방어력: ${ds}pt ${ds>75?"🛡️":"⚠️"}\n• 평균 협업: ${cs}pt ${cs>78?"🤝":"💬"}\n\n${as>80&&ds>75?"이 팀은 공수 균형이 잡힌 이상적인 조합입니다!":"공격형 팀으로 빠른 개발에 강하지만 안정성 관리가 필요합니다."}\n\n몰입캠프 2주 프로젝트에 최적화된 구성이에요.`;
-  }
-  if (q.includes("시너지")) return `💫 **시너지 분석**\n\n${users.map(u=>`• ${u.name}: ${topTitles(u.titleVotes)[0]??u.role}`).join("\n")}\n\n다양한 역할 분포로 상호 보완적인 팀입니다. 특히 창의력과 실행력의 균형이 좋습니다.`;
-  if (q.includes("부족") || q.includes("추가")) return `📊 **팀 보완 분석**\n\n현재 팀에서 상대적으로 부족한 역량:\n• **${lowStat.label}** (평균 ${u.stats[lowStat.key as keyof Stats]}pt)\n\n${lowStat.label}이 높은 팀원을 추가하거나, 해당 역량을 집중 강화할 것을 추천합니다.`;
-  return `🤖 **AI 분석**\n\n${u.name}님의 전체 전투력은 **${p}pt**입니다.\n\n${STATS.map(s=>`• ${s.label}: ${u.stats[s.key as keyof Stats]}pt`).join("\n")}\n\n전반적으로 ${p>=80?"매우 강력한":"균형잡힌"} 캐릭터입니다. 더 구체적인 질문을 해보세요!`;
-}
+// (기존에는 여기서 로컬 목업 AI 응답을 만들었지만, 이제 AIScreen이 실제 /api/chat 세션을 호출한다.)
 
 // ─── Design System ────────────────────────────────────────────────────────────
 const DS = {
@@ -409,15 +389,22 @@ function GridCard({ user, onClick }: { user:User; onClick:()=>void }) {
 }
 
 // ─── Auth Screens ─────────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }: { onLogin:(first:boolean)=>void }) {
+function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChanged:boolean)=>void }) {
   const [id, setId] = useState("");
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
-  function handle() {
+  async function handle() {
     if (!id||!pw){setErr("아이디와 비밀번호를 입력해주세요."); return;}
-    setLoading(true);
-    setTimeout(()=>{ setLoading(false); onLogin(id==="new"); }, 1200);
+    setErr(""); setLoading(true);
+    try {
+      const res = await apiLogin(id, pw);
+      onLoginSuccess(res.passwordChanged);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setLoading(false);
+    }
   }
   return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#070b12", position:"relative", overflow:"hidden" }}>
@@ -426,13 +413,12 @@ function LoginScreen({ onLogin }: { onLogin:(first:boolean)=>void }) {
       <div style={{ ...DS.card, width:380, padding:"40px 36px", position:"relative", zIndex:1 }}>
         <div style={{ textAlign:"center", marginBottom:32 }}>
           <div style={{ width:56, height:56, borderRadius:16, background:"linear-gradient(135deg,rgba(0,200,255,0.2),rgba(168,85,247,0.2))", border:"1px solid rgba(0,200,255,0.3)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
-            <Trophy size={26} style={{color:"#00c8ff"}}/>
+            <Notebook size={26} style={{color:"#00c8ff"}}/>
           </div>
-          <h1 style={{ fontSize:22, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.06em" }}>MOLIP CAMP</h1>
-          <p style={{ fontSize:12, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", marginTop:4 }}>학교 계정으로 로그인</p>
+          <h1 style={{ fontSize:22, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.06em" }}>매드몬 도감</h1>
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <Field label="아이디" value={id} onChange={setId} placeholder="학번 또는 이메일"/>
+          <Field label="아이디" value={id} onChange={setId} placeholder="아이디 입력"/>
           <Field label="비밀번호" type="password" value={pw} onChange={setPw} placeholder="비밀번호 입력"/>
           {err && <div style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 12px", borderRadius:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)" }}>
             <AlertTriangle size={13} style={{color:"#ef4444",flexShrink:0}}/>
@@ -442,7 +428,7 @@ function LoginScreen({ onLogin }: { onLogin:(first:boolean)=>void }) {
             {loading?"로그인 중...":"로그인"}
           </Btn>
           <p style={{ fontSize:11, color:"#4a5a7a", textAlign:"center", fontFamily:"'Noto Sans KR'" }}>
-            테스트: 아이디 <span style={{color:"#00c8ff"}}>"new"</span> 입력 시 최초 로그인 흐름
+            초기 아이디/비밀번호: 인스타 아이디
           </p>
         </div>
       </div>
@@ -455,11 +441,20 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
   const [np, setNp] = useState("");
   const [nc, setNc] = useState("");
   const [err, setErr] = useState("");
-  function handle() {
+  const [loading, setLoading] = useState(false);
+  async function handle() {
     if (!cur){setErr("현재 비밀번호를 입력해주세요."); return;}
-    if (np.length<8){setErr("새 비밀번호는 8자 이상이어야 합니다."); return;}
+    if (np.length<8||np.length>100){setErr("새 비밀번호는 8자 이상 100자 이하여야 합니다."); return;}
     if (np!==nc){setErr("새 비밀번호가 일치하지 않습니다."); return;}
-    onDone();
+    setErr(""); setLoading(true);
+    try {
+      await apiChangePassword(cur, np);
+      onDone();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "비밀번호 변경 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
   }
   return (
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#070b12", position:"relative", overflow:"hidden" }}>
@@ -487,7 +482,7 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
             </div>
           )}
           {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
-          <Btn full variant="purple" onClick={handle}>변경하기</Btn>
+          <Btn full variant="purple" onClick={handle} disabled={loading}>{loading?"변경 중...":"변경하기"}</Btn>
         </div>
       </div>
     </div>
@@ -498,9 +493,36 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
   const [step, setStep] = useState<"photo"|"bio"|"stats">("photo");
   const [bio, setBio] = useState("");
   const [photoSet, setPhotoSet] = useState(false);
-  const [stats, setStats] = useState({attack:5,defense:5,speed:5,communication:5,support:5,creativity:5});
+  const [stats, setStats] = useState({attack:5,defense:5,speed:5,teamwork:5,problemSolving:5,creativity:5});
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
   const steps = ["photo","bio","stats"];
   const stepIdx = steps.indexOf(step);
+
+  async function saveBioAndContinue() {
+    setErr(""); setLoading(true);
+    try {
+      await apiUpdateProfile({ biography: bio });
+      setStep("stats");
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "자기소개 저장 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function saveStatsAndFinish() {
+    setErr(""); setLoading(true);
+    try {
+      await apiSetInitialStats(stats);
+      onDone();
+    } catch (e) {
+      if (e instanceof ApiError && e.errorCode === "INITIAL_STATS_ALREADY_SET") { onDone(); return; }
+      setErr(e instanceof ApiError ? e.message : "초기 능력치 저장 중 오류가 발생했습니다.");
+    } finally {
+      setLoading(false);
+    }
+  }
   return (
     <div style={{ minHeight:"100vh", background:"#070b12", display:"flex", alignItems:"center", justifyContent:"center", position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(circle at 70% 50%, rgba(0,200,255,0.05) 0%, transparent 60%)" }}/>
@@ -527,7 +549,7 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
               style={{ width:120, height:120, borderRadius:999, border:`2px dashed ${photoSet?"rgba(52,211,153,0.6)":"rgba(0,200,255,0.3)"}`, background:"rgba(0,200,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", overflow:"hidden", transition:"all 0.2s" }}
             >
               {photoSet
-                ? <img src={CURRENT_USER.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:999 }}/>
+                ? <img src={FALLBACK_AVATAR} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:999 }}/>
                 : <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                     <Camera size={28} style={{color:"#00c8ff"}}/>
                     <span style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>클릭하여 업로드</span>
@@ -557,9 +579,10 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
                 style={{ ...DS.input, width:"100%", padding:"11px 14px", resize:"none", fontFamily:"'Noto Sans KR'", fontSize:14, lineHeight:1.6, boxSizing:"border-box" }}
               />
             </div>
+            {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
             <div style={{ display:"flex", gap:8 }}>
               <Btn variant="ghost" onClick={()=>setStep("photo")}>이전</Btn>
-              <Btn full onClick={()=>setStep("stats")}>다음</Btn>
+              <Btn full onClick={saveBioAndContinue} disabled={loading}>{loading?"저장 중...":"다음"}</Btn>
             </div>
           </div>
         )}
@@ -577,9 +600,10 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
                 <MiniHex stats={Object.fromEntries(STATS.map(s=>[s.key, stats[s.key as keyof typeof stats]*10])) as unknown as Stats} size={100} color="#00c8ff"/>
               </div>
             </div>
+            {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
             <div style={{ display:"flex", gap:8 }}>
               <Btn variant="ghost" onClick={()=>setStep("bio")}>이전</Btn>
-              <Btn full variant="purple" onClick={onDone} icon={<CheckCircle2 size={14}/>}>완료</Btn>
+              <Btn full variant="purple" onClick={saveStatsAndFinish} disabled={loading} icon={loading?undefined:<CheckCircle2 size={14}/>}>{loading?"저장 중...":"완료"}</Btn>
             </div>
           </div>
         )}
@@ -599,12 +623,14 @@ const NAV = [
 ];
 
 function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen:(s:MainScreen)=>void; onLogout:()=>void }) {
+  const [me, setMe] = useState<UserProfileDto|null>(null);
+  useEffect(()=>{ getMyProfile().then(setMe).catch(()=>{}); },[]);
   return (
     <aside style={{ width:220, minHeight:"100vh", background:"rgba(5,8,16,0.96)", backdropFilter:"blur(12px)", borderRight:"1px solid rgba(255,255,255,0.06)", display:"flex", flexDirection:"column", flexShrink:0 }}>
       <div style={{ padding:"20px 18px 16px", borderBottom:"1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:9 }}>
           <div style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(135deg,rgba(0,200,255,0.2),rgba(168,85,247,0.2))", border:"1px solid rgba(0,200,255,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <Trophy size={15} style={{color:"#00c8ff"}}/>
+            <Notebook size={15} style={{color:"#00c8ff"}}/>
           </div>
           <div>
             <div style={{ fontSize:11, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.04em" }}>MOLIP</div>
@@ -639,11 +665,10 @@ function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen
       <div style={{ padding:"12px 10px", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 10px", borderRadius:9, background:"rgba(255,255,255,0.03)" }}>
           <div style={{ width:30, height:30, borderRadius:999, overflow:"hidden", border:`2px solid ${RARITY.legendary.color}`, flexShrink:0 }}>
-            <img src={CURRENT_USER.photo} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:12, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{CURRENT_USER.name}</div>
-            <div style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{CURRENT_USER.role}</div>
+            <div style={{ fontSize:12, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{me?.name ?? "..."}</div>
           </div>
           <button onClick={onLogout} style={{ background:"none", border:"none", color:"#4a5a7a", cursor:"pointer", padding:4 }} title="로그아웃"><LogOut size={13}/></button>
         </div>
@@ -653,15 +678,26 @@ function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen
 }
 
 // ─── Pokedex Screen ───────────────────────────────────────────────────────────
-function PokedexScreen({ evalDone, onEval }: { evalDone:boolean; onEval:()=>void }) {
+function PokedexScreen({ onEval }: { onEval:()=>void }) {
+  const [cards, setCards] = useState<User[]|null>(null);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Rarity|"all">("all");
   const [sort, setSort] = useState<"name"|"power"|"rarity">("power");
-  const [modal, setModal] = useState<User|null>(null);
+  const [modalSummary, setModalSummary] = useState<User|null>(null);
+  const [modalDetail, setModalDetail] = useState<User|null>(null);
+  const [modalLoading, setModalLoading] = useState(false);
   const rarities: (Rarity|"all")[] = ["all","legendary","epic","rare","common"];
 
+  useEffect(()=>{
+    listCards()
+      .then(list=>setCards(list.map(cardToUser)))
+      .catch(e=>setError(e instanceof ApiError ? e.message : "카드 도감을 불러오지 못했습니다."));
+  },[]);
+
   const filtered = useMemo(()=>{
-    let u = USERS.filter(u=>u.name.includes(search)||u.role.toLowerCase().includes(search.toLowerCase()));
+    if (!cards) return [];
+    let u = cards.filter(u=>u.name.includes(search));
     if (filter!=="all") u=u.filter(x=>x.rarity===filter);
     return [...u].sort((a,b)=>{
       if (sort==="name") return a.name.localeCompare(b.name);
@@ -669,20 +705,37 @@ function PokedexScreen({ evalDone, onEval }: { evalDone:boolean; onEval:()=>void
       const ord={legendary:0,epic:1,rare:2,common:3};
       return ord[a.rarity]-ord[b.rarity];
     });
-  },[search,filter,sort]);
+  },[cards,search,filter,sort]);
+
+  async function openCard(u: User) {
+    setModalSummary(u); setModalDetail(null); setModalLoading(true);
+    try {
+      const detail = await getCard(u.id);
+      setModalDetail(cardToUser(detail));
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "카드 상세 정보를 불러오지 못했습니다.");
+    } finally {
+      setModalLoading(false);
+    }
+  }
+
+  const modal = modalDetail ?? modalSummary;
+
+  if (error) return <div style={{ padding:"28px 32px" }}><p style={{ color:"#ef4444", fontFamily:"'Noto Sans KR'", fontSize:13 }}>{error}</p></div>;
+  if (!cards) return <div style={{ padding:"28px 32px", display:"flex", alignItems:"center", gap:8 }}><RefreshCw size={16} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/><span style={{ color:"#8899bb", fontFamily:"'Noto Sans KR'", fontSize:13 }}>도감을 불러오는 중...</span></div>;
 
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
       <div style={{ marginBottom:24 }}>
         <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:4 }}>몰입캠프 도감</h1>
-        <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>전체 {USERS.length}명의 참가자 카드</p>
+        <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>전체 {cards.length}명의 참가자 카드</p>
       </div>
 
       {/* Controls */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:20, alignItems:"center" }}>
         <div style={{ display:"flex", alignItems:"center", gap:7, padding:"8px 12px", borderRadius:9, ...DS.glass, flex:"1 1 200px", minWidth:160 }}>
           <Search size={13} style={{color:"#8899bb",flexShrink:0}}/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 또는 역할 검색..." style={{ background:"none", border:"none", outline:"none", color:"#dde5f0", fontSize:13, fontFamily:"'Noto Sans KR'", width:"100%" }}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 검색..." style={{ background:"none", border:"none", outline:"none", color:"#dde5f0", fontSize:13, fontFamily:"'Noto Sans KR'", width:"100%" }}/>
         </div>
         <div style={{ display:"flex", gap:5 }}>
           {rarities.map(r=>(
@@ -711,16 +764,16 @@ function PokedexScreen({ evalDone, onEval }: { evalDone:boolean; onEval:()=>void
       {/* Grid */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:16 }}>
         {filtered.map(u=>(
-          <GridCard key={u.id} user={u} onClick={()=>setModal(u)}/>
+          <GridCard key={u.id} user={u} onClick={()=>openCard(u)}/>
         ))}
       </div>
 
       {/* Modal */}
       {modal && (
-        <div style={{ position:"fixed", inset:0, zIndex:60, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(4,7,14,0.82)", backdropFilter:"blur(8px)" }} onClick={()=>setModal(null)}>
+        <div style={{ position:"fixed", inset:0, zIndex:60, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(4,7,14,0.82)", backdropFilter:"blur(8px)" }} onClick={()=>{setModalSummary(null);setModalDetail(null);}}>
           <div onClick={e=>e.stopPropagation()} style={{ position:"relative" }}>
-            <button onClick={()=>setModal(null)} style={{ position:"absolute", top:-42, right:0, width:32, height:32, borderRadius:999, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:"#8899bb", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><X size={15}/></button>
-            <FlipCard user={modal} w={300} h={460} locked={!evalDone&&modal.id!==CURRENT_USER_ID} onUnlock={onEval}/>
+            <button onClick={()=>{setModalSummary(null);setModalDetail(null);}} style={{ position:"absolute", top:-42, right:0, width:32, height:32, borderRadius:999, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:"#8899bb", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><X size={15}/></button>
+            <FlipCard user={modal} w={300} h={460} locked={modalLoading || !(modalDetail?.isUnlocked ?? false)} onUnlock={onEval}/>
             <p style={{ textAlign:"center", marginTop:10, fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>카드를 클릭해 앞/뒤를 확인하세요</p>
           </div>
         </div>
@@ -732,64 +785,104 @@ function PokedexScreen({ evalDone, onEval }: { evalDone:boolean; onEval:()=>void
 // ─── Teams Screen ─────────────────────────────────────────────────────────────
 function TeamsScreen() {
   const [tab, setTab] = useState<"list"|"create"|"join">("list");
-  const [tname, setTname] = useState(""); const [tproj, setTproj] = useState("");
+  const [myTeams, setMyTeams] = useState<TeamDetailDto[]|null>(null);
+  const [tname, setTname] = useState("");
   const [code, setCode] = useState("");
   const [created, setCreated] = useState<string|null>(null);
   const [copied, setCopied] = useState(false);
-  const myTeams = TEAMS.filter(t=>t.memberIds.includes(CURRENT_USER_ID));
-  function create() { if(!tname) return; setCreated(tname.toUpperCase().slice(0,5)+(Math.floor(Math.random()*90)+10)); }
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function loadTeams() {
+    try {
+      const summaries = await listMyTeams();
+      const details = await Promise.all(summaries.map(t=>getTeam(t.id)));
+      setMyTeams(details);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "팀 목록을 불러오지 못했습니다.");
+    }
+  }
+  useEffect(()=>{ loadTeams(); },[]);
+
+  async function create() {
+    if (!tname) return;
+    setError(""); setBusy(true);
+    try {
+      const team = await createTeam(tname);
+      setCreated(team.inviteCode);
+      setTname("");
+      loadTeams();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "팀 생성 중 오류가 발생했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function join() {
+    setError(""); setBusy(true);
+    try {
+      await joinTeam(code);
+      setCode(""); setTab("list");
+      loadTeams();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "팀 참여 중 오류가 발생했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
   function copy(c:string){navigator.clipboard.writeText(c);setCopied(true);setTimeout(()=>setCopied(false),2000);}
+
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
       <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:20 }}>팀 관리</h1>
+      {error && <p style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'", marginBottom:14 }}>{error}</p>}
       <div style={{ display:"flex", gap:6, marginBottom:24 }}>
         {[{k:"list",l:"내 팀",Icon:Users},{k:"create",l:"팀 만들기",Icon:Plus},{k:"join",l:"팀 참여",Icon:UserPlus}].map(({k,l,Icon})=>(
           <Btn key={k} variant={tab===k?"secondary":"ghost"} onClick={()=>{setTab(k as typeof tab);setCreated(null);}} icon={<Icon size={13}/>}>{l}</Btn>
         ))}
       </div>
       {tab==="list" && (
+        myTeams===null ? (
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}><RefreshCw size={16} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/><span style={{ color:"#8899bb", fontFamily:"'Noto Sans KR'", fontSize:13 }}>팀 목록을 불러오는 중...</span></div>
+        ) : myTeams.length===0 ? (
+          <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>아직 소속된 팀이 없습니다. 팀을 만들거나 초대 코드로 참여해보세요.</p>
+        ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          {myTeams.map(team=>{
-            const members=USERS.filter(u=>team.memberIds.includes(u.id));
-            return (
-              <div key={team.id} style={{ ...DS.card, padding:"18px 20px" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-                  <div>
-                    <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>{team.name}</div>
-                    <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>{team.project}</div>
-                  </div>
-                  <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
-                    <Pill label={team.isCompleted?"✓ 완료":"진행 중"} color={team.isCompleted?"#34d399":"#00c8ff"} small/>
-                    <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
-                      <Hash size={9}/>{team.code}
-                      <button onClick={()=>copy(team.code)} style={{background:"none",border:"none",color:"#4a5a7a",cursor:"pointer",padding:2}}><Copy size={10}/></button>
-                    </div>
-                  </div>
+          {myTeams.map(team=>(
+            <div key={team.id} style={{ ...DS.card, padding:"18px 20px" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+                <div>
+                  <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>{team.name}</div>
+                  <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>멤버 {team.memberCount}명</div>
                 </div>
-                <div style={{ display:"flex", gap:10 }}>
-                  {members.map(u=>{
-                    const r=RARITY[u.rarity];
-                    return (
-                      <div key={u.id} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                        <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:`2px solid ${r.color}` }}>
-                          <img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-                        </div>
-                        <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{u.name}</span>
-                      </div>
-                    );
-                  })}
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
+                  <Pill label={team.projectFinished?"✓ 완료":"진행 중"} color={team.projectFinished?"#34d399":"#00c8ff"} small/>
+                  <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
+                    <Hash size={9}/>{team.inviteCode}
+                    <button onClick={()=>copy(team.inviteCode)} style={{background:"none",border:"none",color:"#4a5a7a",cursor:"pointer",padding:2}}><Copy size={10}/></button>
+                  </div>
                 </div>
               </div>
-            );
-          })}
+              <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                {team.members.map(m=>(
+                  <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                    <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff" }}>
+                      <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                    </div>
+                    <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{m.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
+        )
       )}
       {tab==="create" && (
         <div style={{ ...DS.card, padding:"24px", maxWidth:420 }}>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <Field label="팀 이름" value={tname} onChange={setTname} placeholder="예) 감마팀"/>
-            <Field label="프로젝트 주제" value={tproj} onChange={setTproj} placeholder="예) 소셜 임팩트 앱"/>
-            <Btn icon={<Plus size={13}/>} onClick={create}>팀 생성</Btn>
+            <Btn icon={<Plus size={13}/>} onClick={create} disabled={busy}>{busy?"생성 중...":"팀 생성"}</Btn>
             {created && (
               <div style={{ padding:"16px", borderRadius:10, background:"rgba(52,211,153,0.06)", border:"1px solid rgba(52,211,153,0.25)" }}>
                 <p style={{ fontSize:12, color:"#34d399", fontFamily:"'Noto Sans KR'", marginBottom:8 }}>✓ 팀이 생성되었습니다! 초대 코드를 공유하세요.</p>
@@ -812,7 +905,7 @@ function TeamsScreen() {
               <Hash size={14} style={{color:"#8899bb",marginLeft:12,flexShrink:0}}/>
               <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="XXXXX00" style={{ background:"none", border:"none", outline:"none", padding:"11px 10px", color:"#00c8ff", fontSize:18, fontFamily:"'Orbitron',monospace", letterSpacing:"0.18em", flex:1 }}/>
             </div>
-            <Btn full variant="purple" disabled={code.length<5} icon={<UserPlus size={13}/>}>팀 참여하기</Btn>
+            <Btn full variant="purple" disabled={code.length<5||busy} onClick={join} icon={<UserPlus size={13}/>}>{busy?"참여 중...":"팀 참여하기"}</Btn>
           </div>
         </div>
       )}
@@ -822,23 +915,83 @@ function TeamsScreen() {
 
 // ─── Evaluate Screen ──────────────────────────────────────────────────────────
 function EvaluateScreen({ onDone }: { onDone:()=>void }) {
-  const teammates = USERS.filter(u=>u.id!==CURRENT_USER_ID&&TEAMS[0].memberIds.includes(u.id));
-  const [ratings, setRatings] = useState<Record<number,Partial<Stats>>>(()=>Object.fromEntries(teammates.map(u=>[u.id,{attack:5,defense:5,speed:5,communication:5,support:5,creativity:5}])));
-  const [titles, setTitles] = useState<Record<number,string>>({});
+  const [teamId, setTeamId] = useState<number|null>(null);
+  const [teamName, setTeamName] = useState("");
+  const [teammates, setTeammates] = useState<{userId:number;name:string;profileImageUrl:string|null}[]|null>(null);
+  const [titleOptions, setTitleOptions] = useState<TitleDto[]|null>(null);
+  const [error, setError] = useState("");
+  const [ratings, setRatings] = useState<Record<number,Partial<Stats>>>({});
+  const [titles, setTitles] = useState<Record<number,number>>({});
   const [done, setDone] = useState<number[]>([]);
-  const progress = Math.round((done.length/teammates.length)*100);
-  function submit(uid:number){if(!titles[uid])return; setDone(p=>[...p,uid]); if(done.length+1===teammates.length)setTimeout(onDone,600);}
+  const [submitting, setSubmitting] = useState<number|null>(null);
+
+  useEffect(()=>{
+    (async () => {
+      try {
+        const teams = await listMyTeams();
+        const team = teams[0];
+        if (!team) { setTeammates([]); return; }
+        setTeamId(team.id); setTeamName(team.name);
+        const [targets, titleList] = await Promise.all([listEvaluationTargets(team.id), listTitles()]);
+        setTeammates(targets);
+        setTitleOptions(titleList);
+        setRatings(Object.fromEntries(targets.map(t=>[t.userId,{attack:5,defense:5,speed:5,teamwork:5,problemSolving:5,creativity:5}])));
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "평가 대상자를 불러오지 못했습니다.");
+      }
+    })();
+  },[]);
+
   function setR(uid:number,key:string,v:number){setRatings(p=>({...p,[uid]:{...p[uid],[key]:v}}))}
+
+  async function submit(uid:number) {
+    const titleId = titles[uid];
+    if (!titleId || teamId===null) return;
+    const r = ratings[uid] ?? {};
+    setSubmitting(uid); setError("");
+    try {
+      await submitEvaluation(teamId, {
+        targetUserId: uid,
+        attack: r.attack??5, defense: r.defense??5, speed: r.speed??5,
+        teamwork: r.teamwork??5, creativity: r.creativity??5, problemSolving: r.problemSolving??5,
+        titleIds: [titleId],
+      });
+      const nextDone = [...done, uid];
+      setDone(nextDone);
+      if (teammates && nextDone.length===teammates.length) setTimeout(onDone,600);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "평가 제출 중 오류가 발생했습니다.");
+    } finally {
+      setSubmitting(null);
+    }
+  }
+
+  if (teammates===null) {
+    return (
+      <div style={{ padding:"28px 32px" }}>
+        {error
+          ? <p style={{ fontSize:13, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{error}</p>
+          : <div style={{ display:"flex", alignItems:"center", gap:8 }}><RefreshCw size={16} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/><span style={{ color:"#8899bb", fontFamily:"'Noto Sans KR'", fontSize:13 }}>평가 대상자를 불러오는 중...</span></div>}
+      </div>
+    );
+  }
+  if (teammates.length===0) {
+    return <div style={{ padding:"28px 32px" }}><p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>평가할 팀원이 없습니다. 먼저 팀에 참여해주세요.</p></div>;
+  }
+
+  const progress = Math.round((done.length/teammates.length)*100);
+
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
       <div style={{ marginBottom:20 }}>
         <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:4 }}>팀원 평가</h1>
-        <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:12 }}>{TEAMS[0].name} — {TEAMS[0].project} 프로젝트 종료 후 평가</p>
+        <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:12 }}>{teamName} — 프로젝트 종료 후 평가</p>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ flex:1 }}><Progress value={progress} color={progress===100?"#34d399":"#00c8ff"}/></div>
           <span style={{ fontSize:12, fontFamily:"'Orbitron',monospace", color:progress===100?"#34d399":"#00c8ff", fontWeight:700 }}>{done.length}/{teammates.length}</span>
         </div>
       </div>
+      {error && <p style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'", marginBottom:14 }}>{error}</p>}
       {progress===100 && (
         <div style={{ padding:"14px 18px", borderRadius:10, background:"rgba(52,211,153,0.08)", border:"1px solid rgba(52,211,153,0.3)", marginBottom:20, display:"flex", alignItems:"center", gap:10 }}>
           <CheckCircle2 size={18} style={{color:"#34d399"}}/>
@@ -850,14 +1003,13 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
       )}
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
         {teammates.map(u=>{
-          const r=RARITY[u.rarity]; const isDone=done.includes(u.id);
+          const isDone=done.includes(u.userId);
           return (
-            <div key={u.id} style={{ ...DS.card, overflow:"hidden" }}>
+            <div key={u.userId} style={{ ...DS.card, overflow:"hidden" }}>
               <div style={{ padding:"14px 18px", background:isDone?"rgba(52,211,153,0.04)":"rgba(255,255,255,0.01)", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:40, height:40, borderRadius:999, overflow:"hidden", border:`2px solid ${r.color}`, flexShrink:0 }}><img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
+                <div style={{ width:40, height:40, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff", flexShrink:0 }}><img src={u.profileImageUrl || FALLBACK_AVATAR} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:r.color }}>{u.name}</div>
-                  <div style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{u.role}</div>
+                  <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#00c8ff" }}>{u.name}</div>
                 </div>
                 {isDone && <Pill label="✓ 완료" color="#34d399" small/>}
               </div>
@@ -866,19 +1018,19 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
                   <div>
                     <p style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:8 }}>칭호 선택 <span style={{color:"#4a5a7a"}}>(1개 선택)</span></p>
                     <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
-                      {TITLES.map(t=>{
-                        const sel=titles[u.id]===t;
-                        return <button key={t} onClick={()=>setTitles(p=>({...p,[u.id]:t}))} style={{ padding:"4px 10px", borderRadius:999, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", transition:"all 0.15s", background:sel?"rgba(0,200,255,0.15)":"rgba(255,255,255,0.03)", color:sel?"#00c8ff":"#8899bb", border:`1px solid ${sel?"rgba(0,200,255,0.4)":"rgba(255,255,255,0.07)"}` }}>{t}</button>;
+                      {(titleOptions??[]).map(t=>{
+                        const sel=titles[u.userId]===t.id;
+                        return <button key={t.id} onClick={()=>setTitles(p=>({...p,[u.userId]:t.id}))} style={{ padding:"4px 10px", borderRadius:999, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", transition:"all 0.15s", background:sel?"rgba(0,200,255,0.15)":"rgba(255,255,255,0.03)", color:sel?"#00c8ff":"#8899bb", border:`1px solid ${sel?"rgba(0,200,255,0.4)":"rgba(255,255,255,0.07)"}` }}>{t.name}</button>;
                       })}
                     </div>
                   </div>
                   <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px 24px" }}>
                     {STATS.map(s=>(
-                      <StatSlider key={s.key} label={s.label} value={(ratings[u.id]?.[s.key as keyof Stats]??5) as number} onChange={v=>setR(u.id,s.key,v)} color={s.color} Icon={s.Icon}/>
+                      <StatSlider key={s.key} label={s.label} value={(ratings[u.userId]?.[s.key as keyof Stats]??5) as number} onChange={v=>setR(u.userId,s.key,v)} color={s.color} Icon={s.Icon}/>
                     ))}
                   </div>
                   <div style={{ display:"flex", justifyContent:"flex-end" }}>
-                    <Btn disabled={!titles[u.id]} onClick={()=>submit(u.id)} icon={<Check size={13}/>}>평가 제출</Btn>
+                    <Btn disabled={!titles[u.userId]||submitting===u.userId} onClick={()=>submit(u.userId)} icon={<Check size={13}/>}>{submitting===u.userId?"제출 중...":"평가 제출"}</Btn>
                   </div>
                 </div>
               )}
@@ -892,25 +1044,51 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
 
 // ─── AI Analysis Screen ───────────────────────────────────────────────────────
 function AIScreen() {
-  const [selected, setSelected] = useState<number[]>([1]);
+  const [cards, setCards] = useState<User[]|null>(null);
+  const [selected, setSelected] = useState<number[]>([]);
+  const [sessionId, setSessionId] = useState<number|null>(null);
   const [msgs, setMsgs] = useState<ChatMessage[]>([{ role:"ai", text:"안녕하세요! 선택된 카드를 기반으로 팀원 분석을 도와드립니다. 아래 예시 질문을 선택하거나 직접 입력해보세요." }]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [error, setError] = useState("");
   const [displayIdx, setDisplayIdx] = useState<number>(-1);
   const [displayText, setDisplayText] = useState("");
   const msgEnd = useRef<HTMLDivElement>(null);
-  const selUsers = USERS.filter(u=>selected.includes(u.id));
+
+  useEffect(()=>{
+    listCards().then(list=>{
+      const mapped = list.map(cardToUser);
+      setCards(mapped);
+      if (mapped[0]) setSelected([mapped[0].id]);
+    }).catch(e=>setError(e instanceof ApiError ? e.message : "카드 목록을 불러오지 못했습니다."));
+  },[]);
+
+  // 선택된 카드 조합이 바뀌면 새 대화 세션에서 다시 시작한다.
+  useEffect(()=>{ setSessionId(null); },[selected.join(",")]);
+
+  const selUsers = (cards??[]).filter(u=>selected.includes(u.id));
 
   function toggleSel(id:number){setSelected(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);}
-  function send(q:string){
-    if(!q.trim()) return;
+  async function send(q:string){
+    if(!q.trim()||selected.length===0) return;
     const newMsgs=[...msgs,{role:"user" as const,text:q}];
-    setMsgs(newMsgs); setInput(""); setTyping(true);
-    setTimeout(()=>{
-      const resp=aiResponse(q,selUsers);
-      setMsgs(m=>[...m,{role:"ai",text:resp}]);
-      setDisplayIdx(newMsgs.length); setTyping(false); setDisplayText("");
-    },1500);
+    setMsgs(newMsgs); setInput(""); setTyping(true); setError("");
+    try {
+      let sid = sessionId;
+      if (sid===null) {
+        const session = await createChatSession(selected);
+        sid = session.id;
+        setSessionId(sid);
+      }
+      const reply = await sendChatMessage(sid, q);
+      setMsgs(m=>[...m,{role:"ai",text:reply.content}]);
+      setDisplayIdx(newMsgs.length); setDisplayText("");
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "AI 응답을 가져오지 못했습니다.");
+      setMsgs(m=>[...m,{role:"ai",text:"죄송해요, 지금은 답변을 가져올 수 없어요. 잠시 후 다시 시도해주세요."}]);
+    } finally {
+      setTyping(false);
+    }
   }
 
   useEffect(()=>{ msgEnd.current?.scrollIntoView({behavior:"smooth"}); },[msgs,typing]);
@@ -929,14 +1107,15 @@ function AIScreen() {
       {/* Left panel */}
       <div style={{ width:220, borderRight:"1px solid rgba(255,255,255,0.06)", padding:"18px 14px", display:"flex", flexDirection:"column", gap:10, overflowY:"auto" }}>
         <p style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:4 }}>분석할 카드 선택</p>
-        {USERS.map(u=>{
+        {cards===null ? (
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}><RefreshCw size={13} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/><span style={{ color:"#8899bb", fontFamily:"'Noto Sans KR'", fontSize:11 }}>불러오는 중...</span></div>
+        ) : cards.map(u=>{
           const r=RARITY[u.rarity]; const sel=selected.includes(u.id);
           return (
             <div key={u.id} onClick={()=>toggleSel(u.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.02)", border:`1px solid ${sel?r.border:"rgba(255,255,255,0.06)"}`, transition:"all 0.15s" }}>
               <div style={{ width:28, height:28, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?r.color:"transparent"}`, flexShrink:0 }}><img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:11, fontWeight:700, fontFamily:"'Black Han Sans'", color:sel?r.color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name}</div>
-                <div style={{ fontSize:9, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{u.role}</div>
               </div>
               {sel && <Check size={11} style={{color:r.color,flexShrink:0}}/>}
             </div>
@@ -975,6 +1154,7 @@ function AIScreen() {
           )}
           <div ref={msgEnd}/>
         </div>
+        {error && <p style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'", padding:"0 20px" }}>{error}</p>}
         {/* Example Qs */}
         <div style={{ padding:"8px 20px 0", display:"flex", flexWrap:"wrap", gap:5 }}>
           {AI_QUESTIONS.map(q=>(
@@ -993,16 +1173,29 @@ function AIScreen() {
 
 // ─── Compare Screen ───────────────────────────────────────────────────────────
 function CompareScreen() {
-  const [selected, setSelected] = useState<number[]>([1,3]);
-  const selUsers = USERS.filter(u=>selected.includes(u.id));
+  const [cards, setCards] = useState<User[]|null>(null);
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState<number[]>([]);
   const colors = ["#00c8ff","#a855f7","#fbbf24"];
   function toggle(id:number){setSelected(p=>p.includes(id)?p.filter(x=>x!==id):p.length<3?[...p,id]:p);}
+
+  useEffect(()=>{
+    listCards()
+      .then(list=>setCards(list.map(cardToUser)))
+      .catch(e=>setError(e instanceof ApiError ? e.message : "카드 목록을 불러오지 못했습니다."));
+  },[]);
+
+  const selUsers = (cards??[]).filter(u=>selected.includes(u.id));
+
+  if (error) return <div style={{ padding:"28px 32px" }}><p style={{ color:"#ef4444", fontFamily:"'Noto Sans KR'", fontSize:13 }}>{error}</p></div>;
+  if (!cards) return <div style={{ padding:"28px 32px", display:"flex", alignItems:"center", gap:8 }}><RefreshCw size={16} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/><span style={{ color:"#8899bb", fontFamily:"'Noto Sans KR'", fontSize:13 }}>카드를 불러오는 중...</span></div>;
+
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
       <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:20 }}>카드 비교</h1>
       {/* User selector */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:20 }}>
-        {USERS.map(u=>{
+        {cards.map(u=>{
           const r=RARITY[u.rarity]; const sel=selected.includes(u.id);
           const ci=selected.indexOf(u.id);
           return (
@@ -1071,10 +1264,43 @@ function CompareScreen() {
 
 // ─── Profile Screen ───────────────────────────────────────────────────────────
 function ProfileScreen() {
-  const u = CURRENT_USER; const r = RARITY[u.rarity];
-  const [bio, setBio] = useState(u.bio);
+  const [profile, setProfile] = useState<UserProfileDto|null>(null);
+  const [card, setCard] = useState<User|null>(null);
+  const [bio, setBio] = useState("");
   const [saved, setSaved] = useState(false);
-  function save(){setSaved(true);setTimeout(()=>setSaved(false),2000);}
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(()=>{
+    (async () => {
+      try {
+        const me = await getMyProfile();
+        setProfile(me);
+        setBio(me.biography ?? "");
+        const detail = await getCard(me.id);
+        setCard(cardToUser(detail));
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : "프로필을 불러오지 못했습니다.");
+      }
+    })();
+  },[]);
+
+  async function save() {
+    setSaving(true); setError("");
+    try {
+      await apiUpdateProfile({ biography: bio });
+      setSaved(true); setTimeout(()=>setSaved(false),2000);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "저장 중 오류가 발생했습니다.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (error) return <div style={{ padding:"28px 32px" }}><p style={{ color:"#ef4444", fontFamily:"'Noto Sans KR'", fontSize:13 }}>{error}</p></div>;
+  if (!profile || !card) return <div style={{ padding:"28px 32px", display:"flex", alignItems:"center", gap:8 }}><RefreshCw size={16} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/><span style={{ color:"#8899bb", fontFamily:"'Noto Sans KR'", fontSize:13 }}>프로필을 불러오는 중...</span></div>;
+
+  const u = card; const r = RARITY[u.rarity];
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
       <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:24 }}>내 프로필</h1>
@@ -1102,7 +1328,7 @@ function ProfileScreen() {
                 </div>
                 <textarea value={bio} onChange={e=>e.target.value.length<=50&&setBio(e.target.value)} rows={2} style={{ ...DS.input, width:"100%", padding:"10px 12px", resize:"none", fontFamily:"'Noto Sans KR'", fontSize:13, lineHeight:1.6, boxSizing:"border-box" }}/>
               </div>
-              <Btn icon={saved?<CheckCircle2 size={13}/>:undefined} variant={saved?"ghost":"primary"} onClick={save}>{saved?"저장됨":"저장하기"}</Btn>
+              <Btn icon={saved?<CheckCircle2 size={13}/>:undefined} variant={saved?"ghost":"primary"} onClick={save} disabled={saving}>{saving?"저장 중...":saved?"저장됨":"저장하기"}</Btn>
             </div>
           </div>
           {/* Stats overview */}
@@ -1143,48 +1369,92 @@ function ProfileScreen() {
 }
 
 // ─── App Shell ────────────────────────────────────────────────────────────────
+function GlobalStyle() {
+  return (
+    <style>{`
+      @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+      @keyframes bounce { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
+      input[type=range]{height:4px;cursor:pointer}
+      input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:rgba(255,255,255,0.1)}
+      input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;margin-top:-5px}
+      ::-webkit-scrollbar{width:3px;height:3px}
+      ::-webkit-scrollbar-track{background:transparent}
+      ::-webkit-scrollbar-thumb{background:rgba(0,200,255,0.2);border-radius:2px}
+      textarea{font-family:'Noto Sans KR',sans-serif!important}
+    `}</style>
+  );
+}
+
 export default function App() {
   const [authPhase, setAuthPhase] = useState<AuthPhase>("login");
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [evalDone, setEvalDone] = useState(false);
   const [screen, setScreen] = useState<MainScreen>("pokedex");
+  const [checkingSession, setCheckingSession] = useState(true);
 
-  function handleLogin(isFirst: boolean) {
-    if (isFirst) { setAuthPhase("change-password"); }
-    else { setIsLoggedIn(true); }
+  // 저장된 토큰이 있으면 새로고침해도 로그인 상태/온보딩 단계를 복원한다.
+  useEffect(() => {
+    if (!getAccessToken()) { setCheckingSession(false); return; }
+    getMyProfile()
+      .then(profile => {
+        if (!profile.passwordChanged) setAuthPhase("change-password");
+        else if (!profile.onboarded) setAuthPhase("profile-setup");
+        else setIsLoggedIn(true);
+      })
+      .catch(e => {
+        // 비밀번호 미변경 사용자는 /users/me 자체가 403(PASSWORD_CHANGE_REQUIRED)으로 막혀있다.
+        if (e instanceof ApiError && e.errorCode === "PASSWORD_CHANGE_REQUIRED") setAuthPhase("change-password");
+      })
+      .finally(() => setCheckingSession(false));
+  }, []);
+
+  function handleLoginSuccess(passwordChanged: boolean) {
+    if (!passwordChanged) { setAuthPhase("change-password"); return; }
+    setCheckingSession(true);
+    getMyProfile()
+      .then(profile => { if (profile.onboarded) setIsLoggedIn(true); else setAuthPhase("profile-setup"); })
+      .catch(() => setAuthPhase("profile-setup"))
+      .finally(() => setCheckingSession(false));
   }
   function handlePasswordChanged() { setAuthPhase("profile-setup"); }
   function handleProfileDone() { setIsLoggedIn(true); }
-  function handleLogout() { setIsLoggedIn(false); setAuthPhase("login"); setEvalDone(false); setScreen("pokedex"); }
+  function handleLogout() { clearTokens(); setIsLoggedIn(false); setAuthPhase("login"); setScreen("pokedex"); }
+
+  if (checkingSession) {
+    return (
+      <>
+        <GlobalStyle/>
+        <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#070b12" }}>
+          <RefreshCw size={24} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/>
+        </div>
+      </>
+    );
+  }
 
   if (!isLoggedIn) {
-    if (authPhase==="login") return <LoginScreen onLogin={handleLogin}/>;
-    if (authPhase==="change-password") return <ChangePasswordScreen onDone={handlePasswordChanged}/>;
-    if (authPhase==="profile-setup") return <ProfileSetupScreen onDone={handleProfileDone}/>;
+    return (
+      <>
+        <GlobalStyle/>
+        {authPhase==="login" && <LoginScreen onLoginSuccess={handleLoginSuccess}/>}
+        {authPhase==="change-password" && <ChangePasswordScreen onDone={handlePasswordChanged}/>}
+        {authPhase==="profile-setup" && <ProfileSetupScreen onDone={handleProfileDone}/>}
+      </>
+    );
   }
 
   return (
-    <div style={{ display:"flex", height:"100vh", background:"#070b12", overflow:"hidden" }}>
-      <style>{`
-        @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
-        @keyframes bounce { 0%,80%,100%{transform:scale(0)} 40%{transform:scale(1)} }
-        input[type=range]{height:4px;cursor:pointer}
-        input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:rgba(255,255,255,0.1)}
-        input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;margin-top:-5px}
-        ::-webkit-scrollbar{width:3px;height:3px}
-        ::-webkit-scrollbar-track{background:transparent}
-        ::-webkit-scrollbar-thumb{background:rgba(0,200,255,0.2);border-radius:2px}
-        textarea{font-family:'Noto Sans KR',sans-serif!important}
-      `}</style>
-      <Sidebar screen={screen} setScreen={s=>{setScreen(s);}} onLogout={handleLogout}/>
-      <main style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-        {screen==="pokedex"     && <PokedexScreen evalDone={evalDone} onEval={()=>setScreen("evaluate")}/>}
-        {screen==="teams"       && <TeamsScreen/>}
-        {screen==="evaluate"    && <EvaluateScreen onDone={()=>setEvalDone(true)}/>}
-        {screen==="ai-analysis" && <AIScreen/>}
-        {screen==="compare"     && <CompareScreen/>}
-        {screen==="profile"     && <ProfileScreen/>}
-      </main>
-    </div>
+    <>
+      <GlobalStyle/>
+      <div style={{ display:"flex", height:"100vh", background:"#070b12", overflow:"hidden" }}>
+        <Sidebar screen={screen} setScreen={s=>{setScreen(s);}} onLogout={handleLogout}/>
+        <main style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+          {screen==="pokedex"     && <PokedexScreen onEval={()=>setScreen("evaluate")}/>}
+          {screen==="teams"       && <TeamsScreen/>}
+          {screen==="evaluate"    && <EvaluateScreen onDone={()=>setScreen("pokedex")}/>}
+          {screen==="ai-analysis" && <AIScreen/>}
+          {screen==="compare"     && <CompareScreen/>}
+          {screen==="profile"     && <ProfileScreen/>}
+        </main>
+      </div>
+    </>
   );
 }
