@@ -298,26 +298,51 @@ export function getCard(userId: number): Promise<CardDetailDto> {
 }
 
 // ─── Chat(AI 분석) 도메인 ─────────────────────────────────────────────────────
+// 실제 ChatController(/api/chat/sessions) 기준.
 
-export interface ChatSessionDto {
-  id: number;
-  title: string;
-  targetUserIds: number[];
-  createdAt: string;
+export interface ChatCardBriefDto {
+  userId: number;
+  name: string;
+  profileImageUrl: string | null;
 }
 
 export interface ChatMessageDto {
+  id: number;
   role: "USER" | "ASSISTANT" | "SYSTEM";
   content: string;
   createdAt: string;
 }
 
-export function createChatSession(targetUserIds: number[]): Promise<ChatSessionDto> {
-  return request<ChatSessionDto>("/chat/sessions", { method: "POST", body: JSON.stringify({ targetUserIds }) });
+export interface ChatSessionDto {
+  id: number;
+  title: string | null;
+  targets: ChatCardBriefDto[];
+  createdAt: string;
 }
 
-export function sendChatMessage(sessionId: number, content: string): Promise<ChatMessageDto> {
-  return request<ChatMessageDto>(`/chat/sessions/${sessionId}/messages`, {
+export interface ChatSessionDetailDto extends ChatSessionDto {
+  messages: ChatMessageDto[];
+}
+
+export interface SendMessageResultDto {
+  userMessage: ChatMessageDto;
+  assistantMessage: ChatMessageDto;
+}
+
+export function listChatSessions(): Promise<ChatSessionDto[]> {
+  return request<ChatSessionDto[]>("/chat/sessions", { method: "GET" });
+}
+
+export function createChatSession(targetUserIds: number[], title?: string): Promise<ChatSessionDto> {
+  return request<ChatSessionDto>("/chat/sessions", { method: "POST", body: JSON.stringify({ targetUserIds, title }) });
+}
+
+export function getChatSession(sessionId: number): Promise<ChatSessionDetailDto> {
+  return request<ChatSessionDetailDto>(`/chat/sessions/${sessionId}`, { method: "GET" });
+}
+
+export function sendChatMessage(sessionId: number, content: string): Promise<SendMessageResultDto> {
+  return request<SendMessageResultDto>(`/chat/sessions/${sessionId}/messages`, {
     method: "POST",
     body: JSON.stringify({ content }),
   });

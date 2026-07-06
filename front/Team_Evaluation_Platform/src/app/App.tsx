@@ -313,7 +313,7 @@ function BigHex({ stats, size=260, users, colors }: { stats?:Stats; size?:number
   return (
     <div style={{ width:"100%", height:size }}>
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} margin={{top:10,right:25,bottom:10,left:25}}>
+        <RadarChart data={data} outerRadius="65%" margin={{top:10,right:25,bottom:10,left:25}}>
           <PolarGrid stroke="rgba(0,200,255,0.15)"/>
           <PolarAngleAxis dataKey="stat" tick={{fill:"#8899bb",fontSize:12,fontFamily:"'Noto Sans KR'"}}/>
           {stats && <Radar dataKey="value" stroke="#00c8ff" fill="#00c8ff" fillOpacity={0.22} dot={{fill:"#00c8ff",r:3}}/>}
@@ -339,13 +339,12 @@ function CardFront({ user }: { user:User }) {
         <div style={{ position:"absolute", top:8, right:8, padding:"2px 7px", borderRadius:6, background:`${r.color}22`, color:r.color, border:`1px solid ${r.color}55`, fontSize:9, fontFamily:"'Orbitron',monospace", fontWeight:700 }}>{r.label}</div>
         <div style={{ position:"absolute", top:8, left:8, padding:"2px 7px", borderRadius:6, background:"rgba(0,0,0,0.6)", color:"#8899bb", fontSize:9, fontFamily:"'Orbitron',monospace" }}>PWR <span style={{color:r.color,fontWeight:700}}>{totalPower(user.stats)}</span></div>
       </div>
-      <div style={{ padding:"10px 12px", display:"flex", flexDirection:"column", gap:6, flex:1 }}>
-        <div>
-          <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans',sans-serif", color:"#dde5f0", lineHeight:1.2 }}>{user.name}</div>
-          <div style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>{user.role}</div>
+      <div style={{ padding:"10px 12px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, flex:1 }}>
+        <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", lineHeight:1.2 }}>{user.name}</div>
+        <div style={{ display:"flex", flexDirection:"column-reverse", alignItems:"flex-end", justifyContent:"flex-end", gap:3 }}>
+          {top.map(t=><Pill key={t} label={t} color={r.color} small/>)}
         </div>
-        {top[0] && <Pill label={top[0]} color={r.color} small/>}
-        <div style={{ marginTop:"auto" }}>
+        <div style={{ gridColumn:"1 / span 2", display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
           <MiniHex stats={user.stats} size={64} color={r.color}/>
         </div>
       </div>
@@ -356,18 +355,22 @@ function CardFront({ user }: { user:User }) {
 function CardBack({ user }: { user:User }) {
   const r = RARITY[user.rarity];
   return (
-    <div style={{ width:"100%", height:"100%", padding:"12px", display:"flex", flexDirection:"column", gap:10, overflow:"hidden" }}>
+    <div style={{ width:"100%", height:"100%", padding:"12px", display:"flex", flexDirection:"column", gap:10, overflow:"visible" }}>
       <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <span style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:r.color }}>{user.name}</span>
+        <span style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:r.color }}>{user.name}</span>
         <span style={{ fontFamily:"'Orbitron',monospace", fontSize:10, background:`${r.color}18`, color:r.color, padding:"2px 7px", borderRadius:6 }}>{totalPower(user.stats)} PT</span>
       </div>
       <BigHex stats={user.stats} size={170}/>
-      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"4px 12px" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"4px 12px", marginTop:2 }}>
         {STATS.map(s=>(
           <div key={s.key} style={{ display:"flex", alignItems:"center", gap:4 }}>
-            <s.Icon size={10} style={{color:s.color}}/>
-            <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{s.label}</span>
-            <span style={{ marginLeft:"auto", fontSize:11, fontFamily:"'Orbitron',monospace", color:s.color, fontWeight:700 }}>{user.stats[s.key as keyof Stats]}</span>
+            <InfoTooltip text={s.desc}>
+              <div style={{ display:"flex", alignItems:"center", gap:4, userSelect:"none" }}>
+                <s.Icon size={10} style={{color:s.color}}/>
+                <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{s.label}</span>
+              </div>
+            </InfoTooltip>
+            <span style={{ marginLeft:"auto", fontSize:11, fontFamily:"'Orbitron',monospace", color:s.color, fontWeight:700, userSelect:"none" }}>{user.stats[s.key as keyof Stats]}</span>
           </div>
         ))}
       </div>
@@ -405,7 +408,7 @@ function FlipCard({ user, w=200, h=320, locked=false, onUnlock }: { user:User; w
           )}
         </div>
         {/* Back */}
-        <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", borderRadius:14, border:`1.5px solid ${r.border}`, boxShadow:r.glow, background:"#0d1525", overflow:"hidden" }}>
+        <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", borderRadius:14, border:`1.5px solid ${r.border}`, boxShadow:r.glow, background:"#0d1525", overflow:"visible" }}>
           <CardBack user={user}/>
         </div>
       </div>
@@ -434,21 +437,19 @@ function GridCard({ user, onClick }: { user:User; onClick:()=>void }) {
         transform:hover?"translateY(-5px) scale(1.03)":"none",
       }}
     >
-      <div style={{ height:110, background:"#060c18", position:"relative", overflow:"hidden" }}>
+      <div style={{ height:140, background:"#060c18", position:"relative", overflow:"hidden" }}>
         <img src={user.photo} alt={user.name} style={{ width:"100%", height:"100%", objectFit:"cover", filter:"brightness(0.8)" }}/>
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom,transparent 50%,#0d1525 100%)" }}/>
         <span style={{ position:"absolute", top:6, right:6, fontSize:9, padding:"2px 6px", borderRadius:5, background:`${r.color}22`, color:r.color, fontFamily:"'Orbitron',monospace", fontWeight:700 }}>{r.label}</span>
+        <span style={{ position:"absolute", top:6, left:6, padding:"2px 7px", borderRadius:5, background:"rgba(0,0,0,0.6)", color:"#8899bb", fontSize:9, fontFamily:"'Orbitron',monospace" }}>PWR <span style={{color:r.color,fontWeight:700}}>{totalPower(user.stats)}</span></span>
       </div>
-      <div style={{ padding:"8px 10px" }}>
-        <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>{user.name}</div>
-        <div style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:6 }}>{user.role}</div>
-        {top[0] && <Pill label={top[0]} color={r.color} small/>}
-        <div style={{ marginTop:8, display:"flex", justifyContent:"center" }}>
-          <MiniHex stats={user.stats} size={60} color={r.color}/>
+      <div style={{ padding:"8px 10px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
+        <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{user.name}</div>
+        <div style={{ display:"flex", flexDirection:"column-reverse", alignItems:"flex-end", justifyContent:"flex-end", gap:3 }}>
+          {top.map(t=><Pill key={t} label={t} color={r.color} small/>)}
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:4, marginTop:4 }}>
-          <span style={{ fontSize:9, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>PWR</span>
-          <span style={{ fontSize:12, fontFamily:"'Orbitron',monospace", color:r.color, fontWeight:700 }}>{totalPower(user.stats)}</span>
+        <div style={{ gridColumn:"1 / span 2", display:"flex", justifyContent:"center" }}>
+          <MiniHex stats={user.stats} size={60} color={r.color}/>
         </div>
       </div>
     </div>
@@ -732,7 +733,7 @@ function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen
             <Notebook size={15} style={{color:"#00c8ff"}}/>
           </div>
           <div>
-            <div style={{ fontSize:11, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.04em" }}>MOLIP</div>
+            <div style={{ fontSize:11, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.04em" }}>매드몬 도감</div>
             <div style={{ fontSize:9, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>팀원 평가 플랫폼</div>
           </div>
         </div>
@@ -826,7 +827,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
       <div style={{ marginBottom:24 }}>
-        <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:4 }}>몰입캠프 도감</h1>
+        <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:4 }}>몰입캠프 도감</h1>
         <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>전체 {cards.length}명의 참가자 카드</p>
       </div>
 
@@ -834,7 +835,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
       <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:20, alignItems:"center" }}>
         <div style={{ display:"flex", alignItems:"center", gap:7, padding:"8px 12px", borderRadius:9, ...DS.glass, flex:"1 1 200px", minWidth:160 }}>
           <Search size={13} style={{color:"#8899bb",flexShrink:0}}/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 검색..." style={{ background:"none", border:"none", outline:"none", color:"#dde5f0", fontSize:13, fontFamily:"'Noto Sans KR'", width:"100%" }}/>
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 검색" style={{ background:"none", border:"none", outline:"none", color:"#dde5f0", fontSize:13, fontFamily:"'Noto Sans KR'", width:"100%" }}/>
         </div>
         <div style={{ display:"flex", gap:5 }}>
           {rarities.map(r=>(
@@ -1177,7 +1178,7 @@ function AIScreen() {
         setSessionId(sid);
       }
       const reply = await sendChatMessage(sid, q);
-      setMsgs(m=>[...m,{role:"ai",text:reply.content}]);
+      setMsgs(m=>[...m,{role:"ai",text:reply.assistantMessage.content}]);
       setDisplayIdx(newMsgs.length); setDisplayText("");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "AI 응답을 가져오지 못했습니다.");
