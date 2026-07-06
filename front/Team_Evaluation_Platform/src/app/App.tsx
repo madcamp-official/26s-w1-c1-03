@@ -24,7 +24,7 @@ import {
 type Rarity = "common" | "rare" | "epic" | "legendary";
 type AuthPhase = "login" | "change-password" | "profile-setup";
 type MainScreen = "pokedex" | "teams" | "evaluate" | "ai-analysis" | "compare" | "profile";
-interface Stats { attack: number; defense: number; speed: number; teamwork: number; creativity: number; problemSolving: number; }
+interface Stats { attack: number; defense: number; agility: number; teamwork: number; mana: number; health: number; }
 interface TitleVote { title: string; votes: number; }
 interface User { id: number; name: string; role: string; photo: string; bio: string; stats: Stats; titleVotes: TitleVote[]; rarity: Rarity; isUnlocked?: boolean; remainingCount?: number; }
 interface ChatMessage { role: "user" | "ai"; text: string; }
@@ -40,15 +40,15 @@ const RARITY: Record<Rarity, { label: string; color: string; glow: string; borde
 // key는 백엔드 UserStats 필드명과 1:1로 맞물려 있어 그대로 두고, 사용자에게 보이는
 // label/설명/아이콘만 새 여섯 스탯(체력/공격력/방어력/마력/민첩성/협동력)으로 바꿨다.
 const STATS = [
-  { key: "problemSolving", label: "체력",   Icon: Heart,    color: "#ef4444",
+  { key: "health", label: "체력",   Icon: Heart,    color: "#ef4444",
     desc: "프로젝트가 길어질수록 빛나는 생존형 스탯입니다.\n처음에는 모두가 의욕이 넘치지만, 마감이 가까워질수록 진짜 중요한 것은 끝까지 앉아 있는 힘입니다.\n\n체력이 높은 개발자는 오류가 계속 나도 쉽게 쓰러지지 않고, \"이거 한 번만 더 해보자\"를 반복하며 결국 결과물을 완성합니다.\n단, 체력만 믿고 무리하면 회복 포션인 커피가 필요해질 수 있습니다." },
   { key: "attack",        label: "공격력", Icon: Swords,   color: "#ff6b35",
     desc: "개발자가 코드를 통해 실제 기능을 만들어내는 힘입니다.\n공격력이 높은 개발자는 \"일단 만들어보자\" 정신으로 기능 구현을 빠르게 시작하고, 막히는 부분이 있어도 끝까지 밀고 나갑니다.\n\n다만 공격력만 너무 높으면 코드가 거칠어질 수 있습니다.\n\"돌아가긴 하는데 왜 돌아가는지는 모름\", \"내 컴퓨터에서는 됨\" 같은 부작용이 생길 수 있으므로 방어력과 함께 성장시키는 것이 좋습니다." },
   { key: "defense",       label: "방어력", Icon: Shield,   color: "#60a5fa",
     desc: "버그와 예외 상황을 막아내는 능력입니다.\n입력값이 이상할 때, 서버가 응답하지 않을 때, 데이터가 비어 있을 때도 서비스가 쉽게 무너지지 않게 버티는 힘입니다.\n\n방어력이 높은 개발자는 예상치 못한 상황에도 침착하게 대응합니다." },
-  { key: "creativity",    label: "마력",   Icon: Sparkles, color: "#a78bfa",
+  { key: "mana",    label: "마력",   Icon: Sparkles, color: "#a78bfa",
     desc: "아이디어와 집중력, 문제를 새롭게 바라보는 능력입니다.\n기능 이름을 재밌게 짓거나, 화면 흐름을 더 자연스럽게 만들거나, 팀 분위기를 살리는 능력이 포함됩니다.\n\n마나가 높은 개발자는 평범한 기능도 그럴듯하게 포장하는 힘이 있습니다.\n다만 마나를 너무 많이 쓰면 \"이 기능도 넣으면 재밌지 않을까?\" 하다가 프로젝트 범위가 과도하게 커질 수 있습니다." },
-  { key: "speed",         label: "민첩성", Icon: Zap,      color: "#fbbf24",
+  { key: "agility",         label: "민첩성", Icon: Zap,      color: "#fbbf24",
     desc: "수정 요청이나 새로운 기술에 빠르게 반응하는 능력입니다.\n에러가 생겼을 때 검색하고, 고치고, 다시 시도하는 속도라고 볼 수 있습니다.\n\n민첩성이 높은 개발자는 피드백을 받으면 빠르게 움직이고, 필요한 내용을 금방 찾아 적용합니다.\n다만 가끔 너무 빨리 움직여서 같은 버그를 두 번 밟는 경우가 있습니다." },
   { key: "teamwork",      label: "협동력", Icon: Users,    color: "#34d399",
     desc: "팀 프로젝트에서 가장 중요한 스탯입니다.\n말을 잘 전달하고, 역할을 나누고, 다른 사람의 코드를 이해하고, 충돌이 생겼을 때 분위기를 망치지 않는 능력입니다.\n\n협동력이 높은 개발자는 혼자만 잘하는 것이 아니라 팀 전체가 앞으로 가도록 돕습니다." },
@@ -87,8 +87,8 @@ const totalPower = (s: Stats) => Math.round(Object.values(s).reduce((a,b)=>a+b,0
 // 카드 도감 수치(1~10 EMA 점수)를 기존 육각형 차트가 가정하는 0~100 스케일로 맞춘다.
 function dtoStatsToStats(s: CardSummaryDto["stats"]): Stats {
   return {
-    attack: s.attack*10, defense: s.defense*10, speed: s.speed*10,
-    teamwork: s.teamwork*10, creativity: s.creativity*10, problemSolving: s.problemSolving*10,
+    attack: s.attack*10, defense: s.defense*10, agility: s.agility*10,
+    teamwork: s.teamwork*10, mana: s.mana*10, health: s.health*10,
   };
 }
 function rarityFromPower(power: number): Rarity {
@@ -576,7 +576,7 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
   const [bio, setBio] = useState("");
   const [photoUrl, setPhotoUrl] = useState<string|null>(null);
   const [photoUploading, setPhotoUploading] = useState(false);
-  const [stats, setStats] = useState({attack:5,defense:5,speed:5,teamwork:5,problemSolving:5,creativity:5});
+  const [stats, setStats] = useState({attack:5,defense:5,agility:5,teamwork:5,health:5,mana:5});
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1083,7 +1083,7 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
         const [targets, titleList] = await Promise.all([listEvaluationTargets(team.id), listTitles()]);
         setTeammates(targets);
         setTitleOptions(titleList);
-        setRatings(Object.fromEntries(targets.map(t=>[t.userId,{attack:5,defense:5,speed:5,teamwork:5,problemSolving:5,creativity:5}])));
+        setRatings(Object.fromEntries(targets.map(t=>[t.userId,{attack:5,defense:5,agility:5,teamwork:5,health:5,mana:5}])));
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "평가 대상자를 불러오지 못했습니다.");
       }
@@ -1100,8 +1100,8 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
     try {
       await submitEvaluation(teamId, {
         targetUserId: uid,
-        attack: r.attack??5, defense: r.defense??5, speed: r.speed??5,
-        teamwork: r.teamwork??5, creativity: r.creativity??5, problemSolving: r.problemSolving??5,
+        attack: r.attack??5, defense: r.defense??5, agility: r.agility??5,
+        teamwork: r.teamwork??5, mana: r.mana??5, health: r.health??5,
         titleIds: [titleId],
       });
       const nextDone = [...done, uid];

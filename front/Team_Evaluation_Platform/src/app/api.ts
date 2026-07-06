@@ -108,10 +108,10 @@ export interface LoginResponseDto {
 export interface UserStatsDto {
   attack: number;
   defense: number;
-  speed: number;
+  agility: number;
   teamwork: number;
-  creativity: number;
-  problemSolving: number;
+  mana: number;
+  health: number;
   evaluationCount: number;
 }
 
@@ -129,10 +129,10 @@ export interface UserProfileDto {
 export interface InitialStatsInput {
   attack: number;
   defense: number;
-  speed: number;
+  agility: number;
   teamwork: number;
-  creativity: number;
-  problemSolving: number;
+  mana: number;
+  health: number;
 }
 
 // ─── API 함수 ─────────────────────────────────────────────────────────────────
@@ -255,10 +255,10 @@ export interface EvaluationInput {
   targetUserId: number;
   attack: number;
   defense: number;
-  speed: number;
+  agility: number;
   teamwork: number;
-  creativity: number;
-  problemSolving: number;
+  mana: number;
+  health: number;
   titleIds: number[];
 }
 
