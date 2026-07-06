@@ -9,9 +9,11 @@ import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
+import com.madmon.main.storage.service.StorageService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
@@ -20,6 +22,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserStatsRepository userStatsRepository;
+    private final StorageService storageService;
 
     public UserProfileResponse getMyProfile(Long userId) {
         User user = getUser(userId);
@@ -54,6 +57,16 @@ public class UserService {
         );
 
         UserStats stats = userStatsRepository.save(UserStats.createFrom(user));
+        return UserProfileResponse.of(user, stats);
+    }
+
+    @Transactional
+    public UserProfileResponse uploadProfileImage(Long userId, MultipartFile file) {
+        User user = getUser(userId);
+        String profileImageUrl = storageService.uploadProfileImage(file);
+        user.updateProfileImage(profileImageUrl);
+
+        UserStats stats = userStatsRepository.findById(userId).orElse(null);
         return UserProfileResponse.of(user, stats);
     }
 

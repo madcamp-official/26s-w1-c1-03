@@ -16,6 +16,10 @@ app:
     secret: test-only-secret-key-for-jwt-signing-not-used-in-production-0123456789
     access-token-expiration: 3600000
     refresh-token-expiration: 1209600000
+  storage:
+    url: http://localhost:54321/storage/v1
+    service-role-key: test-only-service-role-key
+    bucket: profile-images-test
 
 logging:
   level:

@@ -1,13 +1,16 @@
 package com.madmon.main.user;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.madmon.main.common.exception.ErrorCode;
+import com.madmon.main.storage.service.StorageService;
 import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
@@ -21,7 +24,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,6 +51,10 @@ class UserControllerTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    // 실제 Supabase Storage 호출은 별도로 검증하고, 여기서는 라우팅/인증/DB 반영만 검증한다.
+    @MockitoBean
+    private StorageService storageService;
 
     private User user;
 
@@ -151,6 +160,33 @@ class UserControllerTest {
                         .content(initialStatsBody(6, 6, 6, 6, 6, 6)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.INITIAL_STATS_ALREADY_SET.name()));
+    }
+
+    @Test
+    void 프로필_사진을_업로드하면_URL이_저장된다() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "profile.png", "image/png", "dummy-bytes".getBytes());
+        when(storageService.uploadProfileImage(org.mockito.ArgumentMatchers.any()))
+                .thenReturn("https://example.supabase.co/storage/v1/object/public/profile-images/test.png");
+
+        mockMvc.perform(multipart("/api/users/me/profile-image")
+                        .file(file)
+                        .header("Authorization", "Bearer " + login()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.profileImageUrl")
+                        .value("https://example.supabase.co/storage/v1/object/public/profile-images/test.png"));
+
+        User updated = userRepository.findByUserId(TEST_USER_ID).orElseThrow();
+        assertEquals("https://example.supabase.co/storage/v1/object/public/profile-images/test.png", updated.getProfileImageUrl());
+    }
+
+    @Test
+    void 토큰_없이_프로필_사진을_업로드하면_401을_반환한다() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "profile.png", "image/png", "dummy-bytes".getBytes());
+
+        mockMvc.perform(multipart("/api/users/me/profile-image").file(file))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.UNAUTHORIZED.name()));
     }
 
     private String initialStatsBody(int attack, int defense, int speed, int teamwork, int creativity, int problemSolving) {

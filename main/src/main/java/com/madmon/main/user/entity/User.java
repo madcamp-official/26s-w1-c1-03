@@ -130,6 +130,10 @@ public class User extends BaseEntity {
         this.biography = biography;
     }
 
+    public void updateProfileImage(String profileImageUrl) {
+        this.profileImageUrl = profileImageUrl;
+    }
+
     public void updateInitialStats(
             Integer initialAttack,
             Integer initialDefense,

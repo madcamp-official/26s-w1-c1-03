@@ -18,7 +18,9 @@ public enum ErrorCode {
     PASSWORD_CHANGE_REQUIRED(HttpStatus.FORBIDDEN, "최초 로그인 시 비밀번호를 변경해야 합니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 리프레시 토큰입니다."),
 
-    INITIAL_STATS_ALREADY_SET(HttpStatus.CONFLICT, "이미 초기 능력치를 설정했습니다.");
+    INITIAL_STATS_ALREADY_SET(HttpStatus.CONFLICT, "이미 초기 능력치를 설정했습니다."),
+
+    STORAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드에 실패했습니다.");
 
     private final HttpStatus status;
     private final String message;
