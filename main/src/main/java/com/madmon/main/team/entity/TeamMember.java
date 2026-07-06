@@ -67,6 +67,11 @@ public class TeamMember {
         this.leftAt = Instant.now();
     }
 
+    public void rejoin() {
+        this.leftAt = null;
+        this.joinedAt = Instant.now();
+    }
+
     public void markProjectFinished() {
         this.projectFinished = true;
     }

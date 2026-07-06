@@ -20,7 +20,11 @@ public enum ErrorCode {
 
     INITIAL_STATS_ALREADY_SET(HttpStatus.CONFLICT, "이미 초기 능력치를 설정했습니다."),
 
-    STORAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드에 실패했습니다.");
+    STORAGE_UPLOAD_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "이미지 업로드에 실패했습니다."),
+
+    TEAM_NOT_FOUND(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다. 초대 코드를 확인해주세요."),
+    ALREADY_TEAM_MEMBER(HttpStatus.CONFLICT, "이미 참여 중인 팀입니다."),
+    NOT_TEAM_MEMBER(HttpStatus.FORBIDDEN, "해당 팀의 멤버가 아닙니다.");
 
     private final HttpStatus status;
     private final String message;
