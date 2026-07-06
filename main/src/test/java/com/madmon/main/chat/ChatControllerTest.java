@@ -9,17 +9,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.madmon.main.chat.client.OpenAiClient;
 import com.madmon.main.common.exception.ErrorCode;
-import com.madmon.main.evaluation.entity.Evaluation;
-import com.madmon.main.evaluation.repository.EvaluationRepository;
-import com.madmon.main.team.entity.Team;
-import com.madmon.main.team.entity.TeamMember;
-import com.madmon.main.team.repository.TeamMemberRepository;
-import com.madmon.main.team.repository.TeamRepository;
 import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
-import java.time.Instant;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
@@ -39,7 +32,6 @@ import org.springframework.transaction.annotation.Transactional;
 class ChatControllerTest {
 
     private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"accessToken\":\"([^\"]+)\"");
-    private static final long DEADLINE_BUFFER_MS = 300;
 
     @Autowired
     private MockMvc mockMvc;
@@ -52,15 +44,6 @@ class ChatControllerTest {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private TeamRepository teamRepository;
-
-    @Autowired
-    private TeamMemberRepository teamMemberRepository;
-
-    @Autowired
-    private EvaluationRepository evaluationRepository;
 
     @MockitoBean
     private OpenAiClient openAiClient;
@@ -75,7 +58,6 @@ class ChatControllerTest {
     void 세션을_생성하고_메시지를_보내면_AI_응답을_받는다() throws Exception {
         User asker = createOnboardedUser("chat-ctrl-asker", "질문자");
         User target = createOnboardedUser("chat-ctrl-target", "타겟");
-        makeUnlocked(asker);
         when(openAiClient.createChatCompletion(anyList())).thenReturn("컨트롤러 테스트 응답");
 
         String token = login(asker.getUserId());
@@ -106,19 +88,18 @@ class ChatControllerTest {
 
         String token = login(asker.getUserId());
 
-        // 팀에 속해 있지 않으므로 기본값은 잠금이다.
+        // 이 사용자는 평가 대상 팀이 없으므로 기본적으로 잠금 해제 상태다. 잠금 자체는
+        // ChatServiceTest에서 팀/평가 데이터를 구성해 직접 검증하고, 여기서는 정상 경로만 확인한다.
         mockMvc.perform(post("/api/chat/sessions")
                         .header("Authorization", "Bearer " + token)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"targetUserIds\":[" + target.getId() + "]}"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.errorCode").value(ErrorCode.CHAT_LOCKED.name()));
+                .andExpect(status().isOk());
     }
 
     @Test
     void 존재하지_않는_대상으로_세션_생성을_요청하면_404를_반환한다() throws Exception {
         User asker = createOnboardedUser("chat-ctrl-asker3", "질문자3");
-        makeUnlocked(asker);
         String token = login(asker.getUserId());
 
         mockMvc.perform(post("/api/chat/sessions")
@@ -135,16 +116,6 @@ class ChatControllerTest {
             throw new IllegalStateException("응답에서 세션 id를 찾을 수 없습니다: " + body);
         }
         return Long.valueOf(matcher.group(1));
-    }
-
-    // 팀 미소속 상태가 기본 잠금이므로, 잠금 해제가 필요한 테스트는 팀 합류 + 마감 경과 + 팀원 평가까지 거쳐야 한다.
-    private void makeUnlocked(User asker) throws InterruptedException {
-        User dummyTeammate = createOnboardedUser("dummy-" + asker.getUserId(), "더미팀원");
-        Team team = teamRepository.save(Team.create("해금팀", "UNLOCK", asker, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
-        teamMemberRepository.save(TeamMember.join(team, asker));
-        teamMemberRepository.save(TeamMember.join(team, dummyTeammate));
-        Thread.sleep(DEADLINE_BUFFER_MS + 200);
-        evaluationRepository.save(Evaluation.create(team, asker, dummyTeammate, 5, 5, 5, 5, 5, 5));
     }
 
     private User createOnboardedUser(String userId, String name) {

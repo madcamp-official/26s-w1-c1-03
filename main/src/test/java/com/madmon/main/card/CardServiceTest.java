@@ -76,20 +76,21 @@ class CardServiceTest {
 
         assertEquals(1, cards.size());
         assertEquals(onboarded.getId(), cards.get(0).userId());
+        assertNotNull(cards.get(0).stats());
     }
 
     @Test
-    void 팀에_속해_있지_않으면_카드_상세가_잠긴다() {
+    void 평가_대상_팀이_없으면_잠금_없이_상세를_볼_수_있다() {
         User viewer = createOnboardedUser("card-viewer1", "뷰어1");
         User target = createOnboardedUser("card-target1", "타겟1");
 
         CardDetailResponse detail = cardService.getCardDetail(viewer.getId(), target.getId());
 
-        assertFalse(detail.isUnlocked());
+        assertTrue(detail.isUnlocked());
         assertEquals(0, detail.remainingCount());
         assertEquals("타겟1", detail.name());
-        assertNull(detail.stats());
-        assertNull(detail.biography());
+        assertNotNull(detail.stats());
+        assertTrue(detail.biography() != null || target.getBiography() == null);
     }
 
     @Test
