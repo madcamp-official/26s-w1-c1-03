@@ -12,8 +12,8 @@ import com.madmon.main.chat.client.OpenAiMessage;
 import com.madmon.main.chat.dto.ChatSessionDetailResponse;
 import com.madmon.main.chat.dto.ChatSessionResponse;
 import com.madmon.main.chat.dto.CreateSessionRequest;
+import com.madmon.main.chat.dto.ChatMessageResponse;
 import com.madmon.main.chat.dto.SendMessageRequest;
-import com.madmon.main.chat.dto.SendMessageResponse;
 import com.madmon.main.chat.entity.ChatMessageRole;
 import com.madmon.main.chat.service.ChatService;
 import com.madmon.main.common.exception.BusinessException;
@@ -104,15 +104,15 @@ class ChatServiceTest {
         when(openAiClient.createChatCompletion(anyList())).thenReturn("테스트 AI 응답");
 
         ChatSessionResponse session = chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), null));
-        SendMessageResponse response = chatService.sendMessage(asker.getId(), session.id(), new SendMessageRequest("이 사람 어때?"));
+        ChatMessageResponse response = chatService.sendMessage(asker.getId(), session.id(), new SendMessageRequest("이 사람 어때?"));
 
-        assertEquals(ChatMessageRole.USER, response.userMessage().role());
-        assertEquals("이 사람 어때?", response.userMessage().content());
-        assertEquals(ChatMessageRole.ASSISTANT, response.assistantMessage().role());
-        assertEquals("테스트 AI 응답", response.assistantMessage().content());
+        assertEquals(ChatMessageRole.ASSISTANT, response.role());
+        assertEquals("테스트 AI 응답", response.content());
 
         ChatSessionDetailResponse detail = chatService.getSessionDetail(asker.getId(), session.id());
         assertEquals(2, detail.messages().size());
+        assertEquals(ChatMessageRole.USER, detail.messages().get(0).role());
+        assertEquals("이 사람 어때?", detail.messages().get(0).content());
     }
 
     @Test

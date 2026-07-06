@@ -36,22 +36,22 @@ CREATE TABLE users (
     biography                VARCHAR(50)  NULL,
     initial_attack           SMALLINT     NULL,
     initial_defense          SMALLINT     NULL,
-    initial_speed            SMALLINT     NULL,
+    initial_agility          SMALLINT     NULL,
     initial_teamwork         SMALLINT     NULL,
-    initial_creativity       SMALLINT     NULL,
-    initial_problem_solving  SMALLINT     NULL,
+    initial_mana             SMALLINT     NULL,
+    initial_health           SMALLINT     NULL,
     password_changed         BOOLEAN      NOT NULL DEFAULT FALSE,
     created_at               TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at               TIMESTAMPTZ  NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT uk_users_user_id UNIQUE (user_id),
 
-    CONSTRAINT chk_users_initial_attack          CHECK (initial_attack          BETWEEN 1 AND 10),
-    CONSTRAINT chk_users_initial_defense         CHECK (initial_defense         BETWEEN 1 AND 10),
-    CONSTRAINT chk_users_initial_speed           CHECK (initial_speed           BETWEEN 1 AND 10),
-    CONSTRAINT chk_users_initial_teamwork        CHECK (initial_teamwork        BETWEEN 1 AND 10),
-    CONSTRAINT chk_users_initial_creativity      CHECK (initial_creativity      BETWEEN 1 AND 10),
-    CONSTRAINT chk_users_initial_problem_solving CHECK (initial_problem_solving BETWEEN 1 AND 10)
+    CONSTRAINT chk_users_initial_attack   CHECK (initial_attack   BETWEEN 1 AND 10),
+    CONSTRAINT chk_users_initial_defense  CHECK (initial_defense  BETWEEN 1 AND 10),
+    CONSTRAINT chk_users_initial_agility  CHECK (initial_agility  BETWEEN 1 AND 10),
+    CONSTRAINT chk_users_initial_teamwork CHECK (initial_teamwork BETWEEN 1 AND 10),
+    CONSTRAINT chk_users_initial_mana     CHECK (initial_mana     BETWEEN 1 AND 10),
+    CONSTRAINT chk_users_initial_health   CHECK (initial_health   BETWEEN 1 AND 10)
 );
 
 -- UNIQUE 제약은 PostgreSQL에서 자동으로 동일한 이름의 인덱스를 생성하므로 별도 인덱스 불필요
@@ -65,7 +65,7 @@ CREATE TABLE users (
 | name | VARCHAR(100) | NOT NULL | - | 화면 표시 이름 (더 이상 UNIQUE 아님) |
 | profile_image_url | TEXT | NULL | - | Supabase Storage public URL (구 `profile_image`) |
 | biography | VARCHAR(50) | NULL | - | 한 줄 자기소개, 50자 제한 |
-| initial_attack ~ initial_problem_solving | SMALLINT | NULL | - | 온보딩 전에는 NULL, 1~10 CHECK |
+| initial_attack ~ initial_health | SMALLINT | NULL | - | 온보딩 전에는 NULL, 1~10 CHECK |
 | password_changed | BOOLEAN | NOT NULL | FALSE | 최초 로그인 여부 플래그 |
 | created_at | TIMESTAMPTZ | NOT NULL | CURRENT_TIMESTAMP | 생성일시 |
 | updated_at | TIMESTAMPTZ | NOT NULL | CURRENT_TIMESTAMP | 수정일시(자동 갱신) |
@@ -134,23 +134,23 @@ CREATE TABLE evaluations (
     target_id       BIGINT      NOT NULL REFERENCES users(id),
     attack          SMALLINT    NOT NULL,
     defense         SMALLINT    NOT NULL,
-    speed           SMALLINT    NOT NULL,
+    agility         SMALLINT    NOT NULL,
     teamwork        SMALLINT    NOT NULL,
-    creativity      SMALLINT    NOT NULL,
-    problem_solving SMALLINT    NOT NULL,
+    mana            SMALLINT    NOT NULL,
+    health          SMALLINT    NOT NULL,
     total_score     SMALLINT    NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT uk_evaluations_team_evaluator_target UNIQUE (team_id, evaluator_id, target_id),
 
-    CONSTRAINT chk_evaluations_attack          CHECK (attack          BETWEEN 1 AND 10),
-    CONSTRAINT chk_evaluations_defense         CHECK (defense         BETWEEN 1 AND 10),
-    CONSTRAINT chk_evaluations_speed           CHECK (speed           BETWEEN 1 AND 10),
-    CONSTRAINT chk_evaluations_teamwork        CHECK (teamwork        BETWEEN 1 AND 10),
-    CONSTRAINT chk_evaluations_creativity      CHECK (creativity      BETWEEN 1 AND 10),
-    CONSTRAINT chk_evaluations_problem_solving CHECK (problem_solving BETWEEN 1 AND 10),
-    CONSTRAINT chk_evaluations_total_score     CHECK (total_score     BETWEEN 6 AND 60),
-    CONSTRAINT chk_evaluations_no_self_review  CHECK (evaluator_id <> target_id)
+    CONSTRAINT chk_evaluations_attack      CHECK (attack      BETWEEN 1 AND 10),
+    CONSTRAINT chk_evaluations_defense     CHECK (defense     BETWEEN 1 AND 10),
+    CONSTRAINT chk_evaluations_agility     CHECK (agility     BETWEEN 1 AND 10),
+    CONSTRAINT chk_evaluations_teamwork    CHECK (teamwork    BETWEEN 1 AND 10),
+    CONSTRAINT chk_evaluations_mana        CHECK (mana        BETWEEN 1 AND 10),
+    CONSTRAINT chk_evaluations_health      CHECK (health      BETWEEN 1 AND 10),
+    CONSTRAINT chk_evaluations_total_score CHECK (total_score BETWEEN 6 AND 60),
+    CONSTRAINT chk_evaluations_no_self_review CHECK (evaluator_id <> target_id)
 );
 
 CREATE INDEX idx_evaluations_evaluator_id ON evaluations(evaluator_id);
@@ -231,20 +231,20 @@ CREATE TABLE user_stats (
     user_id                BIGINT        NOT NULL PRIMARY KEY REFERENCES users(id),
     attack_score           NUMERIC(5,2)  NOT NULL,
     defense_score          NUMERIC(5,2)  NOT NULL,
-    speed_score            NUMERIC(5,2)  NOT NULL,
+    agility_score          NUMERIC(5,2)  NOT NULL,
     teamwork_score         NUMERIC(5,2)  NOT NULL,
-    creativity_score       NUMERIC(5,2)  NOT NULL,
-    problem_solving_score  NUMERIC(5,2)  NOT NULL,
+    mana_score             NUMERIC(5,2)  NOT NULL,
+    health_score           NUMERIC(5,2)  NOT NULL,
     evaluation_count       INTEGER       NOT NULL DEFAULT 0,
     updated_at             TIMESTAMPTZ   NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT chk_user_stats_attack_score          CHECK (attack_score          BETWEEN 1 AND 10),
-    CONSTRAINT chk_user_stats_defense_score         CHECK (defense_score         BETWEEN 1 AND 10),
-    CONSTRAINT chk_user_stats_speed_score           CHECK (speed_score           BETWEEN 1 AND 10),
-    CONSTRAINT chk_user_stats_teamwork_score        CHECK (teamwork_score        BETWEEN 1 AND 10),
-    CONSTRAINT chk_user_stats_creativity_score      CHECK (creativity_score      BETWEEN 1 AND 10),
-    CONSTRAINT chk_user_stats_problem_solving_score CHECK (problem_solving_score BETWEEN 1 AND 10),
-    CONSTRAINT chk_user_stats_evaluation_count      CHECK (evaluation_count >= 0)
+    CONSTRAINT chk_user_stats_attack_score     CHECK (attack_score     BETWEEN 1 AND 10),
+    CONSTRAINT chk_user_stats_defense_score    CHECK (defense_score    BETWEEN 1 AND 10),
+    CONSTRAINT chk_user_stats_agility_score    CHECK (agility_score    BETWEEN 1 AND 10),
+    CONSTRAINT chk_user_stats_teamwork_score   CHECK (teamwork_score   BETWEEN 1 AND 10),
+    CONSTRAINT chk_user_stats_mana_score       CHECK (mana_score       BETWEEN 1 AND 10),
+    CONSTRAINT chk_user_stats_health_score     CHECK (health_score     BETWEEN 1 AND 10),
+    CONSTRAINT chk_user_stats_evaluation_count CHECK (evaluation_count >= 0)
 );
 ```
 

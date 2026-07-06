@@ -13,14 +13,14 @@ public record SubmitEvaluationRequest(
         int attack,
         @Min(value = 1, message = "방어력은 1 이상이어야 합니다.") @Max(value = 10, message = "방어력은 10 이하여야 합니다.")
         int defense,
-        @Min(value = 1, message = "speed는 1 이상이어야 합니다.") @Max(value = 10, message = "speed는 10 이하여야 합니다.")
-        int speed,
-        @Min(value = 1, message = "협업 능력은 1 이상이어야 합니다.") @Max(value = 10, message = "협업 능력은 10 이하여야 합니다.")
+        @Min(value = 1, message = "민첩성은 1 이상이어야 합니다.") @Max(value = 10, message = "민첩성은 10 이하여야 합니다.")
+        int agility,
+        @Min(value = 1, message = "협동력은 1 이상이어야 합니다.") @Max(value = 10, message = "협동력은 10 이하여야 합니다.")
         int teamwork,
-        @Min(value = 1, message = "창의성은 1 이상이어야 합니다.") @Max(value = 10, message = "창의성은 10 이하여야 합니다.")
-        int creativity,
-        @Min(value = 1, message = "문제 해결 능력은 1 이상이어야 합니다.") @Max(value = 10, message = "문제 해결 능력은 10 이하여야 합니다.")
-        int problemSolving,
+        @Min(value = 1, message = "마력은 1 이상이어야 합니다.") @Max(value = 10, message = "마력은 10 이하여야 합니다.")
+        int mana,
+        @Min(value = 1, message = "체력은 1 이상이어야 합니다.") @Max(value = 10, message = "체력은 10 이하여야 합니다.")
+        int health,
 
         List<Long> titleIds
 ) {

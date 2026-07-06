@@ -10,7 +10,6 @@ import com.madmon.main.chat.dto.ChatSessionDetailResponse;
 import com.madmon.main.chat.dto.ChatSessionResponse;
 import com.madmon.main.chat.dto.CreateSessionRequest;
 import com.madmon.main.chat.dto.SendMessageRequest;
-import com.madmon.main.chat.dto.SendMessageResponse;
 import com.madmon.main.chat.entity.ChatCard;
 import com.madmon.main.chat.entity.ChatMessage;
 import com.madmon.main.chat.entity.ChatMessageRole;
@@ -90,14 +89,14 @@ public class ChatService {
         );
     }
 
+    // 프론트엔드는 사용자 메시지를 API 호출 전에 이미 화면에 반영해두므로,
+    // 응답에는 AI(assistant) 메시지 하나만 담아 돌려준다.
     @Transactional
-    public SendMessageResponse sendMessage(Long userId, Long sessionId, SendMessageRequest request) {
+    public ChatMessageResponse sendMessage(Long userId, Long sessionId, SendMessageRequest request) {
         requireUnlocked(userId);
         ChatSession session = getOwnedSession(userId, sessionId);
 
-        ChatMessage userMessage = chatMessageRepository.save(
-                ChatMessage.create(session, ChatMessageRole.USER, request.content())
-        );
+        chatMessageRepository.save(ChatMessage.create(session, ChatMessageRole.USER, request.content()));
 
         List<OpenAiMessage> prompt = buildPrompt(userId, session);
         String assistantReply = openAiClient.createChatCompletion(prompt);
@@ -106,7 +105,7 @@ public class ChatService {
                 ChatMessage.create(session, ChatMessageRole.ASSISTANT, assistantReply)
         );
 
-        return new SendMessageResponse(toMessageResponse(userMessage), toMessageResponse(assistantMessage));
+        return toMessageResponse(assistantMessage);
     }
 
     private List<OpenAiMessage> buildPrompt(Long viewerId, ChatSession session) {
@@ -156,9 +155,9 @@ public class ChatService {
             description.append("  대표 칭호: ").append(String.join(", ", card.representativeTitles())).append('\n');
         }
         if (card.stats() != null) {
-            description.append("  능력치 - 공격력:%s 방어력:%s 속도:%s 협업:%s 창의성:%s 문제해결:%s%n".formatted(
-                    card.stats().attack(), card.stats().defense(), card.stats().speed(),
-                    card.stats().teamwork(), card.stats().creativity(), card.stats().problemSolving()
+            description.append("  능력치 - 체력:%s 공격력:%s 방어력:%s 마력:%s 민첩성:%s 협동력:%s%n".formatted(
+                    card.stats().health(), card.stats().attack(), card.stats().defense(),
+                    card.stats().mana(), card.stats().agility(), card.stats().teamwork()
             ));
         }
         if (card.biography() != null && !card.biography().isBlank()) {

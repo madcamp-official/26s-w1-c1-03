@@ -101,8 +101,8 @@ public class EvaluationService {
 
         Evaluation evaluation = evaluationRepository.save(Evaluation.create(
                 team, evaluator, target,
-                request.attack(), request.defense(), request.speed(),
-                request.teamwork(), request.creativity(), request.problemSolving()
+                request.attack(), request.defense(), request.agility(),
+                request.teamwork(), request.mana(), request.health()
         ));
 
         if (request.titleIds() != null && !request.titleIds().isEmpty()) {
@@ -121,10 +121,10 @@ public class EvaluationService {
         stats.replaceScores(
                 ema(stats.getAttackScore(), evaluation.getAttack()),
                 ema(stats.getDefenseScore(), evaluation.getDefense()),
-                ema(stats.getSpeedScore(), evaluation.getSpeed()),
+                ema(stats.getAgilityScore(), evaluation.getAgility()),
                 ema(stats.getTeamworkScore(), evaluation.getTeamwork()),
-                ema(stats.getCreativityScore(), evaluation.getCreativity()),
-                ema(stats.getProblemSolvingScore(), evaluation.getProblemSolving())
+                ema(stats.getManaScore(), evaluation.getMana()),
+                ema(stats.getHealthScore(), evaluation.getHealth())
         );
         stats.incrementEvaluationCount();
     }

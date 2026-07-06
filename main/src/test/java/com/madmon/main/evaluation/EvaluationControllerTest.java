@@ -156,7 +156,7 @@ class EvaluationControllerTest {
                         .header("Authorization", "Bearer " + evaluatorToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"teamId\":" + teamId + ",\"targetUserId\":" + selfId(evaluatorToken)
-                                + ",\"attack\":5,\"defense\":5,\"speed\":5,\"teamwork\":5,\"creativity\":5,\"problemSolving\":5,\"titleIds\":[]}"))
+                                + ",\"attack\":5,\"defense\":5,\"agility\":5,\"teamwork\":5,\"mana\":5,\"health\":5,\"titleIds\":[]}"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.INVALID_INPUT_VALUE.name()));
     }
@@ -242,17 +242,17 @@ class EvaluationControllerTest {
         return Long.valueOf(extract(ID_PATTERN, result.getResponse().getContentAsString()));
     }
 
-    private String evaluationBody(int attack, int defense, int speed, int teamwork, int creativity, int problemSolving,
+    private String evaluationBody(int attack, int defense, int agility, int teamwork, int mana, int health,
             List<Long> titleIds) {
-        return evaluationBody(teamId, targetUserId, attack, defense, speed, teamwork, creativity, problemSolving, titleIds);
+        return evaluationBody(teamId, targetUserId, attack, defense, agility, teamwork, mana, health, titleIds);
     }
 
-    private String evaluationBody(Long teamId, Long targetUserId, int attack, int defense, int speed, int teamwork,
-            int creativity, int problemSolving, List<Long> titleIds) {
+    private String evaluationBody(Long teamId, Long targetUserId, int attack, int defense, int agility, int teamwork,
+            int mana, int health, List<Long> titleIds) {
         String titleIdsJson = titleIds.stream().map(String::valueOf).reduce((a, b) -> a + "," + b).orElse("");
         return "{\"teamId\":" + teamId + ",\"targetUserId\":" + targetUserId
-                + ",\"attack\":" + attack + ",\"defense\":" + defense + ",\"speed\":" + speed
-                + ",\"teamwork\":" + teamwork + ",\"creativity\":" + creativity + ",\"problemSolving\":" + problemSolving
+                + ",\"attack\":" + attack + ",\"defense\":" + defense + ",\"agility\":" + agility
+                + ",\"teamwork\":" + teamwork + ",\"mana\":" + mana + ",\"health\":" + health
                 + ",\"titleIds\":[" + titleIdsJson + "]}";
     }
 
