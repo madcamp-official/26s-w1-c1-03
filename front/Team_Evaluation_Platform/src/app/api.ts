@@ -175,19 +175,21 @@ export function uploadProfileImage(file: File): Promise<UserProfileDto> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 아래는 BACKEND_DEVELOPMENT_PLAN.md Phase 7~10(팀/평가/칭호/카드/AI 채팅)에
-// 대한 설계입니다. 이 도메인들은 아직 백엔드에 컨트롤러가 구현되어 있지 않아
-// (2026-07-06 기준) 실제 경로/응답 형식은 추측입니다. 백엔드가 구현되면
-// 이 파일의 경로·타입만 실제 스펙에 맞게 고치면 되고, 화면 컴포넌트는
-// 그대로 두어도 되도록 이 파일 안에 가정을 몰아넣었습니다.
+// 아래 Team/Card 도메인은 실제 백엔드 컨트롤러(TeamController/CardController) 기준으로
+// 맞춘 것입니다. Title/Evaluation/Chat 도메인은 (2026-07-06 기준) 아직 컨트롤러가
+// 구현되어 있지 않아 실제 경로/응답 형식은 추측입니다. 백엔드가 구현되면 이 파일의
+// 경로·타입만 실제 스펙에 맞게 고치면 되고, 화면 컴포넌트는 그대로 두어도 되도록
+// 이 파일 안에 가정을 몰아넣었습니다.
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── Team 도메인 ──────────────────────────────────────────────────────────────
 
 export interface TeamMemberDto {
   userId: number;
+  loginId: string;
   name: string;
   profileImageUrl: string | null;
+  isOwner: boolean;
 }
 
 export interface TeamSummaryDto {
@@ -195,11 +197,12 @@ export interface TeamSummaryDto {
   name: string;
   inviteCode: string;
   ownerId: number;
-  projectFinished: boolean;
+  ownerName: string;
   memberCount: number;
 }
 
-export interface TeamDetailDto extends TeamSummaryDto {
+export interface TeamDetailDto {
+  team: TeamSummaryDto;
   members: TeamMemberDto[];
 }
 
@@ -211,12 +214,12 @@ export function getTeam(teamId: number): Promise<TeamDetailDto> {
   return request<TeamDetailDto>(`/teams/${teamId}`, { method: "GET" });
 }
 
-export function createTeam(name: string): Promise<TeamDetailDto> {
-  return request<TeamDetailDto>("/teams", { method: "POST", body: JSON.stringify({ name }) });
+export function createTeam(name: string): Promise<TeamSummaryDto> {
+  return request<TeamSummaryDto>("/teams", { method: "POST", body: JSON.stringify({ name }) });
 }
 
-export function joinTeam(inviteCode: string): Promise<TeamDetailDto> {
-  return request<TeamDetailDto>("/teams/join", { method: "POST", body: JSON.stringify({ inviteCode }) });
+export function joinTeam(inviteCode: string): Promise<TeamSummaryDto> {
+  return request<TeamSummaryDto>("/teams/join", { method: "POST", body: JSON.stringify({ inviteCode }) });
 }
 
 export function leaveTeam(teamId: number): Promise<void> {
@@ -266,8 +269,8 @@ export function submitEvaluation(teamId: number, input: EvaluationInput): Promis
 // ─── Card 도감 도메인 ─────────────────────────────────────────────────────────
 
 export interface CardTitleVoteDto {
-  titleId: number;
   name: string;
+  icon: string | null;
   voteCount: number;
 }
 
@@ -277,13 +280,13 @@ export interface CardSummaryDto {
   profileImageUrl: string | null;
   representativeTitles: string[];
   stats: UserStatsDto;
+  isUnlocked: boolean;
+  remainingCount: number;
 }
 
 export interface CardDetailDto extends CardSummaryDto {
-  isUnlocked: boolean;
-  remainingCount: number;
   biography: string | null;
-  titleVotes: CardTitleVoteDto[];
+  titles: CardTitleVoteDto[];
 }
 
 export function listCards(): Promise<CardSummaryDto[]> {
