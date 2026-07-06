@@ -1,3 +1,41 @@
 @import './fonts.css';
 @import './tailwind.css';
 @import './theme.css';
+
+/* 능력치 슬라이더: accent-color만으로는 브라우저에 따라 트랙(바) 색이 채워지지 않고
+   기본 회백색으로 보이는 경우가 있어(예: 체력 바가 흰색으로 보이는 문제), 트랙 자체를
+   직접 그린다. 실제 채움 색은 App.tsx에서 background(그라디언트)로 값마다 계산해 넣는다. */
+input.stat-range {
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  border-radius: 999px;
+}
+input.stat-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+input.stat-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: transparent;
+}
+input.stat-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: currentColor;
+  margin-top: -4.5px;
+  cursor: pointer;
+}
+input.stat-range::-moz-range-thumb {
+  width: 13px;
+  height: 13px;
+  border-radius: 999px;
+  background: currentColor;
+  border: none;
+  cursor: pointer;
+}

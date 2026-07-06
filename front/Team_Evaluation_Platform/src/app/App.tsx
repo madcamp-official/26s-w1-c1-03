@@ -6,6 +6,7 @@ import {
   User, LogOut, BookOpen, Swords, Shield, Zap, Heart, Info,
   CheckCircle2, Bot, SlidersHorizontal, ArrowUpDown,
   ChevronLeft, RefreshCw, Upload, AlertTriangle, Filter,
+  ArrowDownWideNarrow, ArrowUpNarrowWide,
 } from "lucide-react";
 import {
   login as apiLogin, changePassword as apiChangePassword, getMyProfile,
@@ -62,6 +63,11 @@ const AI_QUESTIONS = [
 const FALLBACK_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#1a2438"/><circle cx="50" cy="38" r="18" fill="#3a4a6a"/><ellipse cx="50" cy="92" rx="32" ry="24" fill="#3a4a6a"/></svg>'
 );
+// 프로필 사진 URL이 만료/삭제 등으로 로드 자체에 실패하면(단순히 null이라 ||로 대체되는
+// 경우와 달리) 브라우저가 빈 아이콘만 남기고 영구히 방치하므로, 실패 시 폴백 아바타로 교체한다.
+function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
+  if (e.currentTarget.src !== FALLBACK_AVATAR) e.currentTarget.src = FALLBACK_AVATAR;
+}
 
 // StorageService(백엔드) 검증 규칙과 동일하게 클라이언트에서도 먼저 걸러준다.
 const ALLOWED_IMAGE_TYPES = ["image/png","image/jpeg","image/webp"];
@@ -74,7 +80,9 @@ function validateProfileImage(file: File): string|null {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const topTitles = (v: TitleVote[]) => { if (!v.length) return []; const m = Math.max(...v.map(x=>x.votes)); return v.filter(x=>x.votes===m).map(x=>x.title); };
-const totalPower = (s: Stats) => Math.round(Object.values(s).reduce((a,b)=>a+b,0)/6);
+// 초기 능력치 총합 상한(6개 스탯 x 1~10점)이 실제로는 40으로 제한되어 있어(구조상 60까지
+// 가능하지만 게임 밸런스상 40이 실질 최대치), 6이 아닌 4로 나눠야 100 만점 스케일이 맞는다.
+const totalPower = (s: Stats) => Math.round(Object.values(s).reduce((a,b)=>a+b,0)/4);
 
 // 카드 도감 수치(1~10 EMA 점수)를 기존 육각형 차트가 가정하는 0~100 스케일로 맞춘다.
 function dtoStatsToStats(s: CardSummaryDto["stats"]): Stats {
@@ -133,7 +141,7 @@ const DS = {
 
 function Btn({ children, variant="primary", onClick, disabled=false, size="md", full=false, icon, type="button" }: {
   children: React.ReactNode; variant?: "primary"|"secondary"|"ghost"|"danger"|"purple";
-  onClick?: ()=>void; disabled?: boolean; size?: "sm"|"md"|"lg"; full?: boolean; icon?: React.ReactNode; type?: "button"|"submit";
+  onClick?: (e:React.MouseEvent<HTMLButtonElement>)=>void; disabled?: boolean; size?: "sm"|"md"|"lg"; full?: boolean; icon?: React.ReactNode; type?: "button"|"submit";
 }) {
   const styles: Record<string,React.CSSProperties> = {
     primary:   { background:"linear-gradient(135deg,#00c8ff,#0080b0)", color:"#060c18" },
@@ -168,9 +176,9 @@ function Btn({ children, variant="primary", onClick, disabled=false, size="md", 
   );
 }
 
-function Field({ label, type="text", value, onChange, placeholder, error, right }: {
+function Field({ label, type="text", value, onChange, placeholder, error, right, autoComplete }: {
   label?: string; type?: string; value: string; onChange: (v:string)=>void;
-  placeholder?: string; error?: string; right?: React.ReactNode;
+  placeholder?: string; error?: string; right?: React.ReactNode; autoComplete?: string;
 }) {
   const [show, setShow] = useState(false);
   const isPass = type === "password";
@@ -183,10 +191,11 @@ function Field({ label, type="text", value, onChange, placeholder, error, right 
           value={value}
           onChange={e=>onChange(e.target.value)}
           placeholder={placeholder}
+          autoComplete={autoComplete}
           style={{ ...DS.input, width:"100%", padding:"11px 14px", paddingRight: isPass||right ? 42 : 14, boxSizing:"border-box", fontSize:14 }}
         />
         {isPass && (
-          <button onClick={()=>setShow(s=>!s)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#8899bb", cursor:"pointer" }}>
+          <button type="button" onClick={()=>setShow(s=>!s)} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#8899bb", cursor:"pointer" }}>
             {show ? <EyeOff size={15}/> : <Eye size={15}/>}
           </button>
         )}
@@ -256,7 +265,11 @@ function StatSlider({ label, desc, value, onChange, color, Icon }: { label:strin
         <span style={{ fontSize:13, fontFamily:"'Orbitron',monospace", color, fontWeight:700, userSelect:"none" }}>{value}</span>
       </div>
       <input type="range" min={1} max={10} value={value} onChange={e=>onChange(+e.target.value)}
-        style={{ width:"100%", accentColor:color, height:4 }} />
+        className="stat-range"
+        style={{
+          width:"100%", height:4, color,
+          background:`linear-gradient(to right, ${color} 0%, ${color} ${(value-1)/9*100}%, rgba(255,255,255,0.12) ${(value-1)/9*100}%, rgba(255,255,255,0.12) 100%)`,
+        }} />
     </div>
   );
 }
@@ -334,9 +347,9 @@ function CardFront({ user }: { user:User }) {
   return (
     <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column" }}>
       <div style={{ position:"relative", flex:"0 0 58%", background:"#060c18", overflow:"hidden" }}>
-        <img src={user.photo} alt={user.name} style={{ width:"100%", height:"100%", objectFit:"cover", filter:"brightness(0.82) saturate(1.1)" }}/>
+        <img src={user.photo} alt={user.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover", filter:"brightness(0.82) saturate(1.1)" }}/>
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom,transparent 45%,#0d1525 100%)" }}/>
-        <div style={{ position:"absolute", top:8, right:8, padding:"2px 7px", borderRadius:6, background:`${r.color}22`, color:r.color, border:`1px solid ${r.color}55`, fontSize:9, fontFamily:"'Orbitron',monospace", fontWeight:700 }}>{r.label}</div>
+        <div style={{ position:"absolute", top:8, right:8, padding:"2px 7px", borderRadius:6, background:`${r.color}22`, color:r.color, border:`1px solid ${r.color}55`, fontSize:9, fontFamily:"'Noto Sans KR'", fontWeight:700 }}>{r.label}</div>
         <div style={{ position:"absolute", top:8, left:8, padding:"2px 7px", borderRadius:6, background:"rgba(0,0,0,0.6)", color:"#8899bb", fontSize:9, fontFamily:"'Orbitron',monospace" }}>PWR <span style={{color:r.color,fontWeight:700}}>{totalPower(user.stats)}</span></div>
       </div>
       <div style={{ padding:"10px 12px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, flex:1 }}>
@@ -438,9 +451,9 @@ function GridCard({ user, onClick }: { user:User; onClick:()=>void }) {
       }}
     >
       <div style={{ height:140, background:"#060c18", position:"relative", overflow:"hidden" }}>
-        <img src={user.photo} alt={user.name} style={{ width:"100%", height:"100%", objectFit:"cover", filter:"brightness(0.8)" }}/>
+        <img src={user.photo} alt={user.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover", filter:"brightness(0.8)" }}/>
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom,transparent 50%,#0d1525 100%)" }}/>
-        <span style={{ position:"absolute", top:6, right:6, fontSize:9, padding:"2px 6px", borderRadius:5, background:`${r.color}22`, color:r.color, fontFamily:"'Orbitron',monospace", fontWeight:700 }}>{r.label}</span>
+        <span style={{ position:"absolute", top:6, right:6, fontSize:9, padding:"2px 6px", borderRadius:5, background:`${r.color}22`, color:r.color, fontFamily:"'Noto Sans KR'", fontWeight:700 }}>{r.label}</span>
         <span style={{ position:"absolute", top:6, left:6, padding:"2px 7px", borderRadius:5, background:"rgba(0,0,0,0.6)", color:"#8899bb", fontSize:9, fontFamily:"'Orbitron',monospace" }}>PWR <span style={{color:r.color,fontWeight:700}}>{totalPower(user.stats)}</span></span>
       </div>
       <div style={{ padding:"8px 10px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
@@ -483,11 +496,11 @@ function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChanged:boole
           <div style={{ width:56, height:56, borderRadius:16, background:"linear-gradient(135deg,rgba(0,200,255,0.2),rgba(168,85,247,0.2))", border:"1px solid rgba(0,200,255,0.3)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 auto 14px" }}>
             <Notebook size={26} style={{color:"#00c8ff"}}/>
           </div>
-          <h1 style={{ fontSize:22, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.06em" }}>매드몬 도감</h1>
+          <h1 style={{ fontSize:22, fontFamily:"'Noto Sans KR'", color:"#00c8ff", fontWeight:700 }}>매드몬 도감</h1>
         </div>
         <form onSubmit={e=>{ e.preventDefault(); handle(); }} style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <Field label="아이디" value={id} onChange={setId} placeholder="아이디 입력"/>
-          <Field label="비밀번호" type="password" value={pw} onChange={setPw} placeholder="비밀번호 입력"/>
+          <Field label="아이디" value={id} onChange={setId} placeholder="아이디 입력" autoComplete="username"/>
+          <Field label="비밀번호" type="password" value={pw} onChange={setPw} placeholder="비밀번호 입력" autoComplete="current-password"/>
           {err && <div style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 12px", borderRadius:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)" }}>
             <AlertTriangle size={13} style={{color:"#ef4444",flexShrink:0}}/>
             <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>
@@ -533,7 +546,7 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
             <Notebook size={15} style={{color:"#00c8ff"}}/>
           </div>
           <div>
-            <div style={{ fontSize:11, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.04em" }}>매드몬 도감</div>
+            <div style={{ fontSize:11, fontFamily:"'Noto Sans KR'", color:"#00c8ff", fontWeight:700 }}>매드몬 도감</div>
             <div style={{ fontSize:9, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>팀원 평가 플랫폼</div>
           </div>
         </div>
@@ -547,9 +560,9 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
           </div>
         </div>
         <form onSubmit={e=>{ e.preventDefault(); handle(); }} style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <Field label="현재 비밀번호" type="password" value={cur} onChange={setCur} placeholder="기존 비밀번호"/>
-          <Field label="새 비밀번호" type="password" value={np} onChange={setNp} placeholder="8자 이상"/>
-          <Field label="새 비밀번호 확인" type="password" value={nc} onChange={setNc} placeholder="다시 입력"/>
+          <Field label="현재 비밀번호" type="password" value={cur} onChange={setCur} placeholder="기존 비밀번호" autoComplete="current-password"/>
+          <Field label="새 비밀번호" type="password" value={np} onChange={setNp} placeholder="8자 이상" autoComplete="new-password"/>
+          <Field label="새 비밀번호 확인" type="password" value={nc} onChange={setNc} placeholder="다시 입력" autoComplete="new-password"/>
           {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
           <Btn full type="submit" variant="purple" disabled={loading}>{loading?"변경 중...":"변경하기"}</Btn>
         </form>
@@ -646,7 +659,7 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
               {photoUploading
                 ? <RefreshCw size={24} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/>
                 : photoUrl
-                ? <img src={photoUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:999 }}/>
+                ? <img src={photoUrl} alt="" onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:999 }}/>
                 : <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                     <Camera size={28} style={{color:"#00c8ff"}}/>
                     <span style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>클릭하여 업로드</span>
@@ -733,7 +746,7 @@ function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen
             <Notebook size={15} style={{color:"#00c8ff"}}/>
           </div>
           <div>
-            <div style={{ fontSize:11, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.04em" }}>매드몬 도감</div>
+            <div style={{ fontSize:11, fontFamily:"'Noto Sans KR'", color:"#00c8ff", fontWeight:700 }}>매드몬 도감</div>
             <div style={{ fontSize:9, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>팀원 평가 플랫폼</div>
           </div>
         </div>
@@ -765,7 +778,7 @@ function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen
       <div style={{ padding:"12px 10px", borderTop:"1px solid rgba(255,255,255,0.06)" }}>
         <div style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 10px", borderRadius:9, background:"rgba(255,255,255,0.03)" }}>
           <div style={{ width:30, height:30, borderRadius:999, overflow:"hidden", border:`2px solid ${RARITY.legendary.color}`, flexShrink:0 }}>
-            <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:12, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{me?.name ?? "..."}</div>
@@ -783,7 +796,10 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Rarity|"all">("all");
-  const [sort, setSort] = useState<"name"|"power"|"rarity">("power");
+  const [sort, setSort] = useState<"name"|"power"|"stat">("power");
+  const [sortStat, setSortStat] = useState<string>(STATS[0].key);
+  const [sortDir, setSortDir] = useState<"asc"|"desc">("desc");
+  const [statMenuOpen, setStatMenuOpen] = useState(false);
   const [modalSummary, setModalSummary] = useState<User|null>(null);
   const [modalDetail, setModalDetail] = useState<User|null>(null);
   const [modalLoading, setModalLoading] = useState(false);
@@ -799,13 +815,13 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
     if (!cards) return [];
     let u = cards.filter(u=>u.name.includes(search));
     if (filter!=="all") u=u.filter(x=>x.rarity===filter);
+    const dirMul = sortDir==="asc" ? 1 : -1;
     return [...u].sort((a,b)=>{
-      if (sort==="name") return a.name.localeCompare(b.name);
-      if (sort==="power") return totalPower(b.stats)-totalPower(a.stats);
-      const ord={legendary:0,epic:1,rare:2,common:3};
-      return ord[a.rarity]-ord[b.rarity];
+      if (sort==="name") return a.name.localeCompare(b.name)*dirMul;
+      if (sort==="stat") return (a.stats[sortStat as keyof Stats]-b.stats[sortStat as keyof Stats])*dirMul;
+      return (totalPower(a.stats)-totalPower(b.stats))*dirMul;
     });
-  },[cards,search,filter,sort]);
+  },[cards,search,filter,sort,sortStat,sortDir]);
 
   async function openCard(u: User) {
     setModalSummary(u); setModalDetail(null); setModalLoading(true);
@@ -832,7 +848,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
       </div>
 
       {/* Controls */}
-      <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:20, alignItems:"center" }}>
+      <div style={{ display:"flex", flexWrap:"wrap", gap:10, marginBottom:8, alignItems:"center" }}>
         <div style={{ display:"flex", alignItems:"center", gap:7, padding:"8px 12px", borderRadius:9, ...DS.glass, flex:"1 1 200px", minWidth:160 }}>
           <Search size={13} style={{color:"#8899bb",flexShrink:0}}/>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 검색" style={{ background:"none", border:"none", outline:"none", color:"#dde5f0", fontSize:13, fontFamily:"'Noto Sans KR'", width:"100%" }}/>
@@ -848,7 +864,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
           ))}
         </div>
         <div style={{ display:"flex", gap:5 }}>
-          {[{k:"power",l:"전투력"},{k:"name",l:"이름"},{k:"rarity",l:"희귀도"}].map(({k,l})=>(
+          {[{k:"power",l:"전투력"},{k:"name",l:"이름"}].map(({k,l})=>(
             <button key={k} onClick={()=>setSort(k as typeof sort)} style={{
               padding:"6px 10px", borderRadius:7, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", transition:"all 0.15s",
               background:sort===k?"rgba(168,85,247,0.12)":"rgba(255,255,255,0.03)",
@@ -857,9 +873,44 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
               display:"flex", alignItems:"center", gap:4,
             }}><ArrowUpDown size={10}/>{l}</button>
           ))}
+          <div
+            onMouseEnter={()=>setStatMenuOpen(true)}
+            onMouseLeave={()=>setStatMenuOpen(false)}
+            style={{ position:"relative" }}
+          >
+            <button onClick={()=>setSort("stat")} style={{
+              padding:"6px 10px", borderRadius:7, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", transition:"all 0.15s",
+              background:sort==="stat"?"rgba(168,85,247,0.12)":"rgba(255,255,255,0.03)",
+              color:sort==="stat"?"#a855f7":"#8899bb",
+              border:`1px solid ${sort==="stat"?"rgba(168,85,247,0.3)":"rgba(255,255,255,0.07)"}`,
+              display:"flex", alignItems:"center", gap:4, whiteSpace:"nowrap",
+            }}><ArrowUpDown size={10}/>능력치{sort==="stat" && `: ${STATS.find(s=>s.key===sortStat)?.label}`}</button>
+            {statMenuOpen && (
+              <div style={{
+                position:"absolute", top:"100%", left:0, marginTop:4, zIndex:70,
+                background:"#0e1526", border:"1px solid rgba(168,85,247,0.25)", borderRadius:9,
+                boxShadow:"0 10px 30px rgba(0,0,0,0.5)", padding:4, display:"flex", flexDirection:"column", minWidth:110,
+              }}>
+                {STATS.map(s=>(
+                  <button key={s.key} onClick={()=>{setSort("stat");setSortStat(s.key);setStatMenuOpen(false);}} style={{
+                    display:"flex", alignItems:"center", gap:6, padding:"6px 9px", borderRadius:6, fontSize:11, fontFamily:"'Noto Sans KR'",
+                    background:sort==="stat"&&sortStat===s.key?"rgba(168,85,247,0.15)":"transparent",
+                    color:sort==="stat"&&sortStat===s.key?"#a855f7":"#c7d2e6", border:"none", cursor:"pointer", textAlign:"left",
+                  }}><s.Icon size={11} style={{color:s.color}}/>{s.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={()=>setSortDir(d=>d==="desc"?"asc":"desc")} title={sortDir==="desc"?"내림차순":"오름차순"} style={{
+            padding:"6px 8px", borderRadius:7, cursor:"pointer", transition:"all 0.15s",
+            background:"rgba(255,255,255,0.03)", color:"#8899bb", border:"1px solid rgba(255,255,255,0.07)",
+            display:"flex", alignItems:"center",
+          }}>
+            {sortDir==="desc" ? <ArrowDownWideNarrow size={13}/> : <ArrowUpNarrowWide size={13}/>}
+          </button>
         </div>
-        <span style={{ fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>{filtered.length}명</span>
       </div>
+      <p style={{ fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", marginTop:0, marginBottom:20 }}>검색 결과: {filtered.length}명</p>
 
       {/* Grid */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:16 }}>
@@ -873,7 +924,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
         <div style={{ position:"fixed", inset:0, zIndex:60, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(4,7,14,0.82)", backdropFilter:"blur(8px)" }} onClick={()=>{setModalSummary(null);setModalDetail(null);}}>
           <div onClick={e=>e.stopPropagation()} style={{ position:"relative" }}>
             <button onClick={()=>{setModalSummary(null);setModalDetail(null);}} style={{ position:"absolute", top:-42, right:0, width:32, height:32, borderRadius:999, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:"#8899bb", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><X size={15}/></button>
-            <FlipCard user={modal} w={300} h={460} locked={modalLoading || !(modalDetail?.isUnlocked ?? false)} onUnlock={onEval}/>
+            <FlipCard user={modal} w={300} h={460} locked={!(modal?.isUnlocked ?? false)} onUnlock={onEval}/>
             <p style={{ textAlign:"center", marginTop:10, fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>카드를 클릭해 앞/뒤를 확인하세요</p>
           </div>
         </div>
@@ -964,7 +1015,7 @@ function TeamsScreen() {
                 {members.map(m=>(
                   <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
                     <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff" }}>
-                      <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                      <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
                     </div>
                     <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{m.name}</span>
                   </div>
@@ -1104,7 +1155,7 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
           return (
             <div key={u.userId} style={{ ...DS.card, overflow:"hidden" }}>
               <div style={{ padding:"14px 18px", background:isDone?"rgba(52,211,153,0.04)":"rgba(255,255,255,0.01)", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:40, height:40, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff", flexShrink:0 }}><img src={u.profileImageUrl || FALLBACK_AVATAR} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
+                <div style={{ width:40, height:40, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff", flexShrink:0 }}><img src={u.profileImageUrl || FALLBACK_AVATAR} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#00c8ff" }}>{u.name}</div>
                 </div>
@@ -1210,7 +1261,7 @@ function AIScreen() {
           const r=RARITY[u.rarity]; const sel=selected.includes(u.id);
           return (
             <div key={u.id} onClick={()=>toggleSel(u.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.02)", border:`1px solid ${sel?r.border:"rgba(255,255,255,0.06)"}`, transition:"all 0.15s" }}>
-              <div style={{ width:28, height:28, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?r.color:"transparent"}`, flexShrink:0 }}><img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
+              <div style={{ width:28, height:28, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?r.color:"transparent"}`, flexShrink:0 }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:11, fontWeight:700, fontFamily:"'Black Han Sans'", color:sel?r.color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name}</div>
               </div>
@@ -1297,7 +1348,7 @@ function CompareScreen() {
           const ci=selected.indexOf(u.id);
           return (
             <button key={u.id} onClick={()=>toggle(u.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.03)", border:`1.5px solid ${sel?(colors[ci]??r.color):"rgba(255,255,255,0.07)"}`, transition:"all 0.15s" }}>
-              <div style={{ width:22, height:22, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?(colors[ci]??r.color):"transparent"}` }}><img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
+              <div style={{ width:22, height:22, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?(colors[ci]??r.color):"transparent"}` }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
               <span style={{ fontSize:12, fontFamily:"'Black Han Sans'", color:sel?(colors[ci]??r.color):"#8899bb" }}>{u.name}</span>
               {sel && <div style={{ width:8, height:8, borderRadius:999, background:colors[ci]??r.color }}/>}
             </button>
@@ -1435,7 +1486,7 @@ function ProfileScreen() {
               <div style={{ display:"flex", alignItems:"center", gap:14 }}>
                 <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display:"none" }}
                   onChange={e=>{ const f=e.target.files?.[0]; if(f) handlePhotoSelected(f); e.target.value=""; }}/>
-                <div style={{ width:56, height:56, borderRadius:999, overflow:"hidden", border:`2px solid ${r.color}`, flexShrink:0 }}><img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
+                <div style={{ width:56, height:56, borderRadius:999, overflow:"hidden", border:`2px solid ${r.color}`, flexShrink:0 }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
                 <Btn variant="ghost" size="sm" disabled={photoUploading} onClick={()=>fileInputRef.current?.click()} icon={photoUploading?<RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/>:<Upload size={12}/>}>{photoUploading?"업로드 중...":"사진 변경"}</Btn>
               </div>
               {photoError && <span style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{photoError}</span>}
