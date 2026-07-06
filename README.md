@@ -151,7 +151,9 @@
 
 | Method | Endpoint | 설명 | 요청 | 응답 |
 |---|---|---|---|---|
-|  |  |  |  |  |
+| POST | `/api/auth/login` | 로그인, access/refresh 토큰 발급 | `{userId, password}` | `{accessToken, refreshToken, passwordChanged}` |
+| POST | `/api/auth/refresh` | refresh token으로 access/refresh 토큰 재발급(공개 경로) | `{refreshToken}` | `{accessToken, refreshToken, passwordChanged}` |
+| PATCH | `/api/auth/password` | 비밀번호 변경(인증 필요). 성공 시 갱신된 `passwordChanged` 상태를 담은 새 토큰 쌍을 즉시 반환한다 | `{currentPassword, newPassword}` | `{accessToken, refreshToken, passwordChanged}` |
 
 ---
 

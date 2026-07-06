@@ -10,7 +10,7 @@
 
 - **PK는 모두 내부 대리키(`BIGINT IDENTITY`)를 유지**합니다. 로그인 식별자(`user_id`)처럼 사용자가 다루는 값은 별도의 UNIQUE 컬럼으로 분리하고, 관계(FK)는 항상 내부 PK(`id`)를 참조합니다.
 - **DB 레벨 제약(UNIQUE/CHECK/NOT NULL)과 애플리케이션 레벨 검증(Bean Validation)을 이중화**합니다. 데이터 정합성이 중요한 항목(평가 중복, 점수 범위 등)은 DB가 최후 방어선 역할을 하도록 합니다.
-- **타임스탬프는 `TIMESTAMPTZ`(시간대 포함) 사용을 권장**합니다. Supabase/PostgreSQL 공식 권장 사항이며, 서버·클라이언트 시간대가 다를 때 발생하는 버그를 원천 차단합니다. (현재 Entity는 `LocalDateTime` 기준으로 `TIMESTAMP`에 매핑되어 있어, 이 부분은 향후 Entity 수정 시 `OffsetDateTime`/`Instant` + `TIMESTAMPTZ`로 전환할 것을 제안합니다.)
+- **타임스탬프는 `TIMESTAMPTZ`(시간대 포함) 사용을 권장**합니다. Supabase/PostgreSQL 공식 권장 사항이며, 서버·클라이언트 시간대가 다를 때 발생하는 버그를 원천 차단합니다. (`common.entity.BaseEntity`는 이미 `Instant` 기준으로 매핑되어 있어 별도 전환 작업 없이 `TIMESTAMPTZ`와 그대로 대응됩니다.)
 - **`updated_at` 자동 갱신**은 두 가지 방식이 있습니다.
   1. 애플리케이션 레벨: JPA Auditing(`@LastModifiedDate`) — 현재 이미 구현되어 있고, 모든 쓰기가 애플리케이션을 통해서만 발생하는 한 충분합니다.
   2. DB 레벨: PostgreSQL 트리거 함수 — Supabase 콘솔이나 외부 도구로 직접 UPDATE하는 경우까지 대비하는 방어선입니다.

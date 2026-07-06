@@ -14,8 +14,13 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtTokenProvider {
 
+    public enum TokenType {
+        ACCESS, REFRESH
+    }
+
     private static final String CLAIM_USER_ID = "userId";
     private static final String CLAIM_PASSWORD_CHANGED = "passwordChanged";
+    private static final String CLAIM_TOKEN_TYPE = "tokenType";
 
     private final SecretKey key;
     private final long accessTokenExpirationMillis;
@@ -32,14 +37,14 @@ public class JwtTokenProvider {
     }
 
     public String createAccessToken(User user) {
-        return createToken(user, accessTokenExpirationMillis);
+        return createToken(user, accessTokenExpirationMillis, TokenType.ACCESS);
     }
 
     public String createRefreshToken(User user) {
-        return createToken(user, refreshTokenExpirationMillis);
+        return createToken(user, refreshTokenExpirationMillis, TokenType.REFRESH);
     }
 
-    private String createToken(User user, long expirationMillis) {
+    private String createToken(User user, long expirationMillis, TokenType tokenType) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + expirationMillis);
 
@@ -47,6 +52,7 @@ public class JwtTokenProvider {
                 .subject(String.valueOf(user.getId()))
                 .claim(CLAIM_USER_ID, user.getUserId())
                 .claim(CLAIM_PASSWORD_CHANGED, user.isPasswordChanged())
+                .claim(CLAIM_TOKEN_TYPE, tokenType.name())
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(key)
@@ -54,11 +60,7 @@ public class JwtTokenProvider {
     }
 
     public AuthenticatedUser parseToken(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(key)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        Claims claims = parseClaims(token);
 
         return new AuthenticatedUser(
                 Long.valueOf(claims.getSubject()),
@@ -67,12 +69,24 @@ public class JwtTokenProvider {
         );
     }
 
+    public TokenType getTokenType(String token) {
+        return TokenType.valueOf(parseClaims(token).get(CLAIM_TOKEN_TYPE, String.class));
+    }
+
     public boolean isValidToken(String token) {
         try {
-            Jwts.parser().verifyWith(key).build().parseSignedClaims(token);
+            parseClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
             return false;
         }
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

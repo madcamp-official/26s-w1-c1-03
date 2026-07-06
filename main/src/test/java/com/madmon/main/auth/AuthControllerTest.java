@@ -1,5 +1,6 @@
 package com.madmon.main.auth;
 
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -15,22 +16,27 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @SpringBootTest(properties = "spring.profiles.active=test")
 @AutoConfigureMockMvc
+@Import(AuthControllerTest.ProtectedTestController.class)
 @Transactional
 class AuthControllerTest {
 
     private static final String TEST_USER_ID = "2026100";
     private static final String RAW_PASSWORD = "initial-password";
     private static final Pattern ACCESS_TOKEN_PATTERN = Pattern.compile("\"accessToken\":\"([^\"]+)\"");
+    private static final Pattern REFRESH_TOKEN_PATTERN = Pattern.compile("\"refreshToken\":\"([^\"]+)\"");
 
     @Autowired
     private MockMvc mockMvc;
@@ -58,6 +64,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty())
                 .andExpect(jsonPath("$.data.passwordChanged").value(false));
     }
 
@@ -80,42 +87,111 @@ class AuthControllerTest {
 
     @Test
     void 최초_로그인_사용자는_비밀번호_변경_전까지_다른_API가_차단된다() throws Exception {
-        String accessToken = login(RAW_PASSWORD);
+        String[] tokens = login(RAW_PASSWORD);
 
         mockMvc.perform(get("/api/some-protected-resource")
-                        .header("Authorization", "Bearer " + accessToken))
+                        .header("Authorization", "Bearer " + tokens[0]))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.PASSWORD_CHANGE_REQUIRED.name()));
     }
 
     @Test
-    void 비밀번호_변경에_성공하면_passwordChanged가_true로_바뀐다() throws Exception {
-        String accessToken = login(RAW_PASSWORD);
+    void 리프레시_토큰으로는_보호된_API에_접근할_수_없다() throws Exception {
+        String[] tokens = login(RAW_PASSWORD);
 
-        mockMvc.perform(patch("/api/auth/password")
-                        .header("Authorization", "Bearer " + accessToken)
+        // refreshToken은 access token과 클레임 구조는 같지만 tokenType이 달라, 그대로 Bearer로 사용해도
+        // 인증 필터가 인증 주체를 세팅하지 않고 그대로 통과시켜 401(미인증)로 이어져야 한다.
+        mockMvc.perform(get("/api/some-protected-resource")
+                        .header("Authorization", "Bearer " + tokens[1]))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.UNAUTHORIZED.name()));
+    }
+
+    @Test
+    void 리프레시_토큰으로_새로운_토큰_쌍을_발급받는다() throws Exception {
+        String[] tokens = login(RAW_PASSWORD);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + tokens[1] + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    void access_토큰으로_재발급을_요청하면_거부된다() throws Exception {
+        String[] tokens = login(RAW_PASSWORD);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + tokens[0] + "\"}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.INVALID_REFRESH_TOKEN.name()));
+    }
+
+    @Test
+    void 비밀번호_변경에_성공하면_새_토큰이_즉시_발급되고_잠금이_풀린다() throws Exception {
+        String[] tokens = login(RAW_PASSWORD);
+
+        MvcResult result = mockMvc.perform(patch("/api/auth/password")
+                        .header("Authorization", "Bearer " + tokens[0])
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currentPassword\":\"" + RAW_PASSWORD + "\",\"newPassword\":\"new-password-123\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.data.passwordChanged").value(true))
+                .andReturn();
 
         assertTrue(userRepository.findByUserId(TEST_USER_ID).orElseThrow().isPasswordChanged());
+
+        String newAccessToken = extract(ACCESS_TOKEN_PATTERN, result.getResponse().getContentAsString());
+        assertNotEquals(tokens[0], newAccessToken);
+
+        // 옛 토큰(passwordChanged=false 클레임)은 여전히 차단되고, 새로 발급된 토큰은 잠금이 풀려있어야 한다.
+        mockMvc.perform(get("/api/some-protected-resource")
+                        .header("Authorization", "Bearer " + tokens[0]))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.PASSWORD_CHANGE_REQUIRED.name()));
+
+        mockMvc.perform(get("/api/some-protected-resource")
+                        .header("Authorization", "Bearer " + newAccessToken))
+                .andExpect(status().isOk());
     }
 
-    private String login(String password) throws Exception {
+    private String[] login(String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(loginBody(password)))
                 .andReturn();
 
-        Matcher matcher = ACCESS_TOKEN_PATTERN.matcher(result.getResponse().getContentAsString());
+        String body = result.getResponse().getContentAsString();
+        return new String[] {extract(ACCESS_TOKEN_PATTERN, body), extract(REFRESH_TOKEN_PATTERN, body)};
+    }
+
+    private String extract(Pattern pattern, String body) {
+        Matcher matcher = pattern.matcher(body);
         if (!matcher.find()) {
-            throw new IllegalStateException("로그인 응답에서 accessToken을 찾을 수 없습니다: " + result.getResponse().getContentAsString());
+            throw new IllegalStateException("응답에서 토큰을 찾을 수 없습니다: " + body);
         }
         return matcher.group(1);
     }
 
     private String loginBody(String password) {
         return "{\"userId\":\"" + TEST_USER_ID + "\",\"password\":\"" + password + "\"}";
+    }
+
+    // 인증 필터/게이팅만 검증하기 위한 임의의 보호된 엔드포인트.
+    // 매핑이 없는 경로를 쓰면 GlobalExceptionHandler의 catch-all이 Spring의
+    // NoResourceFoundException(404)까지 500으로 바꿔버려 상태 코드로 필터 동작을 구분할 수 없다.
+    @RestController
+    static class ProtectedTestController {
+
+        @GetMapping("/api/some-protected-resource")
+        public String protectedResource() {
+            return "ok";
+        }
     }
 }
