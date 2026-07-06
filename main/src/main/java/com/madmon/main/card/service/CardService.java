@@ -84,7 +84,7 @@ public class CardService {
         int remainingCount = 0;
         for (TeamMember membership : activeFinishedMemberships) {
             Long teamId = membership.getTeam().getId();
-            for (TeamMember teammate : teamMemberRepository.findAllByTeamId(teamId)) {
+            for (TeamMember teammate : teamMemberRepository.findAllByTeamIdAndLeftAtIsNull(teamId)) {
                 Long teammateId = teammate.getUser().getId();
                 if (teammateId.equals(viewerId)) {
                     continue;

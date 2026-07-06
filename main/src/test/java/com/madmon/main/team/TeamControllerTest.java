@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -194,6 +195,36 @@ class TeamControllerTest {
                         .content("{\"name\":\"NoAuth\"}"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.UNAUTHORIZED.name()));
+    }
+
+    @Test
+    void 팀장이_아니면_프로젝트_종료를_할_수_없다() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/teams")
+                        .header("Authorization", "Bearer " + login("2027001"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Eta Team\"}"))
+                .andReturn();
+        Long teamId = extractTeamId(createResult.getResponse().getContentAsString());
+
+        mockMvc.perform(patch("/api/teams/" + teamId + "/finish")
+                        .header("Authorization", "Bearer " + login("2027002")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.NOT_TEAM_OWNER.name()));
+    }
+
+    @Test
+    void 팀장이_프로젝트_종료를_요청하면_성공한다() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/teams")
+                        .header("Authorization", "Bearer " + login("2027001"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Theta Team\"}"))
+                .andReturn();
+        Long teamId = extractTeamId(createResult.getResponse().getContentAsString());
+
+        mockMvc.perform(patch("/api/teams/" + teamId + "/finish")
+                        .header("Authorization", "Bearer " + login("2027001")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true));
     }
 
     private Long extractTeamId(String json) {
