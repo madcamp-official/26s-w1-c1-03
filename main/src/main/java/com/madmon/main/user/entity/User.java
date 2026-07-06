@@ -125,8 +125,7 @@ public class User extends BaseEntity {
         );
     }
 
-    public void updateProfile(String profileImageUrl, String biography) {
-        this.profileImageUrl = profileImageUrl;
+    public void updateBiography(String biography) {
         this.biography = biography;
     }
 

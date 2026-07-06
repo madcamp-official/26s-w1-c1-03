@@ -102,6 +102,28 @@ class UserControllerTest {
     }
 
     @Test
+    void 프로필사진_없이_자기소개만_수정해도_기존_프로필사진은_유지된다() throws Exception {
+        String token = login();
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"profileImageUrl\":\"https://example.com/a.png\",\"biography\":\"첫 소개\"}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patch("/api/users/me")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"biography\":\"수정된 소개\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.profileImageUrl").value("https://example.com/a.png"))
+                .andExpect(jsonPath("$.data.biography").value("수정된 소개"));
+
+        User updated = userRepository.findByUserId(TEST_USER_ID).orElseThrow();
+        assertEquals("수정된 소개", updated.getBiography());
+        assertEquals("https://example.com/a.png", updated.getProfileImageUrl());
+    }
+
+    @Test
     void 자기소개가_50자를_초과하면_400을_반환한다() throws Exception {
         String tooLong = "가".repeat(51);
 
