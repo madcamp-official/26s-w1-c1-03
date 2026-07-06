@@ -10,6 +10,7 @@ import {
 import {
   login as apiLogin, changePassword as apiChangePassword, getMyProfile,
   updateProfile as apiUpdateProfile, setInitialStats as apiSetInitialStats,
+  uploadProfileImage as apiUploadProfileImage,
   getAccessToken, clearTokens, ApiError,
   listMyTeams, createTeam, joinTeam, getTeam,
   listTitles, listEvaluationTargets, submitEvaluation,
@@ -49,10 +50,19 @@ const AI_QUESTIONS = [
   "팀의 시너지는?", "부족한 역할은?", "누굴 추가하면 좋을까?",
 ];
 
-// 프로필 사진이 없을 때(스토리지 연동 전) 쓰는 기본 아바타
+// 프로필 사진이 아직 없는 유저를 위한 기본 아바타
 const FALLBACK_AVATAR = "data:image/svg+xml;utf8," + encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="#1a2438"/><circle cx="50" cy="38" r="18" fill="#3a4a6a"/><ellipse cx="50" cy="92" rx="32" ry="24" fill="#3a4a6a"/></svg>'
 );
+
+// StorageService(백엔드) 검증 규칙과 동일하게 클라이언트에서도 먼저 걸러준다.
+const ALLOWED_IMAGE_TYPES = ["image/png","image/jpeg","image/webp"];
+const MAX_IMAGE_SIZE_BYTES = 5*1024*1024;
+function validateProfileImage(file: File): string|null {
+  if (!ALLOWED_IMAGE_TYPES.includes(file.type)) return "PNG, JPG, WEBP 형식만 업로드할 수 있습니다.";
+  if (file.size > MAX_IMAGE_SIZE_BYTES) return "파일 크기는 5MB를 초과할 수 없습니다.";
+  return null;
+}
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 const topTitles = (v: TitleVote[]) => { if (!v.length) return []; const m = Math.max(...v.map(x=>x.votes)); return v.filter(x=>x.votes===m).map(x=>x.title); };
@@ -492,12 +502,28 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
 function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
   const [step, setStep] = useState<"photo"|"bio"|"stats">("photo");
   const [bio, setBio] = useState("");
-  const [photoSet, setPhotoSet] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState<string|null>(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [stats, setStats] = useState({attack:5,defense:5,speed:5,teamwork:5,problemSolving:5,creativity:5});
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const steps = ["photo","bio","stats"];
   const stepIdx = steps.indexOf(step);
+
+  async function handlePhotoSelected(file: File) {
+    const invalid = validateProfileImage(file);
+    if (invalid) { setErr(invalid); return; }
+    setErr(""); setPhotoUploading(true);
+    try {
+      const profile = await apiUploadProfileImage(file);
+      setPhotoUrl(profile.profileImageUrl);
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : "사진 업로드 중 오류가 발생했습니다.");
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
 
   async function saveBioAndContinue() {
     setErr(""); setLoading(true);
@@ -544,22 +570,27 @@ function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
 
         {step==="photo" && (
           <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:20 }}>
+            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display:"none" }}
+              onChange={e=>{ const f=e.target.files?.[0]; if(f) handlePhotoSelected(f); e.target.value=""; }}/>
             <div
-              onClick={()=>setPhotoSet(p=>!p)}
-              style={{ width:120, height:120, borderRadius:999, border:`2px dashed ${photoSet?"rgba(52,211,153,0.6)":"rgba(0,200,255,0.3)"}`, background:"rgba(0,200,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", cursor:"pointer", position:"relative", overflow:"hidden", transition:"all 0.2s" }}
+              onClick={()=>!photoUploading&&fileInputRef.current?.click()}
+              style={{ width:120, height:120, borderRadius:999, border:`2px dashed ${photoUrl?"rgba(52,211,153,0.6)":"rgba(0,200,255,0.3)"}`, background:"rgba(0,200,255,0.04)", display:"flex", alignItems:"center", justifyContent:"center", cursor:photoUploading?"wait":"pointer", position:"relative", overflow:"hidden", transition:"all 0.2s" }}
             >
-              {photoSet
-                ? <img src={FALLBACK_AVATAR} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:999 }}/>
+              {photoUploading
+                ? <RefreshCw size={24} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/>
+                : photoUrl
+                ? <img src={photoUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover", borderRadius:999 }}/>
                 : <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                     <Camera size={28} style={{color:"#00c8ff"}}/>
                     <span style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>클릭하여 업로드</span>
                   </div>
               }
             </div>
-            {photoSet && <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#34d399", fontFamily:"'Noto Sans KR'" }}><CheckCircle2 size={14}/>사진이 설정되었습니다</div>}
+            {photoUrl && <div style={{ display:"flex", alignItems:"center", gap:6, fontSize:12, color:"#34d399", fontFamily:"'Noto Sans KR'" }}><CheckCircle2 size={14}/>사진이 설정되었습니다</div>}
+            {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
             <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:8 }}>
-              <Btn full onClick={()=>setStep("bio")}>다음</Btn>
-              <Btn full variant="ghost" onClick={()=>setStep("bio")}>나중에 설정</Btn>
+              <Btn full onClick={()=>setStep("bio")} disabled={photoUploading}>다음</Btn>
+              <Btn full variant="ghost" onClick={()=>setStep("bio")} disabled={photoUploading}>나중에 설정</Btn>
             </div>
           </div>
         )}
@@ -1270,6 +1301,9 @@ function ProfileScreen() {
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(()=>{
     (async () => {
@@ -1297,6 +1331,21 @@ function ProfileScreen() {
     }
   }
 
+  async function handlePhotoSelected(file: File) {
+    const invalid = validateProfileImage(file);
+    if (invalid) { setPhotoError(invalid); return; }
+    setPhotoError(""); setPhotoUploading(true);
+    try {
+      const updated = await apiUploadProfileImage(file);
+      setProfile(updated);
+      setCard(c => c ? { ...c, photo: updated.profileImageUrl || FALLBACK_AVATAR } : c);
+    } catch (e) {
+      setPhotoError(e instanceof ApiError ? e.message : "사진 업로드 중 오류가 발생했습니다.");
+    } finally {
+      setPhotoUploading(false);
+    }
+  }
+
   if (error) return <div style={{ padding:"28px 32px" }}><p style={{ color:"#ef4444", fontFamily:"'Noto Sans KR'", fontSize:13 }}>{error}</p></div>;
   if (!profile || !card) return <div style={{ padding:"28px 32px", display:"flex", alignItems:"center", gap:8 }}><RefreshCw size={16} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/><span style={{ color:"#8899bb", fontFamily:"'Noto Sans KR'", fontSize:13 }}>프로필을 불러오는 중...</span></div>;
 
@@ -1318,9 +1367,12 @@ function ProfileScreen() {
             <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
               {/* Photo */}
               <div style={{ display:"flex", alignItems:"center", gap:14 }}>
+                <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp" style={{ display:"none" }}
+                  onChange={e=>{ const f=e.target.files?.[0]; if(f) handlePhotoSelected(f); e.target.value=""; }}/>
                 <div style={{ width:56, height:56, borderRadius:999, overflow:"hidden", border:`2px solid ${r.color}`, flexShrink:0 }}><img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
-                <Btn variant="ghost" size="sm" icon={<Upload size={12}/>}>사진 변경</Btn>
+                <Btn variant="ghost" size="sm" disabled={photoUploading} onClick={()=>fileInputRef.current?.click()} icon={photoUploading?<RefreshCw size={12} style={{animation:"spin 1s linear infinite"}}/>:<Upload size={12}/>}>{photoUploading?"업로드 중...":"사진 변경"}</Btn>
               </div>
+              {photoError && <span style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{photoError}</span>}
               <div>
                 <div style={{ display:"flex", justifyContent:"space-between", marginBottom:6 }}>
                   <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>한줄 자기소개</span>
