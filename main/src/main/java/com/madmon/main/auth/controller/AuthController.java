@@ -3,6 +3,7 @@ package com.madmon.main.auth.controller;
 import com.madmon.main.auth.dto.ChangePasswordRequest;
 import com.madmon.main.auth.dto.LoginRequest;
 import com.madmon.main.auth.dto.LoginResponse;
+import com.madmon.main.auth.dto.RefreshTokenRequest;
 import com.madmon.main.auth.jwt.AuthenticatedUser;
 import com.madmon.main.auth.service.AuthService;
 import com.madmon.main.common.response.ApiResponse;
@@ -27,12 +28,16 @@ public class AuthController {
         return ApiResponse.success(authService.login(request));
     }
 
+    @PostMapping("/refresh")
+    public ApiResponse<LoginResponse> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return ApiResponse.success(authService.refresh(request));
+    }
+
     @PatchMapping("/password")
-    public ApiResponse<Void> changePassword(
+    public ApiResponse<LoginResponse> changePassword(
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @Valid @RequestBody ChangePasswordRequest request
     ) {
-        authService.changePassword(authenticatedUser.id(), request);
-        return ApiResponse.empty();
+        return ApiResponse.success(authService.changePassword(authenticatedUser.id(), request));
     }
 }

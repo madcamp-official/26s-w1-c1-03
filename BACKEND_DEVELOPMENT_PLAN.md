@@ -329,17 +329,20 @@ erDiagram
 ### Phase 4 — 인증(JWT 로그인/비밀번호 변경)
 - **목표**: `auth` 도메인 완성, 이후 모든 API의 인가 기반 마련
 - **구현 내용**:
-  - `JwtTokenProviderg`(Access/Refresh 토큰 발급·검증), `JwtAuthenticationFilter`
-  - 로그인 API(`POST /api/auth/login`), 비밀번호 변경 API(`PATCH /api/auth/password`, 최초 로그인 시 `password_changed=false`이면 다른 API 접근 제한)
-  - `SecurityConfig` 완성: 인증 필요 경로/공개 경로 구분, `SecurityContext`에서 `userId` 추출 유틸
-- **완료 조건**: 로그인 성공 시 JWT 발급, 보호된 API에 토큰 없이 접근 시 401, 최초 로그인 사용자는 비밀번호 변경 전까지 다른 API 접근 차단
+  - `JwtTokenProvider`(Access/Refresh 토큰 발급·검증). 두 토큰은 `tokenType`(`ACCESS`/`REFRESH`) 클레임으로 구분되며, `JwtAuthenticationFilter`는 `tokenType=ACCESS`인 토큰만 인증 주체로 인정한다(REFRESH 토큰을 그대로 Bearer로 사용해 access token 대신 쓰는 것을 차단)
+  - 로그인 API(`POST /api/auth/login`), 리프레시 API(`POST /api/auth/refresh` — refresh token 검증 후 새 access/refresh 토큰 쌍 재발급, `permitAll`), 비밀번호 변경 API(`PATCH /api/auth/password`, 최초 로그인 시 `password_changed=false`이면 다른 API 접근 제한)
+    - 비밀번호 변경 성공 시에도 새 access/refresh 토큰 쌍을 즉시 응답에 포함한다. 기존에 발급된 토큰은 `passwordChanged=false` 클레임을 그대로 들고 있어, 새 토큰을 내려주지 않으면 클라이언트가 재로그인하기 전까지 계속 `PASSWORD_CHANGE_REQUIRED`(403)를 받기 때문이다.
+  - `SecurityConfig` 완성: `/api/auth/login`, `/api/auth/refresh`만 공개 경로, 나머지는 인증 필요. `SecurityContext`에서 `userId` 추출 유틸
+- **완료 조건**: 로그인 성공 시 JWT 발급, 보호된 API에 토큰 없이 접근 시 401, 최초 로그인 사용자는 비밀번호 변경 전까지 다른 API 접근 차단, refresh token으로 access token 재발급 가능, refresh token 자체로는 보호된 API에 접근 불가, 비밀번호 변경 직후 새 토큰으로 즉시 잠금 해제
 - **선행 작업**: Phase 3(User Entity/Repository)
 - **산출물**: `auth` 패키지 전체, 완성된 `SecurityConfig`
 
 ### Phase 5 — User API (프로필/초기 능력치)
 - **목표**: 프로필 초기 설정 및 조회 기능 완성
-- **구현 내용**: 프로필 조회(`GET /api/users/me`), 프로필 수정(자기소개/프로필사진 URL 갱신), 초기 능력치 입력 API, Validation(`biography` 50자, 능력치 1~10 정수)
-- **완료 조건**: 로그인한 사용자가 자신의 프로필/초기 능력치를 저장·조회 가능, UserStats가 초기값으로 시딩됨
+- **구현 내용**: 프로필 조회(`GET /api/users/me`), 프로필 수정(`PATCH /api/users/me` — 자기소개/프로필사진 URL 갱신), 초기 능력치 입력 API(`PATCH /api/users/me/initial-stats`), Validation(`biography` 50자, 능력치 1~10 정수)
+  - 초기 능력치 입력은 **1회성(one-shot)** 으로 구현했다. 이미 `UserStats`가 생성된 사용자가 다시 요청하면 `409 INITIAL_STATS_ALREADY_SET`을 반환한다. Phase 8에서 평가 기반 EMA 누적이 시작되면 `user_stats`가 더 이상 "초기값"이 아니게 되므로, 재제출로 누적된 점수가 초기값으로 덮어써지는 사고를 막기 위함이다.
+  - `GET /api/users/me` 응답에는 `onboarded`(= UserStats 존재 여부) 플래그와, 존재할 때만 `stats`(6개 능력치 + `evaluationCount`)를 포함한다.
+- **완료 조건**: 로그인한 사용자가 자신의 프로필/초기 능력치를 저장·조회 가능, UserStats가 초기값으로 시딩됨(`UserControllerTest` 7개 케이스로 검증: 조회, 미인증 401, 프로필 수정, 자기소개 길이 초과 400, 초기 능력치 설정, 범위 초과 400, 중복 설정 409)
 - **선행 작업**: Phase 4
 - **산출물**: `user` 패키지의 controller/service/dto
 
@@ -438,8 +441,10 @@ Phase 순서가 곧 API 구현 순서입니다. 근거는 다음과 같습니다
 
 ### 7.1 JWT 구조
 
-- **Access Token**: 짧은 만료(예: 30분~1시간), Claim에 `userId`, `passwordChanged` 포함 → 필터에서 비밀번호 미변경 사용자를 조기에 차단 가능
-- **Refresh Token**: 긴 만료(예: 2주), 재발급 전용 엔드포인트에서만 사용, DB 또는 별도 저장소에 보관해 강제 만료(로그아웃) 지원 여부는 Phase 4에서 결정
+- **Access Token**: 짧은 만료(기본 1시간), Claim에 `userId`, `passwordChanged`, `tokenType=ACCESS` 포함 → 필터에서 비밀번호 미변경 사용자를 조기에 차단 가능
+- **Refresh Token**: 긴 만료(기본 2주), Claim은 Access Token과 동일하되 `tokenType=REFRESH`로 구분. `POST /api/auth/refresh`에서만 사용하며, 이 엔드포인트는 `tokenType=REFRESH`인 토큰만 허용한다
+  - `JwtAuthenticationFilter`는 `tokenType=ACCESS`인 토큰만 인증 주체로 받아들이므로, Refresh Token을 그대로 `Authorization: Bearer`로 보내 access token 대신 사용할 수 없다(구분 클레임이 없던 초기 구현에서는 이게 가능해 access token을 짧게 잡은 의도가 무력화되는 문제가 있었음 — Phase 4에서 수정)
+  - 서버 측 revoke 목록(강제 로그아웃)은 아직 두지 않는다. 필요해지면 별도 Phase에서 결정
 - 서명 알고리즘: HS256(대칭키, 환경변수로 시크릿 관리) — 단일 백엔드 서버 구조이므로 비대칭키(RS256)까지는 불필요
 
 ### 7.2 권한 관리 방식

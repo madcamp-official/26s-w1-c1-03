@@ -38,7 +38,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         String token = resolveToken(request);
 
-        if (token != null && jwtTokenProvider.isValidToken(token)) {
+        if (token != null && jwtTokenProvider.isValidToken(token)
+                && jwtTokenProvider.getTokenType(token) == JwtTokenProvider.TokenType.ACCESS) {
             AuthenticatedUser authenticatedUser = jwtTokenProvider.parseToken(token);
 
             if (!authenticatedUser.passwordChanged() && !PASSWORD_CHANGE_EXEMPT_PATHS.contains(request.getRequestURI())) {

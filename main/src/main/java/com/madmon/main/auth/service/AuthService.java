@@ -3,6 +3,8 @@ package com.madmon.main.auth.service;
 import com.madmon.main.auth.dto.ChangePasswordRequest;
 import com.madmon.main.auth.dto.LoginRequest;
 import com.madmon.main.auth.dto.LoginResponse;
+import com.madmon.main.auth.dto.RefreshTokenRequest;
+import com.madmon.main.auth.jwt.AuthenticatedUser;
 import com.madmon.main.auth.jwt.JwtTokenProvider;
 import com.madmon.main.common.exception.BusinessException;
 import com.madmon.main.common.exception.ErrorCode;
@@ -30,14 +32,26 @@ public class AuthService {
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
-        String accessToken = jwtTokenProvider.createAccessToken(user);
-        String refreshToken = jwtTokenProvider.createRefreshToken(user);
+        return issueTokens(user);
+    }
 
-        return new LoginResponse(accessToken, refreshToken, user.isPasswordChanged());
+    public LoginResponse refresh(RefreshTokenRequest request) {
+        String refreshToken = request.refreshToken();
+
+        if (!jwtTokenProvider.isValidToken(refreshToken)
+                || jwtTokenProvider.getTokenType(refreshToken) != JwtTokenProvider.TokenType.REFRESH) {
+            throw new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN);
+        }
+
+        AuthenticatedUser parsed = jwtTokenProvider.parseToken(refreshToken);
+        User user = userRepository.findById(parsed.id())
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+        return issueTokens(user);
     }
 
     @Transactional
-    public void changePassword(Long userId, ChangePasswordRequest request) {
+    public LoginResponse changePassword(Long userId, ChangePasswordRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
 
@@ -46,5 +60,16 @@ public class AuthService {
         }
 
         user.changePassword(passwordEncoder.encode(request.newPassword()));
+
+        // 기존에 발급된 토큰은 passwordChanged=false 클레임을 그대로 들고 있어 그대로 두면
+        // 클라이언트가 재로그인하기 전까지 계속 403(PASSWORD_CHANGE_REQUIRED)을 받으므로,
+        // 변경된 상태를 반영한 새 토큰 쌍을 즉시 내려준다.
+        return issueTokens(user);
+    }
+
+    private LoginResponse issueTokens(User user) {
+        String accessToken = jwtTokenProvider.createAccessToken(user);
+        String refreshToken = jwtTokenProvider.createRefreshToken(user);
+        return new LoginResponse(accessToken, refreshToken, user.isPasswordChanged());
     }
 }
