@@ -123,9 +123,9 @@ const DS = {
   glass: { background:"rgba(255,255,255,0.04)", backdropFilter:"blur(8px)", border:"1px solid rgba(255,255,255,0.07)" },
 };
 
-function Btn({ children, variant="primary", onClick, disabled=false, size="md", full=false, icon }: {
+function Btn({ children, variant="primary", onClick, disabled=false, size="md", full=false, icon, type="button" }: {
   children: React.ReactNode; variant?: "primary"|"secondary"|"ghost"|"danger"|"purple";
-  onClick?: ()=>void; disabled?: boolean; size?: "sm"|"md"|"lg"; full?: boolean; icon?: React.ReactNode;
+  onClick?: ()=>void; disabled?: boolean; size?: "sm"|"md"|"lg"; full?: boolean; icon?: React.ReactNode; type?: "button"|"submit";
 }) {
   const styles: Record<string,React.CSSProperties> = {
     primary:   { background:"linear-gradient(135deg,#00c8ff,#0080b0)", color:"#060c18" },
@@ -138,6 +138,7 @@ function Btn({ children, variant="primary", onClick, disabled=false, size="md", 
   const fs =  { sm:"12px",     md:"13px",      lg:"14px" };
   return (
     <button
+      type={type}
       onClick={onClick}
       disabled={disabled}
       style={{
@@ -427,20 +428,20 @@ function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChanged:boole
           </div>
           <h1 style={{ fontSize:22, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.06em" }}>매드몬 도감</h1>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <form onSubmit={e=>{ e.preventDefault(); handle(); }} style={{ display:"flex", flexDirection:"column", gap:14 }}>
           <Field label="아이디" value={id} onChange={setId} placeholder="아이디 입력"/>
           <Field label="비밀번호" type="password" value={pw} onChange={setPw} placeholder="비밀번호 입력"/>
           {err && <div style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 12px", borderRadius:8, background:"rgba(239,68,68,0.1)", border:"1px solid rgba(239,68,68,0.25)" }}>
             <AlertTriangle size={13} style={{color:"#ef4444",flexShrink:0}}/>
             <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>
           </div>}
-          <Btn full onClick={handle} disabled={loading} icon={loading?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:undefined}>
+          <Btn full type="submit" disabled={loading} icon={loading?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:undefined}>
             {loading?"로그인 중...":"로그인"}
           </Btn>
           <p style={{ fontSize:11, color:"#4a5a7a", textAlign:"center", fontFamily:"'Noto Sans KR'" }}>
             초기 아이디/비밀번호: 인스타 아이디
           </p>
-        </div>
+        </form>
       </div>
     </div>
   );
@@ -470,6 +471,15 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
     <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#070b12", position:"relative", overflow:"hidden" }}>
       <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(circle at 50% 30%, rgba(168,85,247,0.08) 0%, transparent 60%)" }}/>
       <div style={{ ...DS.card, width:400, padding:"38px 36px", position:"relative", zIndex:1 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:24 }}>
+          <div style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(135deg,rgba(0,200,255,0.2),rgba(168,85,247,0.2))", border:"1px solid rgba(0,200,255,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <Notebook size={15} style={{color:"#00c8ff"}}/>
+          </div>
+          <div>
+            <div style={{ fontSize:11, fontFamily:"'Orbitron',monospace", color:"#00c8ff", fontWeight:900, letterSpacing:"0.04em" }}>매드몬 도감</div>
+            <div style={{ fontSize:9, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>팀원 평가 플랫폼</div>
+          </div>
+        </div>
         <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:28 }}>
           <div style={{ width:36, height:36, borderRadius:10, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
             <Lock size={16} style={{color:"#a855f7"}}/>
@@ -479,21 +489,13 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
             <p style={{ fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>최초 로그인 시 비밀번호를 변경해주세요</p>
           </div>
         </div>
-        <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+        <form onSubmit={e=>{ e.preventDefault(); handle(); }} style={{ display:"flex", flexDirection:"column", gap:14 }}>
           <Field label="현재 비밀번호" type="password" value={cur} onChange={setCur} placeholder="기존 비밀번호"/>
           <Field label="새 비밀번호" type="password" value={np} onChange={setNp} placeholder="8자 이상"/>
           <Field label="새 비밀번호 확인" type="password" value={nc} onChange={setNc} placeholder="다시 입력"/>
-          {np && (
-            <div>
-              <Progress value={np.length>12?100:np.length>7?66:np.length>3?33:0} color={np.length>12?"#34d399":np.length>7?"#fbbf24":"#ef4444"}/>
-              <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:3, display:"block" }}>
-                {np.length>12?"강력한 비밀번호":np.length>7?"보통":"취약한 비밀번호"} ({np.length}자)
-              </span>
-            </div>
-          )}
           {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
-          <Btn full variant="purple" onClick={handle} disabled={loading}>{loading?"변경 중...":"변경하기"}</Btn>
-        </div>
+          <Btn full type="submit" variant="purple" disabled={loading}>{loading?"변경 중...":"변경하기"}</Btn>
+        </form>
       </div>
     </div>
   );
