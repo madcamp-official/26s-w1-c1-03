@@ -3,8 +3,10 @@ package com.madmon.main.auth;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -159,6 +161,19 @@ class AuthControllerTest {
         mockMvc.perform(get("/api/some-protected-resource")
                         .header("Authorization", "Bearer " + newAccessToken))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void 인증이_필요한_경로의_CORS_preflight_요청은_인증_없이도_통과된다() throws Exception {
+        // 브라우저가 PATCH/DELETE 등을 보내기 전에 먼저 보내는 preflight(OPTIONS)에는
+        // Authorization 헤더가 실리지 않는다. anyRequest().authenticated()에 걸려 401이 나면
+        // 실제 요청이 나가보지도 못하고 브라우저에서 CORS 오류로 막힌다.
+        mockMvc.perform(options("/api/auth/password")
+                        .header("Origin", "http://localhost:3000")
+                        .header("Access-Control-Request-Method", "PATCH")
+                        .header("Access-Control-Request-Headers", "authorization,content-type"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
     }
 
     private String[] login(String password) throws Exception {
