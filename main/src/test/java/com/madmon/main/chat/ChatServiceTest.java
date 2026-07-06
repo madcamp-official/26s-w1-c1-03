@@ -18,6 +18,8 @@ import com.madmon.main.chat.entity.ChatMessageRole;
 import com.madmon.main.chat.service.ChatService;
 import com.madmon.main.common.exception.BusinessException;
 import com.madmon.main.common.exception.ErrorCode;
+import com.madmon.main.evaluation.entity.Evaluation;
+import com.madmon.main.evaluation.repository.EvaluationRepository;
 import com.madmon.main.team.entity.Team;
 import com.madmon.main.team.entity.TeamMember;
 import com.madmon.main.team.repository.TeamMemberRepository;
@@ -26,6 +28,7 @@ import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +40,8 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(properties = "spring.profiles.active=test")
 @Transactional
 class ChatServiceTest {
+
+    private static final long DEADLINE_BUFFER_MS = 300;
 
     @Autowired
     private ChatService chatService;
@@ -53,12 +58,15 @@ class ChatServiceTest {
     @Autowired
     private TeamMemberRepository teamMemberRepository;
 
+    @Autowired
+    private EvaluationRepository evaluationRepository;
+
     // 실제 OpenAI 호출은 네트워크가 필요하므로 여기서는 항상 mock으로 대체한다.
     @MockitoBean
     private OpenAiClient openAiClient;
 
     @Test
-    void 잠긴_사용자는_세션을_생성할_수_없다() {
+    void 잠긴_사용자는_세션을_생성할_수_없다() throws InterruptedException {
         User locked = createOnboardedUser("chat-locked1", "잠긴사용자1");
         User teammate = createOnboardedUser("chat-teammate1", "팀원1");
         makeLocked(locked, teammate);
@@ -72,9 +80,10 @@ class ChatServiceTest {
     }
 
     @Test
-    void 카드_1개로_세션을_생성하면_기본_제목이_붙는다() {
+    void 카드_1개로_세션을_생성하면_기본_제목이_붙는다() throws InterruptedException {
         User asker = createOnboardedUser("chat-asker1", "질문자1");
         User target = createOnboardedUser("chat-target2", "타겟2");
+        makeUnlocked(asker);
 
         ChatSessionResponse session = chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), null));
 
@@ -84,10 +93,11 @@ class ChatServiceTest {
     }
 
     @Test
-    void 카드_여러개로_세션을_생성하면_전체_카드가_연결된다() {
+    void 카드_여러개로_세션을_생성하면_전체_카드가_연결된다() throws InterruptedException {
         User asker = createOnboardedUser("chat-asker2", "질문자2");
         User target1 = createOnboardedUser("chat-target3", "타겟3");
         User target2 = createOnboardedUser("chat-target4", "타겟4");
+        makeUnlocked(asker);
 
         ChatSessionResponse session = chatService.createSession(
                 asker.getId(), new CreateSessionRequest(List.of(target1.getId(), target2.getId()), "우리 팀 분석")
@@ -98,9 +108,10 @@ class ChatServiceTest {
     }
 
     @Test
-    void 세션에_메시지를_보내면_AI_응답이_저장된다() {
+    void 세션에_메시지를_보내면_AI_응답이_저장된다() throws InterruptedException {
         User asker = createOnboardedUser("chat-asker3", "질문자3");
         User target = createOnboardedUser("chat-target5", "타겟5");
+        makeUnlocked(asker);
         when(openAiClient.createChatCompletion(anyList())).thenReturn("테스트 AI 응답");
 
         ChatSessionResponse session = chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), null));
@@ -116,9 +127,10 @@ class ChatServiceTest {
     }
 
     @Test
-    void 이전_대화_맥락이_다음_요청에도_포함된다() {
+    void 이전_대화_맥락이_다음_요청에도_포함된다() throws InterruptedException {
         User asker = createOnboardedUser("chat-asker4", "질문자4");
         User target = createOnboardedUser("chat-target6", "타겟6");
+        makeUnlocked(asker);
         when(openAiClient.createChatCompletion(anyList())).thenReturn("첫 응답", "두번째 응답");
 
         ChatSessionResponse session = chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), null));
@@ -138,9 +150,10 @@ class ChatServiceTest {
     }
 
     @Test
-    void 잠긴_사용자는_메시지를_보낼_수_없다() {
+    void 잠긴_사용자는_메시지를_보낼_수_없다() throws InterruptedException {
         User asker = createOnboardedUser("chat-asker5", "질문자5");
         User target = createOnboardedUser("chat-target7", "타겟7");
+        makeUnlocked(asker);
         ChatSessionResponse session = chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), null));
 
         User teammate = createOnboardedUser("chat-teammate5", "팀원5");
@@ -153,10 +166,11 @@ class ChatServiceTest {
     }
 
     @Test
-    void 세션_소유자가_아니면_조회할_수_없다() {
+    void 세션_소유자가_아니면_조회할_수_없다() throws InterruptedException {
         User owner = createOnboardedUser("chat-owner1", "주인1");
         User stranger = createOnboardedUser("chat-stranger1", "타인1");
         User target = createOnboardedUser("chat-target8", "타겟8");
+        makeUnlocked(owner);
 
         ChatSessionResponse session = chatService.createSession(owner.getId(), new CreateSessionRequest(List.of(target.getId()), null));
 
@@ -167,9 +181,10 @@ class ChatServiceTest {
     }
 
     @Test
-    void 내_세션_목록을_최신순으로_조회할_수_있다() {
+    void 내_세션_목록을_최신순으로_조회할_수_있다() throws InterruptedException {
         User asker = createOnboardedUser("chat-asker6", "질문자6");
         User target = createOnboardedUser("chat-target9", "타겟9");
+        makeUnlocked(asker);
 
         chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), "첫 세션"));
         chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), "둘째 세션"));
@@ -180,11 +195,21 @@ class ChatServiceTest {
         assertTrue(sessions.get(0).createdAt().compareTo(sessions.get(1).createdAt()) >= 0);
     }
 
-    private void makeLocked(User viewer, User teammate) {
-        Team team = teamRepository.save(Team.create("잠금팀", "CHATLK", viewer));
-        TeamMember viewerMembership = teamMemberRepository.save(TeamMember.join(team, viewer));
-        viewerMembership.markProjectFinished();
+    private void makeLocked(User viewer, User teammate) throws InterruptedException {
+        Team team = teamRepository.save(Team.create("잠금팀", "CHATLK", viewer, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
+        teamMemberRepository.save(TeamMember.join(team, viewer));
         teamMemberRepository.save(TeamMember.join(team, teammate));
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
+    }
+
+    // 팀 미소속 상태가 기본 잠금이므로, 잠금 해제가 필요한 테스트는 팀 합류 + 마감 경과 + 팀원 평가까지 거쳐야 한다.
+    private void makeUnlocked(User asker) throws InterruptedException {
+        User dummyTeammate = createOnboardedUser("dummy-" + asker.getUserId(), "더미팀원");
+        Team team = teamRepository.save(Team.create("해금팀", "UNLOCK", asker, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
+        teamMemberRepository.save(TeamMember.join(team, asker));
+        teamMemberRepository.save(TeamMember.join(team, dummyTeammate));
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
+        evaluationRepository.save(Evaluation.create(team, asker, dummyTeammate, 5, 5, 5, 5, 5, 5));
     }
 
     private User createOnboardedUser(String userId, String name) {

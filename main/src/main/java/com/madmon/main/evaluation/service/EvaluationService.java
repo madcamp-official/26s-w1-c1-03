@@ -42,7 +42,7 @@ public class EvaluationService {
 
     public List<EvaluationTargetResponse> getEvaluationTargets(Long evaluatorId) {
         List<TeamMember> finishedActiveMemberships = teamMemberRepository.findAllByUserId(evaluatorId).stream()
-                .filter(membership -> membership.getLeftAt() == null && membership.isProjectFinished())
+                .filter(membership -> membership.getLeftAt() == null && membership.isEvaluationEligible())
                 .toList();
 
         List<EvaluationTargetResponse> targets = new ArrayList<>();
@@ -75,7 +75,7 @@ public class EvaluationService {
                 .filter(membership -> membership.getLeftAt() == null)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_TEAM_MEMBER));
 
-        if (!evaluatorMembership.isProjectFinished()) {
+        if (!evaluatorMembership.isEvaluationEligible()) {
             throw new BusinessException(ErrorCode.PROJECT_NOT_FINISHED);
         }
 
