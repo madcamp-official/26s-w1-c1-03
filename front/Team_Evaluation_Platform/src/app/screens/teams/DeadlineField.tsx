@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { DS } from "../../design-system/tokens";
+import { SPACE, FONT } from "../../design-system/space";
 
 export function formatDeadline(iso: string): string {
   const d = new Date(iso);
@@ -66,12 +66,20 @@ export function DeadlineField({ value, onChange, error }: { value:string; onChan
     return (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key==="Backspace" && current==="") ref.current?.focus(); };
   }
 
-  const segStyle: React.CSSProperties = { ...DS.input, padding:"11px 0", textAlign:"center", fontSize:14, fontFamily:"'Orbitron',monospace", boxSizing:"border-box" };
-  const sep = (ch:string) => <span style={{ color:"#4a5a7a", fontSize:14 }}>{ch}</span>;
+  // 관측소 계기판 스타일(design.md §3) — 남색 반투명 배경 + 은은한 보더 + mono 숫자.
+  const segStyle: React.CSSProperties = {
+    padding:"11px 0", textAlign:"center", fontSize:13, fontFamily:FONT.hud, boxSizing:"border-box",
+    background:"rgba(125,180,255,0.05)", border:`1px solid ${SPACE.border}`, borderRadius:3,
+    color:SPACE.starWhite, outline:"none",
+  };
+  const sep = (ch:string) => <span style={{ color:SPACE.faint, fontSize:14, fontFamily:FONT.hud }}>{ch}</span>;
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-      <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>프로젝트 마감기한 <span style={{color:"#4a5a7a"}}>(24시간 형식)</span></span>
+    <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+      <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+        <span style={{ fontFamily:FONT.hud, fontSize:10, letterSpacing:"3px", color:SPACE.accentSky, textTransform:"uppercase" }}>DEADLINE</span>
+        <span style={{ fontFamily:FONT.body, fontSize:11, color:SPACE.label }}>프로젝트 마감기한 (24시간 형식)</span>
+      </div>
       <div style={{ display:"flex", alignItems:"center", gap:6 }}>
         <input ref={yearRef} value={year} onChange={e=>handleYear(e.target.value)} placeholder="YYYY" inputMode="numeric" style={{ ...segStyle, width:60 }}/>
         {sep("-")}
@@ -83,7 +91,7 @@ export function DeadlineField({ value, onChange, error }: { value:string; onChan
         {sep(":")}
         <input ref={minuteRef} value={minute} onChange={e=>handleMinute(e.target.value)} onKeyDown={backspaceTo(hourRef,minute)} placeholder="mm" inputMode="numeric" style={{ ...segStyle, width:38 }}/>
       </div>
-      {error && <span style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{error}</span>}
+      {error && <span style={{ fontSize:11, color:"#f87171", fontFamily:FONT.body }}>{error}</span>}
     </div>
   );
 }
