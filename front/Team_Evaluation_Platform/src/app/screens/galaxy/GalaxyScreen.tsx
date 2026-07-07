@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { RefreshCw, Lock } from "lucide-react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
+import { RefreshCw, Lock, X } from "lucide-react";
 import { listCards, getCard, ApiError } from "../../api";
 import type { User } from "../../types";
 import { cardToUser, topTitles } from "../../lib/cardMapping";
@@ -17,6 +17,7 @@ const FONT_DISPLAY = "'Space Grotesk'";
 const FONT_HUD = "'IBM Plex Mono'";
 
 const MIN_SCALE = 0.55, MAX_SCALE = 2.8, LOCK_SCALE = 2;
+const PANEL_WIDTH = 340, PANEL_MARGIN = 40;
 
 function centerMessage(text: string, spinning=false) {
   return (
@@ -42,6 +43,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   const [view, setView] = useState({ x:0, y:0, scale:1 });
   const [camTransition, setCamTransition] = useState("none");
   const dragRef = useRef<{ x:number; y:number; vx:number; vy:number; dragged:boolean } | null>(null);
+  const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [hoverId, setHoverId] = useState<number|null>(null);
   const [selId, setSelId] = useState<number|null>(null);
@@ -58,12 +60,22 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       .catch(e=>setError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."));
   },[]);
 
+  // ResizeObserver의 첫 콜백은 다음 프레임 이후에나 오므로, 마운트 직후 바로 클릭하는
+  // 경우에도 카메라 계산이 {w:1,h:1}(초기값) 같은 엉뚱한 값을 쓰지 않도록 레이아웃 직후
+  // 동기적으로 한 번 더 측정해둔다.
+  useLayoutEffect(()=>{
+    const el = containerRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.width>0 && r.height>0) setSize({ w:r.width, h:r.height });
+  },[]);
+
   useEffect(()=>{
     const el = containerRef.current;
     if (!el) return;
     const ro = new ResizeObserver(entries=>{
       const r = entries[0].contentRect;
-      setSize({ w:r.width, h:r.height });
+      if (r.width>0 && r.height>0) setSize({ w:r.width, h:r.height });
     });
     ro.observe(el);
     return ()=>ro.disconnect();
@@ -124,12 +136,24 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   function selectStar(u: User) {
     if (selId===u.id || dragRef.current?.dragged) return;
     setSelId(u.id); setLockStage(1); setDetail(null); setDetailError("");
-    setTimeout(()=>{ setLockStage(2); setCamTransition("transform 1.4s cubic-bezier(.25,.9,.25,1)"); }, 750);
+    const t = setTimeout(()=>{ setLockStage(2); setCamTransition("transform 1.4s cubic-bezier(.25,.9,.25,1)"); }, 750);
+    lockTimerRef.current = t;
   }
   function backToGalaxy() {
+    if (lockTimerRef.current) { clearTimeout(lockTimerRef.current); lockTimerRef.current = null; }
     setSelId(null); setLockStage(0); setDetail(null);
     setCamTransition("transform 1.4s cubic-bezier(.25,.9,.25,1)");
   }
+
+  useEffect(()=>()=>{ if (lockTimerRef.current) clearTimeout(lockTimerRef.current); },[]);
+
+  // Esc로도 언제든 은하 화면으로 돌아갈 수 있게 — 패널/애니메이션 상태와 무관한 별도 탈출구.
+  useEffect(()=>{
+    if (selId===null) return;
+    function onKey(e: KeyboardEvent) { if (e.key==="Escape") backToGalaxy(); }
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
+  },[selId]);
 
   useEffect(()=>{
     if (selId===null) return;
@@ -143,17 +167,24 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   if (error) return centerMessage(error);
   if (!cards) return centerMessage("은하를 스캔하는 중...", true);
 
-  // camera transform: 선택 시 별을 화면 좌측 1/3 지점으로 딥줌, 아니면 자유 팬/줌 좌표 사용.
+  // camera transform: 선택한 별을 패널을 뺀 나머지 화면 영역 한가운데로 딥줌, 아니면
+  // 자유 팬/줌 좌표 사용. 별의 (left%,top%)은 world div 기준 좌표이므로, world에
+  // transform-origin:0 0을 줘야 이 translate/scale 계산이 그대로 들어맞는다.
   let camTransform: string;
   if (locked && selStar) {
     const sx = (parseFloat(selStar.layout.left) / 100) * size.w;
     const sy = (parseFloat(selStar.layout.top) / 100) * size.h;
-    camTransform = `translate(${0.32*size.w - LOCK_SCALE*sx}px, ${0.5*size.h - LOCK_SCALE*sy}px) scale(${LOCK_SCALE})`;
+    const reserved = PANEL_WIDTH + PANEL_MARGIN;
+    const targetX = size.w > reserved * 1.6 ? (size.w - reserved) / 2 : size.w / 2;
+    const targetY = size.h / 2;
+    camTransform = `translate(${targetX - LOCK_SCALE*sx}px, ${targetY - LOCK_SCALE*sy}px) scale(${LOCK_SCALE})`;
   } else {
     camTransform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
   }
 
-  const showPanel = locked && selStar;
+  // 패널은 카메라 줌 완료(lockStage 2)를 기다리지 않고 별을 고른 즉시 뜬다 — 그래야
+  // "되돌아갈 방법이 없다"고 느껴질 여지가 없다. 카메라 연출은 독립적으로 진행된다.
+  const showPanel = selId!==null && selStar;
   const panelUser = detail ?? selStar?.user ?? null;
   const panelUnlocked = panelUser?.isUnlocked ?? false;
   const repTitle = panelUser ? topTitles(panelUser.titleVotes)[0] : undefined;
@@ -167,6 +198,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
       onDoubleClick={resetView}
+      onClick={()=>{ if (selId!==null && !dragRef.current?.dragged) backToGalaxy(); }}
       style={{ position:"relative", height:"100%", overflow:"hidden", cursor: selId===null ? "grab" : "default" }}
     >
       <SpaceBackground/>
@@ -239,16 +271,36 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       </div>
       <div style={{ position:"absolute", bottom:18, left:24, zIndex:2, pointerEvents:"none" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px", color:SPACE.accentTeal }}>{cards.length} STARS DETECTED</div>
-        {selId===null && <div style={{ fontFamily:FONT_BODY, fontSize:10.5, color:SPACE.label, marginTop:2 }}>드래그로 이동 · 휠로 확대 · 별 클릭으로 관측</div>}
+        <div style={{ fontFamily:FONT_BODY, fontSize:10.5, color:SPACE.label, marginTop:2 }}>
+          {selId===null ? "드래그로 이동 · 휠로 확대 · 별 클릭으로 관측" : "빈 공간 클릭 또는 Esc로 은하로 돌아가기"}
+        </div>
       </div>
       <div style={{ position:"absolute", bottom:18, right:24, zIndex:2, pointerEvents:"none", textAlign:"right" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.label }}>ZOOM ×{(locked?LOCK_SCALE:view.scale).toFixed(1)}</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.faint, marginTop:2 }}>{clock} KST</div>
       </div>
 
+      {/* 화면 어디를 눌러도(패널 안 제외) 돌아갈 수 있지만, 그것만으로는 눈에 안 띄어서
+          항상 보이는 닫기 버튼도 별도로 둔다 — 패널/카메라 애니메이션 상태와 무관하게 동작. */}
+      {selId!==null && (
+        <button
+          onClick={(e)=>{ e.stopPropagation(); backToGalaxy(); }}
+          title="은하로 돌아가기 (Esc)"
+          style={{
+            position:"absolute", top:64, right:24, zIndex:4,
+            width:32, height:32, borderRadius:"50%", cursor:"pointer",
+            background:"rgba(2,6,23,0.6)", border:`1px solid ${SPACE.borderStrong}`,
+            display:"flex", alignItems:"center", justifyContent:"center", color:SPACE.accentSky,
+          }}
+        ><X size={15}/></button>
+      )}
+
       {/* ── 관측 패널 ── */}
       {showPanel && panelUser && (
-        <div style={{ position:"absolute", top:0, right:0, bottom:0, width:340, padding:20, zIndex:3, display:"flex", alignItems:"center" }}>
+        <div
+          onClick={e=>e.stopPropagation()}
+          style={{ position:"absolute", top:0, right:0, bottom:0, width:340, padding:20, zIndex:3, display:"flex", alignItems:"center" }}
+        >
           <HoloPanel style={{ width:"100%", maxHeight:"calc(100% - 40px)", overflowY:"auto", animation:"slideInPanel .85s cubic-bezier(.25,.9,.25,1) both" }}>
             <button
               onClick={backToGalaxy}
