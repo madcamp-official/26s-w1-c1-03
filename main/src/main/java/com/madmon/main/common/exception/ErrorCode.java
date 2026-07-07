@@ -15,6 +15,7 @@ public enum ErrorCode {
     INTERNAL_SERVER_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 내부 오류가 발생했습니다."),
 
     INVALID_CREDENTIALS(HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다."),
+    ACCOUNT_LOCKED(HttpStatus.FORBIDDEN, "로그인 실패 횟수를 초과하여 계정이 잠겼습니다."),
     PASSWORD_CHANGE_REQUIRED(HttpStatus.FORBIDDEN, "최초 로그인 시 비밀번호를 변경해야 합니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않거나 만료된 리프레시 토큰입니다."),
 

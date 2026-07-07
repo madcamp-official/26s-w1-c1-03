@@ -12,6 +12,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Check;
+import org.hibernate.annotations.ColumnDefault;
 
 @Getter
 @Entity
@@ -26,6 +27,10 @@ import org.hibernate.annotations.Check;
         + "AND initial_mana BETWEEN 1 AND 10 AND initial_health BETWEEN 1 AND 10")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class User extends BaseEntity {
+
+    // 로그인 실패 시마다 증가하고, 이 값에 도달하면 계정이 잠긴다.
+    // 잠긴 계정은 별도 해제 API 없이 DB에서 직접 풀어야 한다.
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,6 +71,14 @@ public class User extends BaseEntity {
 
     @Column(name = "password_changed", nullable = false)
     private boolean passwordChanged;
+
+    @Column(name = "failed_login_attempts", nullable = false)
+    @ColumnDefault("0")
+    private int failedLoginAttempts;
+
+    @Column(name = "account_locked", nullable = false)
+    @ColumnDefault("false")
+    private boolean accountLocked;
 
     private User(
             String userId,
@@ -160,5 +173,16 @@ public class User extends BaseEntity {
     public void changePassword(String passwordHash) {
         this.passwordHash = passwordHash;
         this.passwordChanged = true;
+    }
+
+    public void recordFailedLogin() {
+        this.failedLoginAttempts++;
+        if (this.failedLoginAttempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+            this.accountLocked = true;
+        }
+    }
+
+    public void resetFailedLoginAttempts() {
+        this.failedLoginAttempts = 0;
     }
 }

@@ -24,14 +24,23 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
 
+    // 실패 횟수 증가/계정 잠금은 BusinessException으로 로그인이 실패하는 경우에도 반드시
+    // 커밋되어야 하므로, 클래스 기본값(readOnly)을 덮어쓰고 noRollbackFor로 롤백을 막는다.
+    @Transactional(noRollbackFor = BusinessException.class)
     public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByUserId(request.userId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_CREDENTIALS));
 
+        if (user.isAccountLocked()) {
+            throw new BusinessException(ErrorCode.ACCOUNT_LOCKED);
+        }
+
         if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+            user.recordFailedLogin();
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
 
+        user.resetFailedLoginAttempts();
         return issueTokens(user);
     }
 

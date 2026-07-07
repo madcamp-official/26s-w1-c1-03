@@ -81,6 +81,50 @@ class AuthControllerTest {
     }
 
     @Test
+    void 비밀번호를_5번_틀리면_계정이_잠긴다() throws Exception {
+        for (int i = 0; i < 5; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(loginBody("wrong-password")))
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.errorCode").value(ErrorCode.INVALID_CREDENTIALS.name()));
+        }
+
+        // 계정이 잠긴 뒤에는 올바른 비밀번호를 넣어도 거부되어야 한다.
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(RAW_PASSWORD)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.ACCOUNT_LOCKED.name()));
+    }
+
+    @Test
+    void 로그인에_성공하면_실패_횟수가_초기화된다() throws Exception {
+        for (int i = 0; i < 4; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(loginBody("wrong-password")));
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(RAW_PASSWORD)))
+                .andExpect(status().isOk());
+
+        // 성공으로 실패 횟수가 리셋됐으니, 다시 4번 틀려도 아직 잠기지 않아야 한다.
+        for (int i = 0; i < 4; i++) {
+            mockMvc.perform(post("/api/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(loginBody("wrong-password")));
+        }
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(loginBody(RAW_PASSWORD)))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void 토큰_없이_보호된_API에_접근하면_401을_반환한다() throws Exception {
         mockMvc.perform(get("/api/some-protected-resource"))
                 .andExpect(status().isUnauthorized())
