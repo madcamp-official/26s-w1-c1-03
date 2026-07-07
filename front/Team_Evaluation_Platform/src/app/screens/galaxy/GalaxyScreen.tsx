@@ -280,7 +280,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
           onClick={e=>e.stopPropagation()}
           style={{ position:"absolute", top:0, right:0, bottom:0, width:340, padding:20, zIndex:3, display:"flex", alignItems:"center" }}
         >
-          <HoloPanel style={{ width:"100%", maxHeight:"calc(100% - 40px)", overflowY:"auto", animation:"slideInPanel .85s cubic-bezier(.25,.9,.25,1) both" }}>
+          <HoloPanel style={{ width:"100%", maxHeight:"calc(100% - 40px)", overflowY:"auto", animation:"slideInPanel .85s cubic-bezier(.25,.9,.25,1) .7s both" }}>
             <button
               onClick={backToGalaxy}
               style={{ background:"none", border:"none", cursor:"pointer", padding:0, marginBottom:16, display:"flex", alignItems:"center", gap:6, fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px", color:SPACE.accentSky }}
