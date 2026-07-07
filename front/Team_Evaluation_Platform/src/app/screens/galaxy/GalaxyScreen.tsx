@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { RefreshCw, Lock, X } from "lucide-react";
+import { RefreshCw, Lock } from "lucide-react";
 import { listCards, getCard, ApiError } from "../../api";
 import type { User } from "../../types";
 import { cardToUser, topTitles } from "../../lib/cardMapping";
@@ -146,22 +146,20 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
 
   // camera transform: 선택한 별을 화면 정중앙으로 딥줌, 아니면 자유 팬/줌 좌표 사용.
   //
-  // 락온 케이스는 컨테이너의 px 크기를 전혀 재지 않고 전부 %로 계산한다 — transform-origin을
-  // "그 별 자신의 위치(%)"로 두면, transform-origin 알고리즘(P' = O + M*(P-O))에 의해
-  // 그 별 자신(P=O)은 항상 O + (tx,ty)로 이동한다. 즉 tx=목표% - 별의 원래 %, ty도 동일하게
-  // 잡으면 컨테이너 실측 크기(px)와 무관하게 정확히 그 별이 목표 위치(%)로 온다.
-  // (이전엔 getBoundingClientRect/ResizeObserver로 잰 px 크기로 직접 translate px를 계산했는데,
-  // 그 측정치가 실제 world div 크기와 어긋나면 완전히 엉뚱한 곳으로 튀는 문제가 있었다.)
+  // transform-origin은 항상 "0 0" 고정이다 — origin이 "그 별의 %"였을 때는 줌인일 땐
+  // 문제없지만, 되돌아갈 때(selId→null) origin이 그 프레임에 즉시 "0 0"으로 튀어버려서
+  // transform 전환(1.4s)이 진행되는 동안 매 프레임이 잘못된 기준점으로 계산되고, 그 결과
+  // "별에서 줄어드는 게 아니라 뜬금없는 지점에서 줄어드는" 것처럼 보였다. origin을 항상
+  // 고정해두고, origin=(0,0)일 때의 식(P' = scale*P + translate)으로 목표%를 역산하면
+  // (translate% = 목표% - scale*별의 원래%) 컨테이너 실측 크기와 무관하게 항상 정확하고,
+  // 줌인·줌아웃 내내 같은 기준점을 쓰므로 전환도 항상 자연스럽다.
   let camTransform: string;
-  let camOrigin: string;
   if (locked && selStar) {
     const sxPct = parseFloat(selStar.layout.left);
     const syPct = parseFloat(selStar.layout.top);
     const targetXPct = 50, targetYPct = 50;
-    camOrigin = `${sxPct}% ${syPct}%`;
-    camTransform = `translate(${targetXPct - sxPct}%, ${targetYPct - syPct}%) scale(${LOCK_SCALE})`;
+    camTransform = `translate(${targetXPct - LOCK_SCALE*sxPct}%, ${targetYPct - LOCK_SCALE*syPct}%) scale(${LOCK_SCALE})`;
   } else {
-    camOrigin = "0 0";
     camTransform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
   }
 
@@ -186,8 +184,8 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     >
       <SpaceBackground/>
 
-      {/* world: 별들이 놓이는 좌표계. transform-origin이 위에서 계산한 camOrigin과 항상 짝이어야 한다. */}
-      <div style={{ position:"absolute", inset:0, transformOrigin:camOrigin, transform:camTransform, transition:camTransition }}>
+      {/* world: 별들이 놓이는 좌표계. transform-origin은 항상 0 0(위 camTransform 계산과 짝). */}
+      <div style={{ position:"absolute", inset:0, transformOrigin:"0 0", transform:camTransform, transition:camTransition }}>
         {stars.map(({ user, layout })=>{
           const hovered = hoverId===user.id, isSel = selId===user.id;
           const emphasize = hovered || isSel;
@@ -213,13 +211,26 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
                 background:`radial-gradient(circle, rgba(${layout.glowC},.35), transparent 70%)`,
                 opacity: emphasize ? 1 : 0, transition:"opacity .4s ease", pointerEvents:"none",
               }}/>
-              {/* target lock pulse (선택 직후 잠깐) */}
+              {/* TARGET LOCK 연출(선택 직후 ~0.75초): 회전하는 점선 조준원 + 확산하는 펄스 링 +
+                  "TARGET LOCK" 텍스트. design.md §75의 락온 시퀀스. */}
               {isSel && lockStage===1 && (
-                <div style={{
-                  position:"absolute", left:"50%", top:"50%", width:layout.size*2.4, height:layout.size*2.4,
-                  marginLeft:-layout.size*1.2, marginTop:-layout.size*1.2, borderRadius:"50%",
-                  border:`1.5px dashed ${SPACE.accentTeal}`, animation:"targetPulse .75s ease-out",
-                }}/>
+                <>
+                  <div style={{
+                    position:"absolute", left:"50%", top:"50%", width:layout.size*2.8, height:layout.size*2.8,
+                    marginLeft:-layout.size*1.4, marginTop:-layout.size*1.4, borderRadius:"50%",
+                    border:`1.5px dashed ${SPACE.accentTeal}`, animation:"orbitSpin 1.1s linear infinite, fadeIn .2s ease both",
+                  }}/>
+                  <div style={{
+                    position:"absolute", left:"50%", top:"50%", width:layout.size*2.4, height:layout.size*2.4,
+                    marginLeft:-layout.size*1.2, marginTop:-layout.size*1.2, borderRadius:"50%",
+                    border:`1.5px solid ${SPACE.accentTeal}`, animation:"targetPulse .75s ease-out",
+                  }}/>
+                  <div style={{
+                    position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", marginTop:layout.size*1.6,
+                    whiteSpace:"nowrap", fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.accentTeal,
+                    animation:"fadeIn .2s ease both",
+                  }}>TARGET LOCK</div>
+                </>
               )}
               {/* star core */}
               <div style={{
@@ -262,21 +273,6 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.label }}>ZOOM ×{(locked?LOCK_SCALE:view.scale).toFixed(1)}</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.faint, marginTop:2 }}>{clock} KST</div>
       </div>
-
-      {/* 화면 어디를 눌러도(패널 안 제외) 돌아갈 수 있지만, 그것만으로는 눈에 안 띄어서
-          항상 보이는 닫기 버튼도 별도로 둔다 — 패널/카메라 애니메이션 상태와 무관하게 동작. */}
-      {selId!==null && (
-        <button
-          onClick={(e)=>{ e.stopPropagation(); backToGalaxy(); }}
-          title="은하로 돌아가기 (Esc)"
-          style={{
-            position:"absolute", top:64, right:24, zIndex:4,
-            width:32, height:32, borderRadius:"50%", cursor:"pointer",
-            background:"rgba(2,6,23,0.6)", border:`1px solid ${SPACE.borderStrong}`,
-            display:"flex", alignItems:"center", justifyContent:"center", color:SPACE.accentSky,
-          }}
-        ><X size={15}/></button>
-      )}
 
       {/* ── 관측 패널 ── */}
       {showPanel && panelUser && (
