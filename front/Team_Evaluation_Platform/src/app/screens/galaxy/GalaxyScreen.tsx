@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { RefreshCw, Lock } from "lucide-react";
-import { listCards, getCard, ApiError } from "../../api";
+import { RefreshCw, Lock, Search, X } from "lucide-react";
+import { listCards, getCard, listMyTeams, getTeam, ApiError } from "../../api";
 import type { User } from "../../types";
 import { cardToUser, topTitles } from "../../lib/cardMapping";
-import { starLayoutFor } from "../../lib/starLayout";
+import { starAppearanceFor, galaxyPositions, teamLineColorFor } from "../../lib/starLayout";
+import type { TeamCluster } from "../../lib/starLayout";
 import { SPACE } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
@@ -35,6 +36,11 @@ function centerMessage(text: string, spinning=false) {
 export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   const [cards, setCards] = useState<User[]|null>(null);
   const [error, setError] = useState("");
+  // null = 아직 로딩 중. 팀 정보를 못 가져와도([]) 은하 자체는 무소속 배치로 동작한다.
+  const [teams, setTeams] = useState<TeamCluster[]|null>(null);
+
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -58,6 +64,21 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       .catch(e=>setError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."));
   },[]);
 
+  // 내가 속한 팀 중 마감(projectDeadline)이 지나지 않은 팀만 클러스터/별자리 선의 대상이다.
+  // 평가 완료 여부와는 무관하며, 기한이 끝난 팀은 묶지 않는다.
+  useEffect(()=>{
+    listMyTeams()
+      .then(async list=>{
+        const now = Date.now();
+        const active = list.filter(t=>new Date(t.projectDeadline).getTime() > now);
+        const details = await Promise.all(active.map(t=>getTeam(t.id).catch(()=>null)));
+        setTeams(details
+          .filter((d): d is NonNullable<typeof d> => d!==null)
+          .map(d=>({ id:d.team.id, name:d.team.name, memberIds:d.members.map(m=>m.userId) })));
+      })
+      .catch(()=>setTeams([]));
+  },[]);
+
   useEffect(()=>{
     const iv = setInterval(()=>{
       const d = new Date();
@@ -67,10 +88,52 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     return ()=>clearInterval(iv);
   },[]);
 
+  // 색 배정(teamLineColorFor)과 배치(galaxyPositions)가 같은 순서를 보게 id로 정렬해 공유한다.
+  const sortedTeams = useMemo(()=> teams ? [...teams].sort((a,b)=>a.id-b.id) : [], [teams]);
+
   const stars = useMemo(()=>{
     if (!cards) return [];
-    return cards.map((u,i)=>({ user:u, layout: starLayoutFor(u.id, i, cards.length) }));
-  },[cards]);
+    const pos = galaxyPositions(cards.map(u=>u.id), sortedTeams);
+    return cards.map(u=>{
+      const p = pos.get(u.id)!;
+      return {
+        user: u, x: p.x, y: p.y,
+        layout: { ...starAppearanceFor(u.id), left:`${p.x.toFixed(2)}%`, top:`${p.y.toFixed(2)}%` },
+      };
+    });
+  },[cards, sortedTeams]);
+
+  // 팀 별자리 선: 같은 팀 멤버의 모든 쌍을 그 팀 색의 연한 점선으로 잇는다.
+  // 여러 팀에 속한 사람은 팀마다 선이 그려지므로 자연히 모든 소속 팀과 연결된다.
+  const teamLines = useMemo(()=>{
+    const byId = new Map(stars.map(s=>[s.user.id, s]));
+    return sortedTeams.map((t,k)=>{
+      const pts = [...new Set(t.memberIds)]
+        .map(id=>byId.get(id))
+        .filter((s): s is NonNullable<typeof s> => !!s);
+      const segs: { x1:number; y1:number; x2:number; y2:number }[] = [];
+      for (let i=0;i<pts.length;i++)
+        for (let j=i+1;j<pts.length;j++)
+          segs.push({ x1:pts[i].x, y1:pts[i].y, x2:pts[j].x, y2:pts[j].y });
+      return { id:t.id, name:t.name, ...teamLineColorFor(k), segs };
+    });
+  },[sortedTeams, stars]);
+
+  // userId → 소속 팀 인덱스 목록(명단에서 팀 색 표시용).
+  const teamsByUser = useMemo(()=>{
+    const map = new Map<number, number[]>();
+    sortedTeams.forEach((t,k)=>t.memberIds.forEach(id=>{
+      const l = map.get(id) ?? []; l.push(k); map.set(id, l);
+    }));
+    return map;
+  },[sortedTeams]);
+
+  // 검색: 부분 일치("홍"→홍길동·홍준표, "홍길"→홍길동). 비우면 전체 명단.
+  const roster = useMemo(()=>{
+    const q = query.trim().toLowerCase();
+    const list = q ? stars.filter(s=>s.user.name.toLowerCase().includes(q)) : stars;
+    return [...list].sort((a,b)=>a.user.name.localeCompare(b.user.name, "ko"));
+  },[stars, query]);
 
   const selStar = stars.find(s=>s.user.id===selId) ?? null;
   const locked = selId!==null && lockStage>=2;
@@ -142,7 +205,8 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   },[selId]);
 
   if (error) return centerMessage(error);
-  if (!cards) return centerMessage("은하를 스캔하는 중...", true);
+  // 팀 정보까지 기다렸다가 그린다 — 나중에 도착하면 별이 한 번 순간이동하는 것처럼 보인다.
+  if (!cards || teams===null) return centerMessage("은하를 스캔하는 중...", true);
 
   // camera transform: 선택한 별을 화면 정중앙으로 딥줌, 아니면 자유 팬/줌 좌표 사용.
   //
@@ -182,6 +246,13 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       onClick={()=>{ if (selId!==null && !dragRef.current?.dragged) backToGalaxy(); }}
       style={{ position:"relative", height:"100%", overflow:"hidden", cursor: selId===null ? "grab" : "default" }}
     >
+      <style>{`
+        @keyframes slideInPanelL { from{opacity:0;transform:translateX(-48px)} to{opacity:1;transform:translateX(0)} }
+        .gx-search{background:rgba(125,180,255,.05);border:1px solid rgba(125,180,255,.16);border-radius:2px;color:#eef4ff;outline:none;font-family:'Noto Sans KR',sans-serif;font-weight:300;transition:border-color .25s,box-shadow .25s}
+        .gx-search::placeholder{color:#3d4f70}
+        .gx-search:focus{border-color:rgba(125,211,252,.55);box-shadow:0 0 14px rgba(125,211,252,.12)}
+        .gx-row:hover{background:rgba(125,180,255,.08)!important}
+      `}</style>
       {/* 배경이 카메라 팬/줌을 살짝 따라가는 패럴랙스 — 전경의 15%만 따라가게 감쇠해서
           "화면이 통째로 고정된" 느낌 없이 은은한 원근감을 준다. 락온 중엔 view가 그대로
           유지되므로 자연스럽게 그 시점에서 멈춘다. */}
@@ -189,6 +260,16 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
 
       {/* world: 별들이 놓이는 좌표계. transform-origin은 항상 0 0(위 camTransform 계산과 짝). */}
       <div style={{ position:"absolute", inset:0, transformOrigin:"0 0", transform:camTransform, transition:camTransition }}>
+        {/* 팀 별자리 선 — 별과 같은 % 좌표계의 SVG. 별을 선택하면 별들처럼 어두워진다. */}
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{
+          position:"absolute", inset:0, width:"100%", height:"100%", pointerEvents:"none",
+          opacity: selId!==null ? 0.15 : 1, transition:"opacity .6s ease",
+        }}>
+          {teamLines.map(t=>t.segs.map((s,i)=>(
+            <line key={`${t.id}-${i}`} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
+              stroke={t.line} strokeWidth={1} vectorEffect="non-scaling-stroke" strokeDasharray="3 5"/>
+          )))}
+        </svg>
         {stars.map(({ user, layout })=>{
           const hovered = hoverId===user.id, isSel = selId===user.id;
           const emphasize = hovered || isSel;
@@ -267,6 +348,17 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       <div style={{ position:"absolute", top:20, right:24, zIndex:2, pointerEvents:"none", textAlign:"right" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"2px", color:SPACE.accentSky }}>GALAXY</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"1.5px", color:SPACE.label, marginTop:2 }}>{cards.length} MEMBERS</div>
+        {/* 팀 별자리 색 범례 — 어떤 점선이 어느 팀인지 구분한다. */}
+        {teamLines.length>0 && (
+          <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>
+            {teamLines.map(t=>(
+              <div key={t.id} style={{ display:"flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontFamily:FONT_BODY, fontSize:10, color:SPACE.textDim }}>{t.name}</span>
+                <span style={{ width:22, borderTop:`1px dashed ${t.solid}`, opacity:.8 }}/>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
       <div style={{ position:"absolute", bottom:18, left:24, zIndex:2, pointerEvents:"none" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px", color:SPACE.accentTeal }}>{cards.length} STARS DETECTED</div>
@@ -278,6 +370,95 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.label }}>ZOOM ×{(locked?LOCK_SCALE:view.scale).toFixed(1)}</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.faint, marginTop:2 }}>{clock} KST</div>
       </div>
+
+      {/* ── 검색 버튼 (좌상단 로고 아래) ── */}
+      <button
+        onClick={e=>{ e.stopPropagation(); setSearchOpen(o=>!o); }}
+        onMouseDown={e=>e.stopPropagation()}
+        onDoubleClick={e=>e.stopPropagation()}
+        style={{
+          position:"absolute", top:64, left:24, zIndex:3,
+          display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:3, cursor:"pointer",
+          background:"rgba(8,17,38,.72)", backdropFilter:"blur(6px)",
+          border:`1px solid ${searchOpen ? "rgba(94,234,212,.5)" : SPACE.border}`,
+          fontFamily:FONT_HUD, fontSize:10, letterSpacing:"2px",
+          color: searchOpen ? SPACE.accentTeal : SPACE.accentSky,
+          transition:"color .2s, border-color .2s",
+        }}
+      >
+        <Search size={11}/> SEARCH
+        <span style={{ fontFamily:FONT_BODY, fontSize:10, letterSpacing:0, color:SPACE.label }}>검색</span>
+      </button>
+
+      {/* ── 관측 명단 패널 (검색) ── */}
+      {searchOpen && (
+        <div
+          onClick={e=>e.stopPropagation()}
+          onMouseDown={e=>e.stopPropagation()}
+          onDoubleClick={e=>e.stopPropagation()}
+          onWheel={e=>e.stopPropagation()}
+          style={{ position:"absolute", top:102, left:24, width:266, zIndex:3, maxHeight:"calc(100% - 128px)", display:"flex" }}
+        >
+          <HoloPanel style={{ width:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:"16px 16px 12px", animation:"slideInPanelL .7s cubic-bezier(.25,.9,.25,1) both" }}>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+              <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
+                <span style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.accentSky }}>STAR INDEX</span>
+                <span style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label }}>관측 명단</span>
+              </div>
+              <button onClick={()=>setSearchOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:SPACE.label, padding:2, display:"flex" }}>
+                <X size={12}/>
+              </button>
+            </div>
+            <input
+              className="gx-search"
+              value={query}
+              onChange={e=>setQuery(e.target.value)}
+              placeholder="이름으로 검색…"
+              autoFocus
+              style={{ width:"100%", padding:"9px 11px", fontSize:12.5, boxSizing:"border-box" }}
+            />
+            <div style={{ marginTop:8, overflowY:"auto", display:"flex", flexDirection:"column", gap:1 }}>
+              {roster.length===0 ? (
+                <div style={{ padding:"14px 4px" }}>
+                  <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.faint }}>NO SIGNAL</div>
+                  <div style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label, marginTop:3 }}>일치하는 별이 없습니다.</div>
+                </div>
+              ) : roster.map(s=>{
+                const isSel = selId===s.user.id;
+                return (
+                  <button
+                    key={s.user.id}
+                    className="gx-row"
+                    onClick={()=>selectStar(s.user)}
+                    style={{
+                      display:"flex", alignItems:"center", gap:9, padding:"7px 8px", borderRadius:2,
+                      border:"none", cursor:"pointer", textAlign:"left", width:"100%",
+                      background: isSel ? "rgba(94,234,212,.08)" : "transparent",
+                      transition:"background .15s",
+                    }}
+                  >
+                    <span style={{
+                      width:7, height:7, borderRadius:"50%", flexShrink:0,
+                      background:s.layout.color,
+                      boxShadow:`0 0 5px 1px rgba(${s.layout.glowC},.6)`,
+                    }}/>
+                    <span style={{ flex:1, minWidth:0, fontFamily:FONT_BODY, fontSize:12, color: isSel ? SPACE.accentTeal : SPACE.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {s.user.name}
+                    </span>
+                    {/* 소속 팀 색 표시(점선 조각) */}
+                    {(teamsByUser.get(s.user.id) ?? []).map(k=>(
+                      <span key={k} style={{ width:10, borderTop:`1px dashed ${teamLineColorFor(k).solid}`, opacity:.85, flexShrink:0 }}/>
+                    ))}
+                    <span style={{ fontFamily:FONT_HUD, fontSize:8.5, letterSpacing:"1px", color:SPACE.faint, flexShrink:0 }}>
+                      MDM-{String(s.user.id).padStart(3,"0")}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </HoloPanel>
+        </div>
+      )}
 
       {/* ── 관측 패널 ── */}
       {showPanel && panelUser && (
