@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Legend } from "recharts";
+import { createPortal } from "react-dom";
 import {
   Lock, Eye, EyeOff, Search, X, Plus, Copy, Notebook, UserPlus, Check,
   Sparkles, Hash, Camera, Users, Star, Send, BarChart2, ChevronRight,
@@ -237,16 +237,22 @@ function Field({ label, type="text", value, onChange, placeholder, error, right,
 
 // 능력치 이름/수치처럼 텍스트가 드래그·복사되는 대신, 마우스를 올리면 근처 고정
 // 위치에 말풍선으로 설명을 띄우는 공용 처리. 능력치가 표시되는 다른 화면에서도 재사용한다.
-function InfoTooltip({ children, text }: { children: React.ReactNode; text: string }) {
+// 말풍선을 트리거 바로 아래(position:absolute)에 두면, 스크롤 컨테이너나 표(overflow:auto)
+// 안에서 열릴 때 그 컨테이너의 스크롤 영역 크기 계산에 말풍선 박스가 끼어들어 표/레이아웃이
+// 미세하게 흔들리는 문제가 있었다. document.body에 포털로 그려 position:fixed로 좌표를
+// 직접 계산하면 어떤 조상의 레이아웃/스크롤 크기에도 영향을 주지 않는다.
+function InfoTooltip({ children, text, placement="bottom" }: { children: React.ReactNode; text: string; placement?: "top"|"bottom" }) {
   const [open, setOpen] = useState(false);
-  const [alignRight, setAlignRight] = useState(false);
+  const [rect, setRect] = useState<{top:number;bottom:number;left:number;right:number}|null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   function handleEnter() {
-    const rect = ref.current?.getBoundingClientRect();
-    if (rect) setAlignRight(rect.left + rect.width / 2 > window.innerWidth / 2);
+    const r = ref.current?.getBoundingClientRect();
+    if (r) setRect({ top:r.top, bottom:r.bottom, left:r.left, right:r.right });
     setOpen(true);
   }
+
+  const alignRight = rect ? (rect.left + (rect.right-rect.left)/2 > window.innerWidth/2) : false;
 
   return (
     <div
@@ -256,10 +262,11 @@ function InfoTooltip({ children, text }: { children: React.ReactNode; text: stri
       style={{ position:"relative", display:"inline-flex", alignItems:"center", cursor:"help" }}
     >
       {children}
-      {open && (
+      {open && rect && createPortal(
         <div style={{
-          position:"absolute", top:"calc(100% + 9px)", zIndex:80,
-          ...(alignRight ? { right:0 } : { left:0 }),
+          position:"fixed", zIndex:1000,
+          ...(placement==="top" ? { bottom: window.innerHeight-rect.top+9 } : { top: rect.bottom+9 }),
+          ...(alignRight ? { right: window.innerWidth-rect.right } : { left: rect.left }),
           width:260, padding:"11px 14px", borderRadius:10,
           background:"#0e1526", border:"1px solid rgba(0,200,255,0.25)",
           boxShadow:"0 10px 30px rgba(0,0,0,0.5)",
@@ -267,13 +274,16 @@ function InfoTooltip({ children, text }: { children: React.ReactNode; text: stri
           whiteSpace:"pre-line", pointerEvents:"none",
         }}>
           <div style={{
-            position:"absolute", top:-6, ...(alignRight ? { right:14 } : { left:14 }),
+            position:"absolute", ...(placement==="top" ? { bottom:-6 } : { top:-6 }), ...(alignRight ? { right:14 } : { left:14 }),
             width:11, height:11, background:"#0e1526",
-            borderLeft:"1px solid rgba(0,200,255,0.25)", borderTop:"1px solid rgba(0,200,255,0.25)",
+            ...(placement==="top"
+              ? { borderRight:"1px solid rgba(0,200,255,0.25)", borderBottom:"1px solid rgba(0,200,255,0.25)" }
+              : { borderLeft:"1px solid rgba(0,200,255,0.25)", borderTop:"1px solid rgba(0,200,255,0.25)" }),
             transform:"rotate(45deg)",
           }}/>
           {text}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -349,22 +359,56 @@ function MiniHex({ stats, size=72, color="#00c8ff" }: { stats:Stats; size?:numbe
   );
 }
 
+// recharts의 PolarAngleAxis는 축마다 라벨을 그래프 바깥으로 밀어내는 정도가 미묘하게
+// 달라(특히 아래쪽 꼭짓점) 마력 라벨이 그래프와 겹치는 문제를 percent/margin 조정만으로는
+// 없앨 수 없었다. MiniHex와 같은 방식으로 좌표를 직접 계산해 그리면, 그래프 반경(r)과
+// 라벨 반경(labelR) 사이의 간격을 모든 꼭짓점에 대해 항상 동일하게 보장할 수 있다.
 function BigHex({ stats, size=260, users, colors }: { stats?:Stats; size?:number; users?:User[]; colors?:string[] }) {
-  const data = STATS.map(s=>({ stat:s.label, ...(stats?{value:stats[s.key as keyof Stats]}:{}), ...(users?Object.fromEntries(users.map((u,i)=>[`u${i}`,u.stats[s.key as keyof Stats]])):{}), fullMark:100 }));
   const defaultColors = ["#00c8ff","#a855f7","#fbbf24"];
+  const cx=50, cy=50, r=32, labelR=44;
+  const n = STATS.length;
+  const angleOf = (i:number) => (i*360/n - 90) * Math.PI/180;
+
+  const series = stats
+    ? [{ color:"#00c8ff", vals: STATS.map(s=>stats[s.key as keyof Stats]) }]
+    : (users??[]).map((u,i)=>({ color:(colors??defaultColors)[i], vals: STATS.map(s=>u.stats[s.key as keyof Stats]) }));
+
   return (
-    <div style={{ width:"100%", height:size, flexShrink:0 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} outerRadius="50%" margin={{top:20,right:25,bottom:20,left:25}}>
-          <PolarGrid stroke="rgba(0,200,255,0.15)"/>
-          <PolarAngleAxis dataKey="stat" tick={{fill:"#8899bb",fontSize:12,fontFamily:"'Noto Sans KR'"}}/>
-          {stats && <Radar dataKey="value" stroke="#00c8ff" fill="#00c8ff" fillOpacity={0.22} dot={{fill:"#00c8ff",r:3}}/>}
-          {users && users.map((u,i)=>(
-            <Radar key={u.id} name={u.name} dataKey={`u${i}`} stroke={(colors??defaultColors)[i]} fill={(colors??defaultColors)[i]} fillOpacity={0.18} dot={{fill:(colors??defaultColors)[i],r:2}}/>
+    <div style={{ width:"100%", display:"flex", flexDirection:"column", alignItems:"center", gap:8, flexShrink:0 }}>
+      <svg viewBox="0 0 100 100" width={size} height={size} style={{ overflow:"visible", flexShrink:0 }}>
+        {[0.33,0.66,1].map((sc,i)=>(
+          <polygon key={i} points={hexRing(sc,cx,cy,r)} fill="none" stroke="rgba(0,200,255,0.15)" strokeWidth={0.5}/>
+        ))}
+        {STATS.map((_,i)=>{
+          const a=angleOf(i);
+          return <line key={i} x1={cx} y1={cy} x2={cx+r*Math.cos(a)} y2={cy+r*Math.sin(a)} stroke="rgba(0,200,255,0.12)" strokeWidth={0.4}/>;
+        })}
+        {series.map((s,i)=>(
+          <polygon key={i} points={hexPoints(s.vals,cx,cy,r)} fill={`${s.color}30`} stroke={s.color} strokeWidth={1.2}/>
+        ))}
+        {STATS.map((s,i)=>{
+          const a = angleOf(i);
+          const cosA = Math.cos(a), sinA = Math.sin(a);
+          const lx = cx + labelR*cosA, ly = cy + labelR*sinA;
+          const anchor = Math.abs(cosA)<0.35 ? "middle" : cosA>0 ? "start" : "end";
+          const baseline = Math.abs(sinA)<0.35 ? "middle" : sinA>0 ? "hanging" : "baseline";
+          return (
+            <text key={s.key} x={lx} y={ly} textAnchor={anchor} dominantBaseline={baseline} fill="#8899bb" fontSize={5.6} fontFamily="'Noto Sans KR'">
+              {s.label}
+            </text>
+          );
+        })}
+      </svg>
+      {users && users.length>1 && (
+        <div style={{ display:"flex", gap:12, flexWrap:"wrap", justifyContent:"center" }}>
+          {users.map((u,i)=>(
+            <div key={u.id} style={{ display:"flex", alignItems:"center", gap:5 }}>
+              <div style={{ width:8, height:8, borderRadius:999, background:(colors??defaultColors)[i] }}/>
+              <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{u.name}</span>
+            </div>
           ))}
-          {users && users.length>1 && <Legend wrapperStyle={{fontSize:12,fontFamily:"'Noto Sans KR'",paddingTop:8}}/>}
-        </RadarChart>
-      </ResponsiveContainer>
+        </div>
+      )}
     </div>
   );
 }
@@ -1507,7 +1551,7 @@ function CompareScreen() {
                     return (
                       <tr key={s.key} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
                         <td style={{ padding:"8px" }}>
-                          <InfoTooltip text={s.desc}>
+                          <InfoTooltip text={s.desc} placement="top">
                             <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                               <s.Icon size={11} style={{color:s.color}}/><span style={{color:"#8899bb"}}>{s.label}</span>
                             </div>
@@ -1629,7 +1673,7 @@ function ProfileScreen() {
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 16px", marginTop:8 }}>
               {STATS.map(s=>(
                 <div key={s.key} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <InfoTooltip text={s.desc}>
+                  <InfoTooltip text={s.desc} placement="top">
                     <div style={{ display:"flex", alignItems:"center", gap:6, userSelect:"none" }}>
                       <s.Icon size={11} style={{color:s.color}}/>
                       <span style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{s.label}</span>
