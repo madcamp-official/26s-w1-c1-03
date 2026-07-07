@@ -199,6 +199,7 @@ export interface TeamSummaryDto {
   ownerId: number;
   ownerName: string;
   memberCount: number;
+  projectDeadline: string;
 }
 
 export interface TeamDetailDto {
@@ -214,8 +215,8 @@ export function getTeam(teamId: number): Promise<TeamDetailDto> {
   return request<TeamDetailDto>(`/teams/${teamId}`, { method: "GET" });
 }
 
-export function createTeam(name: string): Promise<TeamSummaryDto> {
-  return request<TeamSummaryDto>("/teams", { method: "POST", body: JSON.stringify({ name }) });
+export function createTeam(name: string, projectDeadline: string): Promise<TeamSummaryDto> {
+  return request<TeamSummaryDto>("/teams", { method: "POST", body: JSON.stringify({ name, projectDeadline }) });
 }
 
 export function joinTeam(inviteCode: string): Promise<TeamSummaryDto> {
@@ -242,16 +243,20 @@ export function listTitles(): Promise<TitleDto[]> {
 // ─── Evaluation 도메인 ────────────────────────────────────────────────────────
 
 export interface EvaluationTargetDto {
+  teamId: number;
+  teamName: string;
   userId: number;
   name: string;
   profileImageUrl: string | null;
+  alreadyEvaluated: boolean;
 }
 
-export function listEvaluationTargets(teamId: number): Promise<EvaluationTargetDto[]> {
-  return request<EvaluationTargetDto[]>(`/teams/${teamId}/evaluations/targets`, { method: "GET" });
+export function listEvaluationTargets(): Promise<EvaluationTargetDto[]> {
+  return request<EvaluationTargetDto[]>("/evaluations/targets", { method: "GET" });
 }
 
 export interface EvaluationInput {
+  teamId: number;
   targetUserId: number;
   attack: number;
   defense: number;
@@ -262,8 +267,8 @@ export interface EvaluationInput {
   titleIds: number[];
 }
 
-export function submitEvaluation(teamId: number, input: EvaluationInput): Promise<void> {
-  return request<void>(`/teams/${teamId}/evaluations`, { method: "POST", body: JSON.stringify(input) });
+export function submitEvaluation(input: EvaluationInput): Promise<void> {
+  return request<void>("/evaluations", { method: "POST", body: JSON.stringify(input) });
 }
 
 // ─── Card 도감 도메인 ─────────────────────────────────────────────────────────

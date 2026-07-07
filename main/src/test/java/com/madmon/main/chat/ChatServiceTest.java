@@ -26,6 +26,7 @@ import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -37,6 +38,8 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(properties = "spring.profiles.active=test")
 @Transactional
 class ChatServiceTest {
+
+    private static final long DEADLINE_BUFFER_MS = 300;
 
     @Autowired
     private ChatService chatService;
@@ -58,7 +61,7 @@ class ChatServiceTest {
     private OpenAiClient openAiClient;
 
     @Test
-    void 잠긴_사용자는_세션을_생성할_수_없다() {
+    void 잠긴_사용자는_세션을_생성할_수_없다() throws InterruptedException {
         User locked = createOnboardedUser("chat-locked1", "잠긴사용자1");
         User teammate = createOnboardedUser("chat-teammate1", "팀원1");
         makeLocked(locked, teammate);
@@ -138,7 +141,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void 잠긴_사용자는_메시지를_보낼_수_없다() {
+    void 잠긴_사용자는_메시지를_보낼_수_없다() throws InterruptedException {
         User asker = createOnboardedUser("chat-asker5", "질문자5");
         User target = createOnboardedUser("chat-target7", "타겟7");
         ChatSessionResponse session = chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), null));
@@ -180,11 +183,11 @@ class ChatServiceTest {
         assertTrue(sessions.get(0).createdAt().compareTo(sessions.get(1).createdAt()) >= 0);
     }
 
-    private void makeLocked(User viewer, User teammate) {
-        Team team = teamRepository.save(Team.create("잠금팀", "CHATLK", viewer));
-        TeamMember viewerMembership = teamMemberRepository.save(TeamMember.join(team, viewer));
-        viewerMembership.markProjectFinished();
+    private void makeLocked(User viewer, User teammate) throws InterruptedException {
+        Team team = teamRepository.save(Team.create("잠금팀", "CHATLK", viewer, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
+        teamMemberRepository.save(TeamMember.join(team, viewer));
         teamMemberRepository.save(TeamMember.join(team, teammate));
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
     }
 
     private User createOnboardedUser(String userId, String name) {

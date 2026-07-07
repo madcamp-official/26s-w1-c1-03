@@ -6,7 +6,7 @@ import {
   User, LogOut, BookOpen, Swords, Shield, Zap, Heart, Info,
   CheckCircle2, Bot, SlidersHorizontal, ArrowUpDown,
   ChevronLeft, RefreshCw, Upload, AlertTriangle, Filter,
-  ArrowDownWideNarrow, ArrowUpNarrowWide,
+  ArrowDownWideNarrow, ArrowUpNarrowWide, Calendar,
 } from "lucide-react";
 import {
   login as apiLogin, changePassword as apiChangePassword, getMyProfile,
@@ -17,7 +17,8 @@ import {
   listTitles, listEvaluationTargets, submitEvaluation,
   listCards, getCard,
   createChatSession, sendChatMessage,
-  type CardSummaryDto, type CardDetailDto, type TeamDetailDto, type TitleDto, type UserProfileDto,
+  type CardSummaryDto, type CardDetailDto, type TeamDetailDto, type TeamSummaryDto, type TitleDto, type UserProfileDto,
+  type EvaluationTargetDto,
 } from "./api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -69,6 +70,29 @@ function handleImgError(e: React.SyntheticEvent<HTMLImageElement>) {
   if (e.currentTarget.src !== FALLBACK_AVATAR) e.currentTarget.src = FALLBACK_AVATAR;
 }
 
+// navigator.clipboard.writeText는 비보안 컨텍스트/포커스 상실 등에서 조용히 reject될 수 있어,
+// 성공 여부를 실제로 확인하고 실패 시 구형 execCommand 방식으로 한 번 더 시도한다.
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  }
+}
+
 // StorageService(백엔드) 검증 규칙과 동일하게 클라이언트에서도 먼저 걸러준다.
 const ALLOWED_IMAGE_TYPES = ["image/png","image/jpeg","image/webp"];
 const MAX_IMAGE_SIZE_BYTES = 5*1024*1024;
@@ -96,6 +120,11 @@ function rarityFromPower(power: number): Rarity {
   if (power>=70) return "epic";
   if (power>=55) return "rare";
   return "common";
+}
+// 잠긴 카드는 stats가 null로 내려오므로(등급을 매길 근거가 없음), 그 경우 null을 반환한다.
+function rarityFromCardStats(stats: CardSummaryDto["stats"] | null): Rarity | null {
+  if (!stats) return null;
+  return rarityFromPower(totalPower(dtoStatsToStats(stats)));
 }
 // 카드 도감(목록/상세) API 응답을 기존 화면 컴포넌트가 쓰는 User 모양으로 변환한다.
 function cardToUser(c: CardSummaryDto | CardDetailDto): User {
@@ -324,9 +353,9 @@ function BigHex({ stats, size=260, users, colors }: { stats?:Stats; size?:number
   const data = STATS.map(s=>({ stat:s.label, ...(stats?{value:stats[s.key as keyof Stats]}:{}), ...(users?Object.fromEntries(users.map((u,i)=>[`u${i}`,u.stats[s.key as keyof Stats]])):{}), fullMark:100 }));
   const defaultColors = ["#00c8ff","#a855f7","#fbbf24"];
   return (
-    <div style={{ width:"100%", height:size }}>
+    <div style={{ width:"100%", height:size, flexShrink:0 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} outerRadius="65%" margin={{top:10,right:25,bottom:10,left:25}}>
+        <RadarChart data={data} outerRadius="50%" margin={{top:20,right:25,bottom:20,left:25}}>
           <PolarGrid stroke="rgba(0,200,255,0.15)"/>
           <PolarAngleAxis dataKey="stat" tick={{fill:"#8899bb",fontSize:12,fontFamily:"'Noto Sans KR'"}}/>
           {stats && <Radar dataKey="value" stroke="#00c8ff" fill="#00c8ff" fillOpacity={0.22} dot={{fill:"#00c8ff",r:3}}/>}
@@ -365,7 +394,7 @@ function CardFront({ user }: { user:User }) {
   );
 }
 
-function CardBack({ user }: { user:User }) {
+function CardBack({ user, hexSize=170 }: { user:User; hexSize?:number }) {
   const r = RARITY[user.rarity];
   return (
     <div style={{ width:"100%", height:"100%", padding:"12px", display:"flex", flexDirection:"column", gap:10, overflow:"visible" }}>
@@ -373,7 +402,7 @@ function CardBack({ user }: { user:User }) {
         <span style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:r.color }}>{user.name}</span>
         <span style={{ fontFamily:"'Orbitron',monospace", fontSize:10, background:`${r.color}18`, color:r.color, padding:"2px 7px", borderRadius:6 }}>{totalPower(user.stats)} PT</span>
       </div>
-      <BigHex stats={user.stats} size={170}/>
+      <BigHex stats={user.stats} size={hexSize}/>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"4px 12px", marginTop:2 }}>
         {STATS.map(s=>(
           <div key={s.key} style={{ display:"flex", alignItems:"center", gap:4 }}>
@@ -401,11 +430,11 @@ function CardBack({ user }: { user:User }) {
   );
 }
 
-function FlipCard({ user, w=200, h=320, locked=false, onUnlock }: { user:User; w?:number; h?:number; locked?:boolean; onUnlock?:()=>void }) {
+function FlipCard({ user, w=200, h=320, locked=false, onUnlock, hexSize, flippable=true }: { user:User; w?:number; h?:number; locked?:boolean; onUnlock?:()=>void; hexSize?:number; flippable?:boolean }) {
   const [flipped, setFlipped] = useState(false);
   const r = RARITY[user.rarity];
   return (
-    <div style={{ width:w, height:h, perspective:1200, cursor:"pointer", flexShrink:0 }} onClick={()=>!locked&&setFlipped(f=>!f)}>
+    <div style={{ width:w, height:h, perspective:1200, cursor:flippable?"pointer":"default", flexShrink:0 }} onClick={()=>{ if(flippable && !locked) setFlipped(f=>!f); }}>
       <div style={{ width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.6s cubic-bezier(0.4,0,0.2,1)", transform:flipped?"rotateY(180deg)":"rotateY(0deg)", position:"relative" }}>
         {/* Front */}
         <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:14, border:`1.5px solid ${r.border}`, boxShadow:r.glow, background:"#0d1525", overflow:"hidden" }}>
@@ -422,7 +451,7 @@ function FlipCard({ user, w=200, h=320, locked=false, onUnlock }: { user:User; w
         </div>
         {/* Back */}
         <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", borderRadius:14, border:`1.5px solid ${r.border}`, boxShadow:r.glow, background:"#0d1525", overflow:"visible" }}>
-          <CardBack user={user}/>
+          <CardBack user={user} hexSize={hexSize}/>
         </div>
       </div>
     </div>
@@ -555,7 +584,7 @@ function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
             <Lock size={16} style={{color:"#a855f7"}}/>
           </div>
           <div>
-            <h2 style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>비밀번호 변경</h2>
+            <h2 style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>비밀번호 변경</h2>
             <p style={{ fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>최초 로그인 시 비밀번호를 변경해주세요</p>
           </div>
         </div>
@@ -781,7 +810,7 @@ function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen
             <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:12, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{me?.name ?? "..."}</div>
+            <div style={{ fontSize:12, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{me?.name ?? "..."}</div>
           </div>
           <button onClick={onLogout} style={{ background:"none", border:"none", color:"#4a5a7a", cursor:"pointer", padding:4 }} title="로그아웃"><LogOut size={13}/></button>
         </div>
@@ -887,9 +916,12 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
             }}><ArrowUpDown size={10}/>능력치{sort==="stat" && `: ${STATS.find(s=>s.key===sortStat)?.label}`}</button>
             {statMenuOpen && (
               <div style={{
-                position:"absolute", top:"100%", left:0, marginTop:4, zIndex:70,
+                position:"absolute", top:"100%", left:0, paddingTop:4, zIndex:70,
+                display:"flex", flexDirection:"column", minWidth:110,
+              }}>
+              <div style={{
                 background:"#0e1526", border:"1px solid rgba(168,85,247,0.25)", borderRadius:9,
-                boxShadow:"0 10px 30px rgba(0,0,0,0.5)", padding:4, display:"flex", flexDirection:"column", minWidth:110,
+                boxShadow:"0 10px 30px rgba(0,0,0,0.5)", padding:4, display:"flex", flexDirection:"column",
               }}>
                 {STATS.map(s=>(
                   <button key={s.key} onClick={()=>{setSort("stat");setSortStat(s.key);setStatMenuOpen(false);}} style={{
@@ -898,6 +930,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
                     color:sort==="stat"&&sortStat===s.key?"#a855f7":"#c7d2e6", border:"none", cursor:"pointer", textAlign:"left",
                   }}><s.Icon size={11} style={{color:s.color}}/>{s.label}</button>
                 ))}
+              </div>
               </div>
             )}
           </div>
@@ -924,7 +957,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
         <div style={{ position:"fixed", inset:0, zIndex:60, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(4,7,14,0.82)", backdropFilter:"blur(8px)" }} onClick={()=>{setModalSummary(null);setModalDetail(null);}}>
           <div onClick={e=>e.stopPropagation()} style={{ position:"relative" }}>
             <button onClick={()=>{setModalSummary(null);setModalDetail(null);}} style={{ position:"absolute", top:-42, right:0, width:32, height:32, borderRadius:999, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:"#8899bb", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><X size={15}/></button>
-            <FlipCard user={modal} w={300} h={460} locked={!(modal?.isUnlocked ?? false)} onUnlock={onEval}/>
+            <FlipCard user={modal} w={300} h={460} locked={!(modal?.isUnlocked ?? false)} onUnlock={onEval} hexSize={255}/>
             <p style={{ textAlign:"center", marginTop:10, fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>카드를 클릭해 앞/뒤를 확인하세요</p>
           </div>
         </div>
@@ -934,34 +967,99 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
 }
 
 // ─── Teams Screen ─────────────────────────────────────────────────────────────
+function formatDeadline(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n:number)=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// <input type="datetime-local"> min 속성 및 유효성 검사에 쓸, 로컬 타임존 기준 "지금"을 만든다.
+function nowForDatetimeLocal(): string {
+  const d = new Date();
+  d.setSeconds(0,0);
+  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+}
+
+// 브라우저 기본 datetime-local 위젯의 어두운 팝업 캘린더/오전·오후 표기/달력 아이콘 툴팁을
+// 손볼 수 있는 범위에서 손본 전용 필드. 연도 4자리 입력 후 자동으로 월로 넘어가는 동작은
+// 브라우저가 내부적으로 구현하는 영역이라 조정할 수 없어 그대로 둔다.
+function DeadlineField({ value, onChange, min, error }: { value:string; onChange:(v:string)=>void; min?:string; error?:string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  function openPicker() {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof el.showPicker === "function") el.showPicker();
+    else el.focus();
+  }
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+      <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>프로젝트 마감기한</span>
+      <div style={{ position:"relative" }}>
+        <input
+          ref={ref}
+          type="datetime-local"
+          lang="en-GB"
+          value={value}
+          min={min}
+          onChange={e=>onChange(e.target.value)}
+          className="deadline-input"
+          style={{ ...DS.input, width:"100%", padding:"11px 42px 11px 14px", boxSizing:"border-box", fontSize:14, colorScheme:"light" }}
+        />
+        <button type="button" title="캘린더" onClick={openPicker} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#8899bb", cursor:"pointer", display:"flex", alignItems:"center" }}>
+          <Calendar size={15}/>
+        </button>
+      </div>
+      {error && <span style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{error}</span>}
+    </div>
+  );
+}
+
 function TeamsScreen() {
   const [tab, setTab] = useState<"list"|"create"|"join">("list");
   const [myTeams, setMyTeams] = useState<TeamDetailDto[]|null>(null);
+  const [rarityMap, setRarityMap] = useState<Record<number, Rarity|null>>({});
+  const [evalTargets, setEvalTargets] = useState<EvaluationTargetDto[]>([]);
   const [tname, setTname] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [deadlineError, setDeadlineError] = useState("");
   const [code, setCode] = useState("");
   const [created, setCreated] = useState<string|null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string|null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function loadTeams() {
     try {
-      const summaries = await listMyTeams();
+      const [summaries, cards, targets] = await Promise.all([
+        listMyTeams(), listCards(), listEvaluationTargets().catch(()=>[] as EvaluationTargetDto[]),
+      ]);
       const details = await Promise.all(summaries.map(t=>getTeam(t.id)));
       setMyTeams(details);
+      setRarityMap(Object.fromEntries(cards.map(c=>[c.userId, rarityFromCardStats(c.stats)])));
+      setEvalTargets(targets);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "팀 목록을 불러오지 못했습니다.");
     }
   }
   useEffect(()=>{ loadTeams(); },[]);
 
+  function teamStatus(team: TeamSummaryDto): "done"|"pending" {
+    if (new Date(team.projectDeadline).getTime() > Date.now()) return "pending";
+    const mine = evalTargets.filter(t=>t.teamId===team.id);
+    return (mine.length===0 || mine.every(t=>t.alreadyEvaluated)) ? "done" : "pending";
+  }
+
   async function create() {
     if (!tname) return;
-    setError(""); setBusy(true);
+    const deadlineMs = new Date(deadline).getTime();
+    if (!deadline || isNaN(deadlineMs) || deadlineMs <= Date.now()) {
+      setDeadlineError("유효한 기한을 입력해주세요.");
+      return;
+    }
+    setDeadlineError(""); setError(""); setBusy(true);
     try {
-      const team = await createTeam(tname);
+      const team = await createTeam(tname, new Date(deadline).toISOString());
       setCreated(team.inviteCode);
-      setTname("");
+      setTname(""); setDeadline("");
       loadTeams();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "팀 생성 중 오류가 발생했습니다.");
@@ -981,11 +1079,16 @@ function TeamsScreen() {
       setBusy(false);
     }
   }
-  function copy(c:string){navigator.clipboard.writeText(c);setCopied(true);setTimeout(()=>setCopied(false),2000);}
+  async function copy(key:string, text:string) {
+    const ok = await copyToClipboard(text);
+    if (!ok) { setError("클립보드 복사에 실패했습니다."); return; }
+    setCopiedKey(key);
+    setTimeout(()=>setCopiedKey(k=>k===key?null:k), 2000);
+  }
 
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
-      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:20 }}>팀 관리</h1>
+      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:20 }}>팀 관리</h1>
       {error && <p style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'", marginBottom:14 }}>{error}</p>}
       <div style={{ display:"flex", gap:6, marginBottom:24 }}>
         {[{k:"list",l:"내 팀",Icon:Users},{k:"create",l:"팀 만들기",Icon:Plus},{k:"join",l:"팀 참여",Icon:UserPlus}].map(({k,l,Icon})=>(
@@ -999,30 +1102,42 @@ function TeamsScreen() {
           <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>아직 소속된 팀이 없습니다. 팀을 만들거나 초대 코드로 참여해보세요.</p>
         ) : (
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          {myTeams.map(({team, members})=>(
+          {myTeams.map(({team, members})=>{
+            const status = teamStatus(team);
+            const teamKey = String(team.id);
+            return (
             <div key={team.id} style={{ ...DS.card, padding:"18px 20px" }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
-                <div>
-                  <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>{team.name}</div>
-                  <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginTop:2 }}>멤버 {team.memberCount}명 · 팀장 {team.ownerName}</div>
-                </div>
-                <div style={{ display:"flex", alignItems:"center", gap:4, fontSize:10, color:"#4a5a7a", fontFamily:"'Orbitron',monospace" }}>
-                  <Hash size={9}/>{team.inviteCode}
-                  <button onClick={()=>copy(team.inviteCode)} style={{background:"none",border:"none",color:"#4a5a7a",cursor:"pointer",padding:2}}><Copy size={10}/></button>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:10 }}>
+                <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{team.name}</div>
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:6 }}>
+                  <Pill label={status==="done"?"완료됨":"진행 중"} color={status==="done"?"#34d399":"#00c8ff"} small/>
+                  <div style={{ display:"flex", alignItems:"center", gap:5, fontSize:10, color:"#8899bb", fontFamily:"'Orbitron',monospace" }}>
+                    <Hash size={9}/>{team.inviteCode}
+                    <button onClick={()=>copy(teamKey,team.inviteCode)} title="초대 코드 복사" style={{ background:"none", border:"none", color:copiedKey===teamKey?"#34d399":"#8899bb", cursor:"pointer", padding:2, display:"flex", alignItems:"center" }}>
+                      {copiedKey===teamKey ? <Check size={11}/> : <Copy size={11}/>}
+                    </button>
+                  </div>
                 </div>
               </div>
+              <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:2 }}>멤버 {team.memberCount}명</div>
+              <div style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:14 }}>마감 {formatDeadline(team.projectDeadline)}</div>
               <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-                {members.map(m=>(
-                  <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
-                    <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff" }}>
-                      <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                {members.map(m=>{
+                  const rarity = rarityMap[m.userId];
+                  const borderColor = rarity ? RARITY[rarity].color : "#4a5a7a";
+                  return (
+                    <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:4 }}>
+                      <div style={{ width:38, height:38, borderRadius:999, overflow:"hidden", border:`2px solid ${borderColor}` }}>
+                        <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                      </div>
+                      <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{m.name}</span>
                     </div>
-                    <span style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{m.name}</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
         )
       )}
@@ -1030,14 +1145,15 @@ function TeamsScreen() {
         <div style={{ ...DS.card, padding:"24px", maxWidth:420 }}>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <Field label="팀 이름" value={tname} onChange={setTname} placeholder="예) 감마팀"/>
+            <DeadlineField value={deadline} min={nowForDatetimeLocal()} onChange={v=>{setDeadline(v);setDeadlineError("");}} error={deadlineError||undefined}/>
             <Btn icon={<Plus size={13}/>} onClick={create} disabled={busy}>{busy?"생성 중...":"팀 생성"}</Btn>
             {created && (
               <div style={{ padding:"16px", borderRadius:10, background:"rgba(52,211,153,0.06)", border:"1px solid rgba(52,211,153,0.25)" }}>
                 <p style={{ fontSize:12, color:"#34d399", fontFamily:"'Noto Sans KR'", marginBottom:8 }}>✓ 팀이 생성되었습니다! 초대 코드를 공유하세요.</p>
                 <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                   <span style={{ fontSize:24, fontFamily:"'Orbitron',monospace", color:"#34d399", fontWeight:700, letterSpacing:"0.15em" }}>{created}</span>
-                  <button onClick={()=>copy(created)} style={{ padding:"6px 12px", borderRadius:8, background:"rgba(52,211,153,0.15)", color:"#34d399", border:"1px solid rgba(52,211,153,0.3)", cursor:"pointer", fontSize:12, fontFamily:"'Noto Sans KR'", display:"flex", alignItems:"center", gap:5 }}>
-                    {copied?<Check size={12}/>:<Copy size={12}/>}{copied?"복사됨":"복사"}
+                  <button onClick={()=>copy("created",created)} style={{ padding:"6px 12px", borderRadius:8, background:"rgba(52,211,153,0.15)", color:"#34d399", border:"1px solid rgba(52,211,153,0.3)", cursor:"pointer", fontSize:12, fontFamily:"'Noto Sans KR'", display:"flex", alignItems:"center", gap:5 }}>
+                    {copiedKey==="created"?<Check size={12}/>:<Copy size={12}/>}{copiedKey==="created"?"복사됨":"복사"}
                   </button>
                 </div>
               </div>
@@ -1051,7 +1167,7 @@ function TeamsScreen() {
             <p style={{ fontSize:13, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>팀장에게 받은 초대 코드를 입력하세요.</p>
             <div style={{ ...DS.input, display:"flex", alignItems:"center", overflow:"hidden" }}>
               <Hash size={14} style={{color:"#8899bb",marginLeft:12,flexShrink:0}}/>
-              <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="XXXXX00" style={{ background:"none", border:"none", outline:"none", padding:"11px 10px", color:"#00c8ff", fontSize:18, fontFamily:"'Orbitron',monospace", letterSpacing:"0.18em", flex:1 }}/>
+              <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="######" style={{ background:"none", border:"none", outline:"none", padding:"11px 10px", color:"#00c8ff", fontSize:18, fontFamily:"'Orbitron',monospace", letterSpacing:"0.18em", flex:1 }}/>
             </div>
             <Btn full variant="purple" disabled={code.length<5||busy} onClick={join} icon={<UserPlus size={13}/>}>{busy?"참여 중...":"팀 참여하기"}</Btn>
           </div>
@@ -1063,9 +1179,7 @@ function TeamsScreen() {
 
 // ─── Evaluate Screen ──────────────────────────────────────────────────────────
 function EvaluateScreen({ onDone }: { onDone:()=>void }) {
-  const [teamId, setTeamId] = useState<number|null>(null);
-  const [teamName, setTeamName] = useState("");
-  const [teammates, setTeammates] = useState<{userId:number;name:string;profileImageUrl:string|null}[]|null>(null);
+  const [teammates, setTeammates] = useState<EvaluationTargetDto[]|null>(null);
   const [titleOptions, setTitleOptions] = useState<TitleDto[]|null>(null);
   const [error, setError] = useState("");
   const [ratings, setRatings] = useState<Record<number,Partial<Stats>>>({});
@@ -1076,29 +1190,32 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
   useEffect(()=>{
     (async () => {
       try {
-        const teams = await listMyTeams();
-        const team = teams[0];
-        if (!team) { setTeammates([]); return; }
-        setTeamId(team.id); setTeamName(team.name);
-        const [targets, titleList] = await Promise.all([listEvaluationTargets(team.id), listTitles()]);
+        const [targets, titleList] = await Promise.all([listEvaluationTargets(), listTitles()]);
         setTeammates(targets);
         setTitleOptions(titleList);
         setRatings(Object.fromEntries(targets.map(t=>[t.userId,{attack:5,defense:5,agility:5,teamwork:5,health:5,mana:5}])));
+        setDone(targets.filter(t=>t.alreadyEvaluated).map(t=>t.userId));
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "평가 대상자를 불러오지 못했습니다.");
       }
     })();
   },[]);
 
+  const teamName = teammates && teammates.length>0
+    ? Array.from(new Set(teammates.map(t=>t.teamName))).join(", ")
+    : "";
+
   function setR(uid:number,key:string,v:number){setRatings(p=>({...p,[uid]:{...p[uid],[key]:v}}))}
 
   async function submit(uid:number) {
     const titleId = titles[uid];
-    if (!titleId || teamId===null) return;
+    const target = teammates?.find(t=>t.userId===uid);
+    if (!titleId || !target) return;
     const r = ratings[uid] ?? {};
     setSubmitting(uid); setError("");
     try {
-      await submitEvaluation(teamId, {
+      await submitEvaluation({
+        teamId: target.teamId,
         targetUserId: uid,
         attack: r.attack??5, defense: r.defense??5, agility: r.agility??5,
         teamwork: r.teamwork??5, mana: r.mana??5, health: r.health??5,
@@ -1132,7 +1249,7 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
       <div style={{ marginBottom:20 }}>
-        <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:4 }}>팀원 평가</h1>
+        <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:4 }}>팀원 평가</h1>
         <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:12 }}>{teamName} — 프로젝트 종료 후 평가</p>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ flex:1 }}><Progress value={progress} color={progress===100?"#34d399":"#00c8ff"}/></div>
@@ -1157,7 +1274,7 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
               <div style={{ padding:"14px 18px", background:isDone?"rgba(52,211,153,0.04)":"rgba(255,255,255,0.01)", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", gap:12 }}>
                 <div style={{ width:40, height:40, borderRadius:999, overflow:"hidden", border:"2px solid #00c8ff", flexShrink:0 }}><img src={u.profileImageUrl || FALLBACK_AVATAR} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
                 <div style={{ flex:1 }}>
-                  <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#00c8ff" }}>{u.name}</div>
+                  <div style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#00c8ff" }}>{u.name}</div>
                 </div>
                 {isDone && <Pill label="✓ 완료" color="#34d399" small/>}
               </div>
@@ -1263,7 +1380,7 @@ function AIScreen() {
             <div key={u.id} onClick={()=>toggleSel(u.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.02)", border:`1px solid ${sel?r.border:"rgba(255,255,255,0.06)"}`, transition:"all 0.15s" }}>
               <div style={{ width:28, height:28, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?r.color:"transparent"}`, flexShrink:0 }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:11, fontWeight:700, fontFamily:"'Black Han Sans'", color:sel?r.color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name}</div>
+                <div style={{ fontSize:11, fontWeight:700, fontFamily:"'Noto Sans KR'", color:sel?r.color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name}</div>
               </div>
               {sel && <Check size={11} style={{color:r.color,flexShrink:0}}/>}
             </div>
@@ -1275,7 +1392,7 @@ function AIScreen() {
         <div style={{ padding:"16px 20px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", gap:10 }}>
           <div style={{ width:28, height:28, borderRadius:8, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}><Bot size={14} style={{color:"#a855f7"}}/></div>
           <div>
-            <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0" }}>AI 팀 분석</div>
+            <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>AI 팀 분석</div>
             <div style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{selUsers.length}명 선택됨</div>
           </div>
         </div>
@@ -1311,7 +1428,7 @@ function AIScreen() {
         </div>
         {/* Input */}
         <div style={{ padding:"12px 20px 20px", display:"flex", gap:8 }}>
-          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}}} placeholder="질문을 입력하세요..." style={{ ...DS.input, flex:1, padding:"11px 14px", fontSize:13 }}/>
+          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}}} placeholder="질문을 입력하세요" style={{ ...DS.input, flex:1, padding:"11px 14px", fontSize:13 }}/>
           <button onClick={()=>send(input)} disabled={!input.trim()||typing} style={{ width:42, height:42, borderRadius:10, background:input.trim()&&!typing?"linear-gradient(135deg,#00c8ff,#0080b0)":"rgba(255,255,255,0.05)", color:input.trim()&&!typing?"#060c18":"#4a5a7a", border:"none", cursor:input.trim()&&!typing?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Send size={16}/></button>
         </div>
       </div>
@@ -1340,7 +1457,7 @@ function CompareScreen() {
 
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
-      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:20 }}>카드 비교</h1>
+      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:20 }}>카드 비교</h1>
       {/* User selector */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:20 }}>
         {cards.map(u=>{
@@ -1349,12 +1466,11 @@ function CompareScreen() {
           return (
             <button key={u.id} onClick={()=>toggle(u.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.03)", border:`1.5px solid ${sel?(colors[ci]??r.color):"rgba(255,255,255,0.07)"}`, transition:"all 0.15s" }}>
               <div style={{ width:22, height:22, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?(colors[ci]??r.color):"transparent"}` }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
-              <span style={{ fontSize:12, fontFamily:"'Black Han Sans'", color:sel?(colors[ci]??r.color):"#8899bb" }}>{u.name}</span>
+              <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Noto Sans KR'", color:sel?(colors[ci]??r.color):"#8899bb" }}>{u.name}</span>
               {sel && <div style={{ width:8, height:8, borderRadius:999, background:colors[ci]??r.color }}/>}
             </button>
           );
         })}
-        <span style={{ fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", display:"flex", alignItems:"center" }}>최대 3명</span>
       </div>
 
       {selUsers.length>=2 ? (
@@ -1364,7 +1480,7 @@ function CompareScreen() {
             {selUsers.map((u,i)=>(
               <div key={u.id} style={{ display:"flex", alignItems:"center", gap:16 }}>
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
-                  <FlipCard user={u} w={160} h={250}/>
+                  <FlipCard user={u} w={160} h={250} flippable={false}/>
                   <div style={{ width:10, height:10, borderRadius:999, background:colors[i] }}/>
                 </div>
                 {i<selUsers.length-1 && <div style={{ fontSize:24, fontWeight:900, fontFamily:"'Orbitron',monospace", color:"rgba(255,255,255,0.15)" }}>VS</div>}
@@ -1373,15 +1489,15 @@ function CompareScreen() {
           </div>
           {/* Radar comparison */}
           <div style={{ ...DS.card, padding:"20px" }}>
-            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:12 }}>능력치 비교</h3>
-            <BigHex users={selUsers} size={280} colors={colors}/>
+            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:12 }}>능력치 비교</h3>
+            <BigHex users={selUsers} size={420} colors={colors}/>
             {/* Stat table */}
             <div style={{ marginTop:16, overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, fontFamily:"'Noto Sans KR'" }}>
                 <thead>
                   <tr>
                     <th style={{ textAlign:"left", padding:"6px 8px", color:"#4a5a7a", fontWeight:400 }}>능력치</th>
-                    {selUsers.map((u,i)=><th key={u.id} style={{ textAlign:"center", padding:"6px 8px", color:colors[i], fontFamily:"'Black Han Sans'" }}>{u.name}</th>)}
+                    {selUsers.map((u,i)=><th key={u.id} style={{ textAlign:"center", padding:"6px 8px", color:colors[i], fontWeight:700, fontFamily:"'Noto Sans KR'" }}>{u.name}</th>)}
                   </tr>
                 </thead>
                 <tbody>
@@ -1390,7 +1506,13 @@ function CompareScreen() {
                     const mx=Math.max(...vals);
                     return (
                       <tr key={s.key} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
-                        <td style={{ padding:"8px", display:"flex", alignItems:"center", gap:6 }}><s.Icon size={11} style={{color:s.color}}/><span style={{color:"#8899bb"}}>{s.label}</span></td>
+                        <td style={{ padding:"8px" }}>
+                          <InfoTooltip text={s.desc}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                              <s.Icon size={11} style={{color:s.color}}/><span style={{color:"#8899bb"}}>{s.label}</span>
+                            </div>
+                          </InfoTooltip>
+                        </td>
                         {vals.map((v,i)=><td key={i} style={{ textAlign:"center", padding:"8px", color:v===mx?colors[i]:"#8899bb", fontFamily:"'Orbitron',monospace", fontWeight:v===mx?700:400 }}>{v}{v===mx?" ★":""}</td>)}
                       </tr>
                     );
@@ -1403,7 +1525,7 @@ function CompareScreen() {
       ) : (
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", borderRadius:14, border:"1px dashed rgba(0,200,255,0.15)" }}>
           <BarChart2 size={36} style={{color:"#2a3a55"}}/>
-          <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", marginTop:12 }}>비교할 캐릭터를 2~3명 선택해주세요</p>
+          <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", marginTop:12 }}>비교할 카드를 2~3장 선택해주세요</p>
         </div>
       )}
     </div>
@@ -1469,7 +1591,7 @@ function ProfileScreen() {
   const u = card; const r = RARITY[u.rarity];
   return (
     <div style={{ padding:"28px 32px", overflowY:"auto", height:"100%" }}>
-      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:24 }}>내 프로필</h1>
+      <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:24 }}>내 프로필</h1>
       <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
         {/* Left: card preview */}
         <div style={{ display:"flex", flexDirection:"column", gap:14, alignItems:"flex-start" }}>
@@ -1480,7 +1602,7 @@ function ProfileScreen() {
         {/* Right: edit */}
         <div style={{ flex:1, minWidth:280, display:"flex", flexDirection:"column", gap:16 }}>
           <div style={{ ...DS.card, padding:"20px" }}>
-            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:14 }}>프로필 수정</h3>
+            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:14 }}>프로필 수정</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
               {/* Photo */}
               <div style={{ display:"flex", alignItems:"center", gap:14 }}>
@@ -1502,13 +1624,17 @@ function ProfileScreen() {
           </div>
           {/* Stats overview */}
           <div style={{ ...DS.card, padding:"20px" }}>
-            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:12 }}>초기 능력치 현황</h3>
+            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:12 }}>초기 능력치</h3>
             <BigHex stats={u.stats} size={220}/>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 16px", marginTop:8 }}>
               {STATS.map(s=>(
                 <div key={s.key} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <s.Icon size={11} style={{color:s.color}}/>
-                  <span style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{s.label}</span>
+                  <InfoTooltip text={s.desc}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, userSelect:"none" }}>
+                      <s.Icon size={11} style={{color:s.color}}/>
+                      <span style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{s.label}</span>
+                    </div>
+                  </InfoTooltip>
                   <span style={{ marginLeft:"auto", fontSize:12, fontFamily:"'Orbitron',monospace", color:s.color, fontWeight:700 }}>{u.stats[s.key as keyof Stats]}</span>
                 </div>
               ))}
@@ -1516,7 +1642,7 @@ function ProfileScreen() {
           </div>
           {/* Titles */}
           <div style={{ ...DS.card, padding:"20px" }}>
-            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Black Han Sans'", color:"#dde5f0", marginBottom:12 }}>받은 칭호</h3>
+            <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:12 }}>받은 칭호</h3>
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               {u.titleVotes.map(tv=>(
                 <div key={tv.title} style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>

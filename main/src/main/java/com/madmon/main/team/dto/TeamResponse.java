@@ -1,6 +1,7 @@
 package com.madmon.main.team.dto;
 
 import com.madmon.main.team.entity.Team;
+import java.time.Instant;
 
 public record TeamResponse(
         Long id,
@@ -8,7 +9,8 @@ public record TeamResponse(
         String inviteCode,
         Long ownerId,
         String ownerName,
-        int memberCount
+        int memberCount,
+        Instant projectDeadline
 ) {
 
     public static TeamResponse of(Team team, int memberCount) {
@@ -18,7 +20,8 @@ public record TeamResponse(
                 team.getInviteCode(),
                 team.getOwner().getId(),
                 team.getOwner().getName(),
-                memberCount
+                memberCount,
+                team.getProjectDeadline()
         );
     }
 }

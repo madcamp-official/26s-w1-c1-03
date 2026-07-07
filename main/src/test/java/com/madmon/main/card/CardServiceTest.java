@@ -25,6 +25,7 @@ import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
+import java.time.Instant;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,6 +35,8 @@ import org.springframework.transaction.annotation.Transactional;
 @SpringBootTest(properties = "spring.profiles.active=test")
 @Transactional
 class CardServiceTest {
+
+    private static final long DEADLINE_BUFFER_MS = 300;
 
     @Autowired
     private CardService cardService;
@@ -91,14 +94,14 @@ class CardServiceTest {
     }
 
     @Test
-    void 팀원_평가를_완료하지_않으면_카드_상세가_잠긴다() {
+    void 팀원_평가를_완료하지_않으면_카드_상세가_잠긴다() throws InterruptedException {
         User viewer = createOnboardedUser("card-viewer2", "뷰어2");
         User teammate = createOnboardedUser("card-teammate2", "팀원2");
 
-        Team team = teamRepository.save(Team.create("팀2", "COD002", viewer));
-        TeamMember viewerMembership = teamMemberRepository.save(TeamMember.join(team, viewer));
-        viewerMembership.markProjectFinished();
+        Team team = teamRepository.save(Team.create("팀2", "COD002", viewer, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
+        teamMemberRepository.save(TeamMember.join(team, viewer));
         teamMemberRepository.save(TeamMember.join(team, teammate));
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
 
         CardDetailResponse detail = cardService.getCardDetail(viewer.getId(), teammate.getId());
 
@@ -112,14 +115,14 @@ class CardServiceTest {
     }
 
     @Test
-    void 평가를_완료하지_않으면_카드_목록에서도_능력치가_가려진다() {
+    void 평가를_완료하지_않으면_카드_목록에서도_능력치가_가려진다() throws InterruptedException {
         User viewer = createOnboardedUser("card-viewer5", "뷰어5");
         User teammate = createOnboardedUser("card-teammate5", "팀원5");
 
-        Team team = teamRepository.save(Team.create("팀5", "COD005", viewer));
-        TeamMember viewerMembership = teamMemberRepository.save(TeamMember.join(team, viewer));
-        viewerMembership.markProjectFinished();
+        Team team = teamRepository.save(Team.create("팀5", "COD005", viewer, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
+        teamMemberRepository.save(TeamMember.join(team, viewer));
         teamMemberRepository.save(TeamMember.join(team, teammate));
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
 
         List<CardSummaryResponse> cards = cardService.getCards(viewer.getId());
 
@@ -132,14 +135,14 @@ class CardServiceTest {
     }
 
     @Test
-    void 팀원_전원을_평가하면_즉시_잠금이_해제된다() {
+    void 팀원_전원을_평가하면_즉시_잠금이_해제된다() throws InterruptedException {
         User viewer = createOnboardedUser("card-viewer3", "뷰어3");
         User teammate = createOnboardedUser("card-teammate3", "팀원3");
 
-        Team team = teamRepository.save(Team.create("팀3", "COD003", viewer));
-        TeamMember viewerMembership = teamMemberRepository.save(TeamMember.join(team, viewer));
-        viewerMembership.markProjectFinished();
+        Team team = teamRepository.save(Team.create("팀3", "COD003", viewer, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
+        teamMemberRepository.save(TeamMember.join(team, viewer));
         teamMemberRepository.save(TeamMember.join(team, teammate));
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
 
         evaluationRepository.save(Evaluation.create(team, viewer, teammate, 5, 5, 5, 5, 5, 5));
 
@@ -156,7 +159,7 @@ class CardServiceTest {
         User evaluator = createOnboardedUser("card-evaluator4", "평가자4");
         User target = createOnboardedUser("card-target4", "타겟4");
 
-        Team team = teamRepository.save(Team.create("팀4", "COD004", evaluator));
+        Team team = teamRepository.save(Team.create("팀4", "COD004", evaluator, Instant.now().plusSeconds(86400)));
         teamMemberRepository.save(TeamMember.join(team, evaluator));
         teamMemberRepository.save(TeamMember.join(team, target));
 

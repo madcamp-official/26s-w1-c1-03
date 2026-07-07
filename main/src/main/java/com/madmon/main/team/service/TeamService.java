@@ -34,7 +34,8 @@ public class TeamService {
     @Transactional
     public TeamResponse createTeam(Long userId, CreateTeamRequest request) {
         User owner = getUser(userId);
-        Team team = teamRepository.save(Team.create(request.name(), generateUniqueInviteCode(), owner));
+        Team team = teamRepository.save(
+                Team.create(request.name(), generateUniqueInviteCode(), owner, request.projectDeadline()));
         teamMemberRepository.save(TeamMember.join(team, owner));
         return TeamResponse.of(team, 1);
     }
@@ -76,16 +77,6 @@ public class TeamService {
                 .toList();
 
         return new TeamDetailResponse(TeamResponse.of(team, members.size()), memberResponses);
-    }
-
-    @Transactional
-    public void finishProject(Long userId, Long teamId) {
-        Team team = getTeam(teamId);
-        if (!team.getOwner().getId().equals(userId)) {
-            throw new BusinessException(ErrorCode.NOT_TEAM_OWNER);
-        }
-        teamMemberRepository.findAllByTeamIdAndLeftAtIsNull(teamId)
-                .forEach(TeamMember::markProjectFinished);
     }
 
     @Transactional

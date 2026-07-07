@@ -70,11 +70,11 @@ public class CardService {
     }
 
     // 사용자가 "활성화된 동료 평가"를 모두 제출했는지 판정한다(기능명세서 4.6.1).
-    // 대상: 현재 소속(leftAt == null) & 프로젝트가 종료된(projectFinished == true) 팀들의 팀원 전원.
+    // 대상: 현재 소속(leftAt == null) & 마감기한이 지난(project_deadline 경과) 팀들의 팀원 전원.
     // 그런 팀이 하나도 없으면(평가 대상 자체가 없으면) 정책상 잠금 없이 열람을 허용한다.
     public LockStatus evaluateLockStatus(Long viewerId) {
         List<TeamMember> activeFinishedMemberships = teamMemberRepository.findAllByUserId(viewerId).stream()
-                .filter(membership -> membership.getLeftAt() == null && membership.isProjectFinished())
+                .filter(membership -> membership.getLeftAt() == null && membership.isEvaluationEligible())
                 .toList();
 
         if (activeFinishedMemberships.isEmpty()) {
