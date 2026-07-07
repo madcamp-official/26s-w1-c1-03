@@ -19,7 +19,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -45,24 +47,25 @@ public class EvaluationService {
                 .filter(membership -> membership.getLeftAt() == null && membership.isEvaluationEligible())
                 .toList();
 
-        List<EvaluationTargetResponse> targets = new ArrayList<>();
+        // 같은 사람과 여러 팀을 함께했더라도 평가 대상은 한 번만 노출한다(첫 번째로 발견된 팀 기준).
+        Map<Long, EvaluationTargetResponse> targetsByUserId = new LinkedHashMap<>();
         for (TeamMember membership : finishedActiveMemberships) {
             Team team = membership.getTeam();
             for (TeamMember teammate : teamMemberRepository.findAllByTeamIdAndLeftAtIsNull(team.getId())) {
                 User teammateUser = teammate.getUser();
-                if (teammateUser.getId().equals(evaluatorId)) {
+                if (teammateUser.getId().equals(evaluatorId) || targetsByUserId.containsKey(teammateUser.getId())) {
                     continue;
                 }
                 boolean alreadyEvaluated = evaluationRepository
-                        .existsByTeamIdAndEvaluatorIdAndTargetId(team.getId(), evaluatorId, teammateUser.getId());
-                targets.add(new EvaluationTargetResponse(
+                        .existsByEvaluatorIdAndTargetId(evaluatorId, teammateUser.getId());
+                targetsByUserId.put(teammateUser.getId(), new EvaluationTargetResponse(
                         team.getId(), team.getName(),
                         teammateUser.getId(), teammateUser.getName(), teammateUser.getProfileImageUrl(),
                         alreadyEvaluated
                 ));
             }
         }
-        return targets;
+        return new ArrayList<>(targetsByUserId.values());
     }
 
     @Transactional
@@ -87,8 +90,7 @@ public class EvaluationService {
             throw new BusinessException(ErrorCode.NOT_TEAM_MEMBER, "평가 대상이 같은 팀의 멤버가 아닙니다.");
         }
 
-        if (evaluationRepository.existsByTeamIdAndEvaluatorIdAndTargetId(
-                request.teamId(), evaluatorId, request.targetUserId())) {
+        if (evaluationRepository.existsByEvaluatorIdAndTargetId(evaluatorId, request.targetUserId())) {
             throw new BusinessException(ErrorCode.EVALUATION_ALREADY_SUBMITTED);
         }
 

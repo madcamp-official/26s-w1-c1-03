@@ -14,6 +14,7 @@ import com.madmon.main.team.repository.TeamRepository;
 import com.madmon.main.user.entity.User;
 import com.madmon.main.user.repository.UserRepository;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,10 @@ public class TeamService {
         User user = getUser(userId);
         Team team = teamRepository.findByInviteCode(request.inviteCode())
                 .orElseThrow(() -> new BusinessException(ErrorCode.TEAM_NOT_FOUND));
+
+        if (!Instant.now().isBefore(team.getProjectDeadline())) {
+            throw new BusinessException(ErrorCode.TEAM_DEADLINE_PASSED);
+        }
 
         TeamMember existing = teamMemberRepository.findByTeamIdAndUserId(team.getId(), userId).orElse(null);
         if (existing == null) {

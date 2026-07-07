@@ -25,6 +25,7 @@ public enum ErrorCode {
     TEAM_NOT_FOUND(HttpStatus.NOT_FOUND, "팀을 찾을 수 없습니다. 초대 코드를 확인해주세요."),
     ALREADY_TEAM_MEMBER(HttpStatus.CONFLICT, "이미 참여 중인 팀입니다."),
     NOT_TEAM_MEMBER(HttpStatus.FORBIDDEN, "해당 팀의 멤버가 아닙니다."),
+    TEAM_DEADLINE_PASSED(HttpStatus.CONFLICT, "프로젝트 마감 기한이 지난 팀에는 참여할 수 없습니다."),
 
     PROJECT_NOT_FINISHED(HttpStatus.CONFLICT, "프로젝트가 아직 종료되지 않아 평가할 수 없습니다."),
     EVALUATION_ALREADY_SUBMITTED(HttpStatus.CONFLICT, "이미 이 팀원을 평가했습니다."),

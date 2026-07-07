@@ -143,6 +143,57 @@ class TeamControllerTest {
     }
 
     @Test
+    void 마감_기한이_지난_팀에_참여하면_409를_반환한다() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/teams")
+                        .header("Authorization", "Bearer " + login("2027001"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createTeamJson("Eta Team", Instant.now().minusSeconds(3600))))
+                .andReturn();
+        String inviteCode = extract(INVITE_CODE_PATTERN, createResult.getResponse().getContentAsString());
+
+        mockMvc.perform(post("/api/teams/join")
+                        .header("Authorization", "Bearer " + login("2027002"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inviteCode\":\"" + inviteCode + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.TEAM_DEADLINE_PASSED.name()));
+    }
+
+    @Test
+    void 마감_기한이_지난_팀은_탈퇴_후_재참여도_거부된다() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/teams")
+                        .header("Authorization", "Bearer " + login("2027001"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createTeamJson("Theta Team", Instant.now().plusSeconds(2))))
+                .andReturn();
+        String inviteCode = extract(INVITE_CODE_PATTERN, createResult.getResponse().getContentAsString());
+        String memberToken = login("2027002");
+
+        mockMvc.perform(post("/api/teams/join")
+                        .header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inviteCode\":\"" + inviteCode + "\"}"))
+                .andExpect(status().isOk());
+
+        MvcResult teamsResult = mockMvc.perform(get("/api/teams").header("Authorization", "Bearer " + memberToken))
+                .andReturn();
+        Long teamId = extractTeamId(teamsResult.getResponse().getContentAsString());
+
+        mockMvc.perform(delete("/api/teams/" + teamId + "/members/me")
+                        .header("Authorization", "Bearer " + memberToken))
+                .andExpect(status().isOk());
+
+        Thread.sleep(2100);
+
+        mockMvc.perform(post("/api/teams/join")
+                        .header("Authorization", "Bearer " + memberToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"inviteCode\":\"" + inviteCode + "\"}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.TEAM_DEADLINE_PASSED.name()));
+    }
+
+    @Test
     void 내가_속한_팀_목록만_조회된다() throws Exception {
         String tokenA = login("2027001");
         String tokenB = login("2027002");
@@ -206,7 +257,11 @@ class TeamControllerTest {
     }
 
     private String createTeamJson(String name) {
-        return "{\"name\":\"" + name + "\",\"projectDeadline\":\"" + Instant.now().plusSeconds(86400) + "\"}";
+        return createTeamJson(name, Instant.now().plusSeconds(86400));
+    }
+
+    private String createTeamJson(String name, Instant projectDeadline) {
+        return "{\"name\":\"" + name + "\",\"projectDeadline\":\"" + projectDeadline + "\"}";
     }
 
     private String extract(Pattern pattern, String content) {

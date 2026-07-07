@@ -110,6 +110,45 @@ class EvaluationControllerTest {
     }
 
     @Test
+    void 같은_사람과_여러_팀을_함께했어도_평가_대상은_한_번만_노출된다() throws Exception {
+        MvcResult createResult = mockMvc.perform(post("/api/teams")
+                        .header("Authorization", "Bearer " + evaluatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(createTeamJson("두번째팀", Instant.now().plusMillis(DEADLINE_BUFFER_MS))))
+                .andReturn();
+        String body = createResult.getResponse().getContentAsString();
+        Long secondTeamId = Long.valueOf(extract(ID_PATTERN, body));
+        String inviteCode = extract(INVITE_CODE_PATTERN, body);
+
+        mockMvc.perform(post("/api/teams/join")
+                .header("Authorization", "Bearer " + targetToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"inviteCode\":\"" + inviteCode + "\"}"));
+
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
+
+        mockMvc.perform(get("/api/evaluations/targets").header("Authorization", "Bearer " + evaluatorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].userId").value(targetUserId));
+
+        mockMvc.perform(post("/api/evaluations")
+                        .header("Authorization", "Bearer " + evaluatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(evaluationBody(teamId, targetUserId, 5, 5, 5, 5, 5, 5, List.of())))
+                .andExpect(status().isOk());
+
+        // 이미 다른 팀(teamId)에서 같은 대상을 평가했으므로, 이번 팀(secondTeamId)에서 같은
+        // 대상을 다시 평가하려는 시도도 차단되어야 한다.
+        mockMvc.perform(post("/api/evaluations")
+                        .header("Authorization", "Bearer " + evaluatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(evaluationBody(secondTeamId, targetUserId, 5, 5, 5, 5, 5, 5, List.of())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.EVALUATION_ALREADY_SUBMITTED.name()));
+    }
+
+    @Test
     void 평가를_제출하면_UserStats가_EMA로_갱신된다() throws Exception {
         mockMvc.perform(post("/api/evaluations")
                         .header("Authorization", "Bearer " + evaluatorToken)
