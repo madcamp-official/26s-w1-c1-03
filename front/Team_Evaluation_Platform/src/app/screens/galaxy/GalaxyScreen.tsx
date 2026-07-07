@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { RefreshCw, Lock, X } from "lucide-react";
 import { listCards, getCard, ApiError } from "../../api";
 import type { User } from "../../types";
@@ -17,7 +17,6 @@ const FONT_DISPLAY = "'Space Grotesk'";
 const FONT_HUD = "'IBM Plex Mono'";
 
 const MIN_SCALE = 0.55, MAX_SCALE = 2.8, LOCK_SCALE = 2;
-const PANEL_WIDTH = 340, PANEL_MARGIN = 40;
 
 function centerMessage(text: string, spinning=false) {
   return (
@@ -38,7 +37,6 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   const [error, setError] = useState("");
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w:1, h:1 });
 
   const [view, setView] = useState({ x:0, y:0, scale:1 });
   const [camTransition, setCamTransition] = useState("none");
@@ -58,27 +56,6 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     listCards()
       .then(list=>setCards(list.map(cardToUser)))
       .catch(e=>setError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."));
-  },[]);
-
-  // ResizeObserver의 첫 콜백은 다음 프레임 이후에나 오므로, 마운트 직후 바로 클릭하는
-  // 경우에도 카메라 계산이 {w:1,h:1}(초기값) 같은 엉뚱한 값을 쓰지 않도록 레이아웃 직후
-  // 동기적으로 한 번 더 측정해둔다.
-  useLayoutEffect(()=>{
-    const el = containerRef.current;
-    if (!el) return;
-    const r = el.getBoundingClientRect();
-    if (r.width>0 && r.height>0) setSize({ w:r.width, h:r.height });
-  },[]);
-
-  useEffect(()=>{
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(entries=>{
-      const r = entries[0].contentRect;
-      if (r.width>0 && r.height>0) setSize({ w:r.width, h:r.height });
-    });
-    ro.observe(el);
-    return ()=>ro.disconnect();
   },[]);
 
   useEffect(()=>{
@@ -167,18 +144,24 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   if (error) return centerMessage(error);
   if (!cards) return centerMessage("은하를 스캔하는 중...", true);
 
-  // camera transform: 선택한 별을 패널을 뺀 나머지 화면 영역 한가운데로 딥줌, 아니면
-  // 자유 팬/줌 좌표 사용. 별의 (left%,top%)은 world div 기준 좌표이므로, world에
-  // transform-origin:0 0을 줘야 이 translate/scale 계산이 그대로 들어맞는다.
+  // camera transform: 선택한 별을 화면 정중앙으로 딥줌, 아니면 자유 팬/줌 좌표 사용.
+  //
+  // 락온 케이스는 컨테이너의 px 크기를 전혀 재지 않고 전부 %로 계산한다 — transform-origin을
+  // "그 별 자신의 위치(%)"로 두면, transform-origin 알고리즘(P' = O + M*(P-O))에 의해
+  // 그 별 자신(P=O)은 항상 O + (tx,ty)로 이동한다. 즉 tx=목표% - 별의 원래 %, ty도 동일하게
+  // 잡으면 컨테이너 실측 크기(px)와 무관하게 정확히 그 별이 목표 위치(%)로 온다.
+  // (이전엔 getBoundingClientRect/ResizeObserver로 잰 px 크기로 직접 translate px를 계산했는데,
+  // 그 측정치가 실제 world div 크기와 어긋나면 완전히 엉뚱한 곳으로 튀는 문제가 있었다.)
   let camTransform: string;
+  let camOrigin: string;
   if (locked && selStar) {
-    const sx = (parseFloat(selStar.layout.left) / 100) * size.w;
-    const sy = (parseFloat(selStar.layout.top) / 100) * size.h;
-    const reserved = PANEL_WIDTH + PANEL_MARGIN;
-    const targetX = size.w > reserved * 1.6 ? (size.w - reserved) / 2 : size.w / 2;
-    const targetY = size.h / 2;
-    camTransform = `translate(${targetX - LOCK_SCALE*sx}px, ${targetY - LOCK_SCALE*sy}px) scale(${LOCK_SCALE})`;
+    const sxPct = parseFloat(selStar.layout.left);
+    const syPct = parseFloat(selStar.layout.top);
+    const targetXPct = 50, targetYPct = 50;
+    camOrigin = `${sxPct}% ${syPct}%`;
+    camTransform = `translate(${targetXPct - sxPct}%, ${targetYPct - syPct}%) scale(${LOCK_SCALE})`;
   } else {
+    camOrigin = "0 0";
     camTransform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
   }
 
@@ -203,8 +186,8 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     >
       <SpaceBackground/>
 
-      {/* world: 별들이 놓이는 좌표계. transform-origin을 0 0으로 고정해야 락온 수식이 맞는다. */}
-      <div style={{ position:"absolute", inset:0, transformOrigin:"0 0", transform:camTransform, transition:camTransition }}>
+      {/* world: 별들이 놓이는 좌표계. transform-origin이 위에서 계산한 camOrigin과 항상 짝이어야 한다. */}
+      <div style={{ position:"absolute", inset:0, transformOrigin:camOrigin, transform:camTransform, transition:camTransition }}>
         {stars.map(({ user, layout })=>{
           const hovered = hoverId===user.id, isSel = selId===user.id;
           const emphasize = hovered || isSel;
