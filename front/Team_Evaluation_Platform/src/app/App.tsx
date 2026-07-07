@@ -6,7 +6,7 @@ import {
   User, LogOut, BookOpen, Swords, Shield, Zap, Heart, Info,
   CheckCircle2, Bot, SlidersHorizontal, ArrowUpDown,
   ChevronLeft, RefreshCw, Upload, AlertTriangle, Filter,
-  ArrowDownWideNarrow, ArrowUpNarrowWide,
+  ArrowDownWideNarrow, ArrowUpNarrowWide, Calendar,
 } from "lucide-react";
 import {
   login as apiLogin, changePassword as apiChangePassword, getMyProfile,
@@ -205,9 +205,9 @@ function Btn({ children, variant="primary", onClick, disabled=false, size="md", 
   );
 }
 
-function Field({ label, type="text", value, onChange, placeholder, error, right, autoComplete, min }: {
+function Field({ label, type="text", value, onChange, placeholder, error, right, autoComplete }: {
   label?: string; type?: string; value: string; onChange: (v:string)=>void;
-  placeholder?: string; error?: string; right?: React.ReactNode; autoComplete?: string; min?: string;
+  placeholder?: string; error?: string; right?: React.ReactNode; autoComplete?: string;
 }) {
   const [show, setShow] = useState(false);
   const isPass = type === "password";
@@ -221,7 +221,6 @@ function Field({ label, type="text", value, onChange, placeholder, error, right,
           onChange={e=>onChange(e.target.value)}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          min={min}
           style={{ ...DS.input, width:"100%", padding:"11px 14px", paddingRight: isPass||right ? 42 : 14, boxSizing:"border-box", fontSize:14 }}
         />
         {isPass && (
@@ -354,9 +353,9 @@ function BigHex({ stats, size=260, users, colors }: { stats?:Stats; size?:number
   const data = STATS.map(s=>({ stat:s.label, ...(stats?{value:stats[s.key as keyof Stats]}:{}), ...(users?Object.fromEntries(users.map((u,i)=>[`u${i}`,u.stats[s.key as keyof Stats]])):{}), fullMark:100 }));
   const defaultColors = ["#00c8ff","#a855f7","#fbbf24"];
   return (
-    <div style={{ width:"100%", height:size }}>
+    <div style={{ width:"100%", height:size, flexShrink:0 }}>
       <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} outerRadius="58%" margin={{top:20,right:25,bottom:20,left:25}}>
+        <RadarChart data={data} outerRadius="50%" margin={{top:20,right:25,bottom:20,left:25}}>
           <PolarGrid stroke="rgba(0,200,255,0.15)"/>
           <PolarAngleAxis dataKey="stat" tick={{fill:"#8899bb",fontSize:12,fontFamily:"'Noto Sans KR'"}}/>
           {stats && <Radar dataKey="value" stroke="#00c8ff" fill="#00c8ff" fillOpacity={0.22} dot={{fill:"#00c8ff",r:3}}/>}
@@ -395,7 +394,7 @@ function CardFront({ user }: { user:User }) {
   );
 }
 
-function CardBack({ user }: { user:User }) {
+function CardBack({ user, hexSize=170 }: { user:User; hexSize?:number }) {
   const r = RARITY[user.rarity];
   return (
     <div style={{ width:"100%", height:"100%", padding:"12px", display:"flex", flexDirection:"column", gap:10, overflow:"visible" }}>
@@ -403,7 +402,7 @@ function CardBack({ user }: { user:User }) {
         <span style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:r.color }}>{user.name}</span>
         <span style={{ fontFamily:"'Orbitron',monospace", fontSize:10, background:`${r.color}18`, color:r.color, padding:"2px 7px", borderRadius:6 }}>{totalPower(user.stats)} PT</span>
       </div>
-      <BigHex stats={user.stats} size={170}/>
+      <BigHex stats={user.stats} size={hexSize}/>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"4px 12px", marginTop:2 }}>
         {STATS.map(s=>(
           <div key={s.key} style={{ display:"flex", alignItems:"center", gap:4 }}>
@@ -431,11 +430,11 @@ function CardBack({ user }: { user:User }) {
   );
 }
 
-function FlipCard({ user, w=200, h=320, locked=false, onUnlock }: { user:User; w?:number; h?:number; locked?:boolean; onUnlock?:()=>void }) {
+function FlipCard({ user, w=200, h=320, locked=false, onUnlock, hexSize, flippable=true }: { user:User; w?:number; h?:number; locked?:boolean; onUnlock?:()=>void; hexSize?:number; flippable?:boolean }) {
   const [flipped, setFlipped] = useState(false);
   const r = RARITY[user.rarity];
   return (
-    <div style={{ width:w, height:h, perspective:1200, cursor:"pointer", flexShrink:0 }} onClick={()=>!locked&&setFlipped(f=>!f)}>
+    <div style={{ width:w, height:h, perspective:1200, cursor:flippable?"pointer":"default", flexShrink:0 }} onClick={()=>{ if(flippable && !locked) setFlipped(f=>!f); }}>
       <div style={{ width:"100%", height:"100%", transformStyle:"preserve-3d", transition:"transform 0.6s cubic-bezier(0.4,0,0.2,1)", transform:flipped?"rotateY(180deg)":"rotateY(0deg)", position:"relative" }}>
         {/* Front */}
         <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", borderRadius:14, border:`1.5px solid ${r.border}`, boxShadow:r.glow, background:"#0d1525", overflow:"hidden" }}>
@@ -452,7 +451,7 @@ function FlipCard({ user, w=200, h=320, locked=false, onUnlock }: { user:User; w
         </div>
         {/* Back */}
         <div style={{ position:"absolute", inset:0, backfaceVisibility:"hidden", WebkitBackfaceVisibility:"hidden", transform:"rotateY(180deg)", borderRadius:14, border:`1.5px solid ${r.border}`, boxShadow:r.glow, background:"#0d1525", overflow:"visible" }}>
-          <CardBack user={user}/>
+          <CardBack user={user} hexSize={hexSize}/>
         </div>
       </div>
     </div>
@@ -958,7 +957,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
         <div style={{ position:"fixed", inset:0, zIndex:60, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(4,7,14,0.82)", backdropFilter:"blur(8px)" }} onClick={()=>{setModalSummary(null);setModalDetail(null);}}>
           <div onClick={e=>e.stopPropagation()} style={{ position:"relative" }}>
             <button onClick={()=>{setModalSummary(null);setModalDetail(null);}} style={{ position:"absolute", top:-42, right:0, width:32, height:32, borderRadius:999, background:"rgba(255,255,255,0.08)", border:"1px solid rgba(255,255,255,0.12)", color:"#8899bb", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><X size={15}/></button>
-            <FlipCard user={modal} w={300} h={460} locked={!(modal?.isUnlocked ?? false)} onUnlock={onEval}/>
+            <FlipCard user={modal} w={300} h={460} locked={!(modal?.isUnlocked ?? false)} onUnlock={onEval} hexSize={255}/>
             <p style={{ textAlign:"center", marginTop:10, fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>카드를 클릭해 앞/뒤를 확인하세요</p>
           </div>
         </div>
@@ -978,6 +977,40 @@ function nowForDatetimeLocal(): string {
   const d = new Date();
   d.setSeconds(0,0);
   return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+}
+
+// 브라우저 기본 datetime-local 위젯의 어두운 팝업 캘린더/오전·오후 표기/달력 아이콘 툴팁을
+// 손볼 수 있는 범위에서 손본 전용 필드. 연도 4자리 입력 후 자동으로 월로 넘어가는 동작은
+// 브라우저가 내부적으로 구현하는 영역이라 조정할 수 없어 그대로 둔다.
+function DeadlineField({ value, onChange, min, error }: { value:string; onChange:(v:string)=>void; min?:string; error?:string }) {
+  const ref = useRef<HTMLInputElement>(null);
+  function openPicker() {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof el.showPicker === "function") el.showPicker();
+    else el.focus();
+  }
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+      <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>프로젝트 마감기한</span>
+      <div style={{ position:"relative" }}>
+        <input
+          ref={ref}
+          type="datetime-local"
+          lang="en-GB"
+          value={value}
+          min={min}
+          onChange={e=>onChange(e.target.value)}
+          className="deadline-input"
+          style={{ ...DS.input, width:"100%", padding:"11px 42px 11px 14px", boxSizing:"border-box", fontSize:14, colorScheme:"light" }}
+        />
+        <button type="button" title="캘린더" onClick={openPicker} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#8899bb", cursor:"pointer", display:"flex", alignItems:"center" }}>
+          <Calendar size={15}/>
+        </button>
+      </div>
+      {error && <span style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{error}</span>}
+    </div>
+  );
 }
 
 function TeamsScreen() {
@@ -1112,7 +1145,7 @@ function TeamsScreen() {
         <div style={{ ...DS.card, padding:"24px", maxWidth:420 }}>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <Field label="팀 이름" value={tname} onChange={setTname} placeholder="예) 감마팀"/>
-            <Field label="프로젝트 마감기한" type="datetime-local" value={deadline} min={nowForDatetimeLocal()} onChange={v=>{setDeadline(v);setDeadlineError("");}} error={deadlineError||undefined}/>
+            <DeadlineField value={deadline} min={nowForDatetimeLocal()} onChange={v=>{setDeadline(v);setDeadlineError("");}} error={deadlineError||undefined}/>
             <Btn icon={<Plus size={13}/>} onClick={create} disabled={busy}>{busy?"생성 중...":"팀 생성"}</Btn>
             {created && (
               <div style={{ padding:"16px", borderRadius:10, background:"rgba(52,211,153,0.06)", border:"1px solid rgba(52,211,153,0.25)" }}>
@@ -1134,7 +1167,7 @@ function TeamsScreen() {
             <p style={{ fontSize:13, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>팀장에게 받은 초대 코드를 입력하세요.</p>
             <div style={{ ...DS.input, display:"flex", alignItems:"center", overflow:"hidden" }}>
               <Hash size={14} style={{color:"#8899bb",marginLeft:12,flexShrink:0}}/>
-              <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="XXXXX00" style={{ background:"none", border:"none", outline:"none", padding:"11px 10px", color:"#00c8ff", fontSize:18, fontFamily:"'Orbitron',monospace", letterSpacing:"0.18em", flex:1 }}/>
+              <input value={code} onChange={e=>setCode(e.target.value.toUpperCase())} placeholder="######" style={{ background:"none", border:"none", outline:"none", padding:"11px 10px", color:"#00c8ff", fontSize:18, fontFamily:"'Orbitron',monospace", letterSpacing:"0.18em", flex:1 }}/>
             </div>
             <Btn full variant="purple" disabled={code.length<5||busy} onClick={join} icon={<UserPlus size={13}/>}>{busy?"참여 중...":"팀 참여하기"}</Btn>
           </div>
@@ -1438,7 +1471,6 @@ function CompareScreen() {
             </button>
           );
         })}
-        <span style={{ fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", display:"flex", alignItems:"center" }}>최대 3명</span>
       </div>
 
       {selUsers.length>=2 ? (
@@ -1448,7 +1480,7 @@ function CompareScreen() {
             {selUsers.map((u,i)=>(
               <div key={u.id} style={{ display:"flex", alignItems:"center", gap:16 }}>
                 <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
-                  <FlipCard user={u} w={160} h={250}/>
+                  <FlipCard user={u} w={160} h={250} flippable={false}/>
                   <div style={{ width:10, height:10, borderRadius:999, background:colors[i] }}/>
                 </div>
                 {i<selUsers.length-1 && <div style={{ fontSize:24, fontWeight:900, fontFamily:"'Orbitron',monospace", color:"rgba(255,255,255,0.15)" }}>VS</div>}
@@ -1458,7 +1490,7 @@ function CompareScreen() {
           {/* Radar comparison */}
           <div style={{ ...DS.card, padding:"20px" }}>
             <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:12 }}>능력치 비교</h3>
-            <BigHex users={selUsers} size={280} colors={colors}/>
+            <BigHex users={selUsers} size={420} colors={colors}/>
             {/* Stat table */}
             <div style={{ marginTop:16, overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, fontFamily:"'Noto Sans KR'" }}>
@@ -1474,7 +1506,13 @@ function CompareScreen() {
                     const mx=Math.max(...vals);
                     return (
                       <tr key={s.key} style={{ borderTop:"1px solid rgba(255,255,255,0.05)" }}>
-                        <td style={{ padding:"8px", display:"flex", alignItems:"center", gap:6 }}><s.Icon size={11} style={{color:s.color}}/><span style={{color:"#8899bb"}}>{s.label}</span></td>
+                        <td style={{ padding:"8px" }}>
+                          <InfoTooltip text={s.desc}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                              <s.Icon size={11} style={{color:s.color}}/><span style={{color:"#8899bb"}}>{s.label}</span>
+                            </div>
+                          </InfoTooltip>
+                        </td>
                         {vals.map((v,i)=><td key={i} style={{ textAlign:"center", padding:"8px", color:v===mx?colors[i]:"#8899bb", fontFamily:"'Orbitron',monospace", fontWeight:v===mx?700:400 }}>{v}{v===mx?" ★":""}</td>)}
                       </tr>
                     );
@@ -1487,7 +1525,7 @@ function CompareScreen() {
       ) : (
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", borderRadius:14, border:"1px dashed rgba(0,200,255,0.15)" }}>
           <BarChart2 size={36} style={{color:"#2a3a55"}}/>
-          <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", marginTop:12 }}>비교할 캐릭터를 2~3명 선택해주세요</p>
+          <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", marginTop:12 }}>비교할 카드를 2~3장 선택해주세요</p>
         </div>
       )}
     </div>
@@ -1591,8 +1629,12 @@ function ProfileScreen() {
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px 16px", marginTop:8 }}>
               {STATS.map(s=>(
                 <div key={s.key} style={{ display:"flex", alignItems:"center", gap:6 }}>
-                  <s.Icon size={11} style={{color:s.color}}/>
-                  <span style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{s.label}</span>
+                  <InfoTooltip text={s.desc}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, userSelect:"none" }}>
+                      <s.Icon size={11} style={{color:s.color}}/>
+                      <span style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{s.label}</span>
+                    </div>
+                  </InfoTooltip>
                   <span style={{ marginLeft:"auto", fontSize:12, fontFamily:"'Orbitron',monospace", color:s.color, fontWeight:700 }}>{u.stats[s.key as keyof Stats]}</span>
                 </div>
               ))}

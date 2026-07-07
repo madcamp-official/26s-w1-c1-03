@@ -39,3 +39,10 @@ input.stat-range::-moz-range-thumb {
   border: none;
   cursor: pointer;
 }
+
+/* 마감기한 입력칸: 브라우저 기본 달력 아이콘(과 그 위에 뜨는 고정 툴팁 문구)을 숨기고,
+   대신 옆에 우리가 만든 "캘린더" 버튼으로 같은 네이티브 picker를 열게 한다. */
+input.deadline-input::-webkit-calendar-picker-indicator {
+  opacity: 0;
+  cursor: pointer;
+}
