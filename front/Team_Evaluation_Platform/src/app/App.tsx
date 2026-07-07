@@ -108,8 +108,11 @@ const topTitles = (v: TitleVote[]) => { if (!v.length) return []; const m = Math
 // 가능하지만 게임 밸런스상 40이 실질 최대치), 6이 아닌 4로 나눠야 100 만점 스케일이 맞는다.
 const totalPower = (s: Stats) => Math.round(Object.values(s).reduce((a,b)=>a+b,0)/4);
 
+// 잠긴 카드(평가 미완료 상태에서 내려오는 stats:null)에 쓰는 빈 스탯.
+const ZERO_STATS: Stats = { attack:0, defense:0, agility:0, teamwork:0, mana:0, health:0 };
+
 // 카드 도감 수치(1~10 EMA 점수)를 기존 육각형 차트가 가정하는 0~100 스케일로 맞춘다.
-function dtoStatsToStats(s: CardSummaryDto["stats"]): Stats {
+function dtoStatsToStats(s: NonNullable<CardSummaryDto["stats"]>): Stats {
   return {
     attack: s.attack*10, defense: s.defense*10, agility: s.agility*10,
     teamwork: s.teamwork*10, mana: s.mana*10, health: s.health*10,
@@ -127,10 +130,13 @@ function rarityFromCardStats(stats: CardSummaryDto["stats"] | null): Rarity | nu
   return rarityFromPower(totalPower(dtoStatsToStats(stats)));
 }
 // 카드 도감(목록/상세) API 응답을 기존 화면 컴포넌트가 쓰는 User 모양으로 변환한다.
+// 평가를 완료하지 않은 뷰어에게는 stats/titles가 null로 내려오므로(§CardService.evaluateLockStatus)
+// 여기서 안전하게 빈 값으로 대체해야 화면이 그대로 죽지 않는다.
 function cardToUser(c: CardSummaryDto | CardDetailDto): User {
-  const stats = dtoStatsToStats(c.stats);
-  const titleVotes: TitleVote[] = "titles" in c
-    ? c.titles.map(tv=>({ title: tv.name, votes: tv.voteCount }))
+  const stats = c.stats ? dtoStatsToStats(c.stats) : ZERO_STATS;
+  const titles = "titles" in c ? c.titles : undefined;
+  const titleVotes: TitleVote[] = titles
+    ? titles.map(tv=>({ title: tv.name, votes: tv.voteCount }))
     : c.representativeTitles.map(name=>({ title: name, votes: 1 }));
   return {
     id: c.userId,
@@ -140,10 +146,17 @@ function cardToUser(c: CardSummaryDto | CardDetailDto): User {
     bio: "biography" in c ? (c.biography ?? "") : "",
     stats,
     titleVotes,
-    rarity: rarityFromPower(totalPower(stats)),
+    rarity: c.stats ? rarityFromPower(totalPower(stats)) : "common",
     isUnlocked: "isUnlocked" in c ? c.isUnlocked : undefined,
     remainingCount: "remainingCount" in c ? c.remainingCount : undefined,
   };
+}
+// 카드 목록(listCards)에 잠긴 카드가 하나라도 섞여 있으면 "평가 미완료" 상태로 본다.
+// 실제로는 뷰어 단위로 전체가 동일하게 잠기지만(§CardService.evaluateLockStatus), 개별 항목을
+// 봐도 안전하도록 some()으로 판단한다.
+function deriveEvaluationLocked(cards: User[] | null): boolean {
+  if (!cards) return false;
+  return cards.some(c => c.isUnlocked === false);
 }
 
 function hexPoints(vals: number[], cx=50, cy=50, r=40): string {
@@ -502,42 +515,49 @@ function FlipCard({ user, w=200, h=320, locked=false, onUnlock, hexSize, flippab
   );
 }
 
-function GridCard({ user, onClick }: { user:User; onClick:()=>void }) {
+function GridCard({ user, onClick, locked=false }: { user:User; onClick:()=>void; locked?:boolean }) {
   const [hover, setHover] = useState(false);
+  const activeHover = hover && !locked;
   const r = RARITY[user.rarity];
   const top = topTitles(user.titleVotes);
   return (
     <div
-      onClick={onClick}
-      onMouseEnter={()=>setHover(true)}
+      onClick={locked ? undefined : onClick}
+      onMouseEnter={()=>!locked && setHover(true)}
       onMouseLeave={()=>setHover(false)}
       style={{
         width:158, flexShrink:0,
         background:"#0d1525",
         borderRadius:14,
-        border:`1.5px solid ${hover?r.border:"rgba(255,255,255,0.07)"}`,
-        boxShadow:hover?r.glow:"none",
+        border:`1.5px solid ${activeHover?r.border:"rgba(255,255,255,0.07)"}`,
+        boxShadow:activeHover?r.glow:"none",
         overflow:"hidden",
-        cursor:"pointer",
+        cursor:locked?"default":"pointer",
         transition:"all 0.22s",
-        transform:hover?"translateY(-5px) scale(1.03)":"none",
+        transform:activeHover?"translateY(-5px) scale(1.03)":"none",
       }}
     >
       <div style={{ height:140, background:"#060c18", position:"relative", overflow:"hidden" }}>
         <img src={user.photo} alt={user.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover", filter:"brightness(0.8)" }}/>
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom,transparent 50%,#0d1525 100%)" }}/>
-        <span style={{ position:"absolute", top:6, right:6, fontSize:9, padding:"2px 6px", borderRadius:5, background:`${r.color}22`, color:r.color, fontFamily:"'Noto Sans KR'", fontWeight:700 }}>{r.label}</span>
-        <span style={{ position:"absolute", top:6, left:6, padding:"2px 7px", borderRadius:5, background:"rgba(0,0,0,0.6)", color:"#8899bb", fontSize:9, fontFamily:"'Orbitron',monospace" }}>PWR <span style={{color:r.color,fontWeight:700}}>{totalPower(user.stats)}</span></span>
+        {!locked && <span style={{ position:"absolute", top:6, right:6, fontSize:9, padding:"2px 6px", borderRadius:5, background:`${r.color}22`, color:r.color, fontFamily:"'Noto Sans KR'", fontWeight:700 }}>{r.label}</span>}
+        {!locked && <span style={{ position:"absolute", top:6, left:6, padding:"2px 7px", borderRadius:5, background:"rgba(0,0,0,0.6)", color:"#8899bb", fontSize:9, fontFamily:"'Orbitron',monospace" }}>PWR <span style={{color:r.color,fontWeight:700}}>{totalPower(user.stats)}</span></span>}
       </div>
-      <div style={{ padding:"8px 10px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
-        <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{user.name}</div>
-        <div style={{ display:"flex", flexDirection:"column-reverse", alignItems:"flex-end", justifyContent:"flex-end", gap:3 }}>
-          {top.map(t=><Pill key={t} label={t} color={r.color} small/>)}
+      {locked ? (
+        <div style={{ padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{user.name}</div>
         </div>
-        <div style={{ gridColumn:"1 / span 2", display:"flex", justifyContent:"center" }}>
-          <MiniHex stats={user.stats} size={60} color={r.color}/>
+      ) : (
+        <div style={{ padding:"8px 10px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
+          <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{user.name}</div>
+          <div style={{ display:"flex", flexDirection:"column-reverse", alignItems:"flex-end", justifyContent:"flex-end", gap:3 }}>
+            {top.map(t=><Pill key={t} label={t} color={r.color} small/>)}
+          </div>
+          <div style={{ gridColumn:"1 / span 2", display:"flex", justifyContent:"center" }}>
+            <MiniHex stats={user.stats} size={60} color={r.color}/>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -884,9 +904,14 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
       .catch(e=>setError(e instanceof ApiError ? e.message : "카드 도감을 불러오지 못했습니다."));
   },[]);
 
+  // 평가를 완료하지 않았으면 카드 상세(등급/파워 등)를 볼 수 없으므로, 그 정보에 기대는
+  // 정렬·등급 필터는 의미가 없다 — 틀은 그대로 두되 기능은 이름순 고정으로 무력화한다.
+  const locked = deriveEvaluationLocked(cards);
+
   const filtered = useMemo(()=>{
     if (!cards) return [];
     let u = cards.filter(u=>u.name.includes(search));
+    if (locked) return [...u].sort((a,b)=>a.name.localeCompare(b.name));
     if (filter!=="all") u=u.filter(x=>x.rarity===filter);
     const dirMul = sortDir==="asc" ? 1 : -1;
     return [...u].sort((a,b)=>{
@@ -894,7 +919,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
       if (sort==="stat") return (a.stats[sortStat as keyof Stats]-b.stats[sortStat as keyof Stats])*dirMul;
       return (totalPower(a.stats)-totalPower(b.stats))*dirMul;
     });
-  },[cards,search,filter,sort,sortStat,sortDir]);
+  },[cards,search,filter,sort,sortStat,sortDir,locked]);
 
   async function openCard(u: User) {
     setModalSummary(u); setModalDetail(null); setModalLoading(true);
@@ -918,6 +943,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
       <div style={{ marginBottom:24 }}>
         <h1 style={{ fontSize:22, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:4 }}>몰입캠프 도감</h1>
         <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>전체 {cards.length}명의 참가자 카드</p>
+        {locked && <p style={{ fontSize:12, color:"#fbbf24", fontFamily:"'Noto Sans KR'", marginTop:6 }}>평가를 완료하면 카드 상세 정보와 정렬·필터 기능을 사용할 수 있습니다.</p>}
       </div>
 
       {/* Controls */}
@@ -926,9 +952,9 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
           <Search size={13} style={{color:"#8899bb",flexShrink:0}}/>
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="이름 검색" style={{ background:"none", border:"none", outline:"none", color:"#dde5f0", fontSize:13, fontFamily:"'Noto Sans KR'", width:"100%" }}/>
         </div>
-        <div style={{ display:"flex", gap:5 }}>
+        <div style={{ display:"flex", gap:5, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" }}>
           {rarities.map(r=>(
-            <button key={r} onClick={()=>setFilter(r)} style={{
+            <button key={r} disabled={locked} onClick={()=>setFilter(r)} style={{
               padding:"6px 11px", borderRadius:7, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", transition:"all 0.15s",
               background:filter===r?(r==="all"?"rgba(0,200,255,0.15)":RARITY[r as Rarity].bg):"rgba(255,255,255,0.03)",
               color:filter===r?(r==="all"?"#00c8ff":RARITY[r as Rarity].color):"#8899bb",
@@ -936,9 +962,9 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
             }}>{r==="all"?"전체":RARITY[r as Rarity].label}</button>
           ))}
         </div>
-        <div style={{ display:"flex", gap:5 }}>
+        <div style={{ display:"flex", gap:5, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" }}>
           {[{k:"power",l:"전투력"},{k:"name",l:"이름"}].map(({k,l})=>(
-            <button key={k} onClick={()=>setSort(k as typeof sort)} style={{
+            <button key={k} disabled={locked} onClick={()=>setSort(k as typeof sort)} style={{
               padding:"6px 10px", borderRadius:7, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", transition:"all 0.15s",
               background:sort===k?"rgba(168,85,247,0.12)":"rgba(255,255,255,0.03)",
               color:sort===k?"#a855f7":"#8899bb",
@@ -951,7 +977,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
             onMouseLeave={()=>setStatMenuOpen(false)}
             style={{ position:"relative" }}
           >
-            <button onClick={()=>setSort("stat")} style={{
+            <button disabled={locked} onClick={()=>setSort("stat")} style={{
               padding:"6px 10px", borderRadius:7, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", transition:"all 0.15s",
               background:sort==="stat"?"rgba(168,85,247,0.12)":"rgba(255,255,255,0.03)",
               color:sort==="stat"?"#a855f7":"#8899bb",
@@ -978,7 +1004,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
               </div>
             )}
           </div>
-          <button onClick={()=>setSortDir(d=>d==="desc"?"asc":"desc")} title={sortDir==="desc"?"내림차순":"오름차순"} style={{
+          <button disabled={locked} onClick={()=>setSortDir(d=>d==="desc"?"asc":"desc")} title={sortDir==="desc"?"내림차순":"오름차순"} style={{
             padding:"6px 8px", borderRadius:7, cursor:"pointer", transition:"all 0.15s",
             background:"rgba(255,255,255,0.03)", color:"#8899bb", border:"1px solid rgba(255,255,255,0.07)",
             display:"flex", alignItems:"center",
@@ -992,7 +1018,7 @@ function PokedexScreen({ onEval }: { onEval:()=>void }) {
       {/* Grid */}
       <div style={{ display:"flex", flexWrap:"wrap", gap:16 }}>
         {filtered.map(u=>(
-          <GridCard key={u.id} user={u} onClick={()=>openCard(u)}/>
+          <GridCard key={u.id} user={u} onClick={()=>openCard(u)} locked={locked}/>
         ))}
       </div>
 
@@ -1376,10 +1402,11 @@ function AIScreen() {
   useEffect(()=>{ setSessionId(null); },[selected.join(",")]);
 
   const selUsers = (cards??[]).filter(u=>selected.includes(u.id));
+  const locked = deriveEvaluationLocked(cards);
 
   function toggleSel(id:number){setSelected(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);}
   async function send(q:string){
-    if(!q.trim()||selected.length===0) return;
+    if(locked||!q.trim()||selected.length===0) return;
     const newMsgs=[...msgs,{role:"user" as const,text:q}];
     setMsgs(newMsgs); setInput(""); setTyping(true); setError("");
     try {
@@ -1465,15 +1492,15 @@ function AIScreen() {
         </div>
         {error && <p style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'", padding:"0 20px" }}>{error}</p>}
         {/* Example Qs */}
-        <div style={{ padding:"8px 20px 0", display:"flex", flexWrap:"wrap", gap:5 }}>
+        <div style={{ padding:"8px 20px 0", display:"flex", flexWrap:"wrap", gap:5, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" }}>
           {AI_QUESTIONS.map(q=>(
-            <button key={q} onClick={()=>send(q)} style={{ padding:"5px 11px", borderRadius:999, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", background:"rgba(168,85,247,0.08)", color:"#a855f7", border:"1px solid rgba(168,85,247,0.2)", transition:"all 0.15s" }}>{q}</button>
+            <button key={q} disabled={locked} onClick={()=>send(q)} style={{ padding:"5px 11px", borderRadius:999, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", background:"rgba(168,85,247,0.08)", color:"#a855f7", border:"1px solid rgba(168,85,247,0.2)", transition:"all 0.15s" }}>{q}</button>
           ))}
         </div>
         {/* Input */}
         <div style={{ padding:"12px 20px 20px", display:"flex", gap:8 }}>
-          <input value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}}} placeholder="질문을 입력하세요" style={{ ...DS.input, flex:1, padding:"11px 14px", fontSize:13 }}/>
-          <button onClick={()=>send(input)} disabled={!input.trim()||typing} style={{ width:42, height:42, borderRadius:10, background:input.trim()&&!typing?"linear-gradient(135deg,#00c8ff,#0080b0)":"rgba(255,255,255,0.05)", color:input.trim()&&!typing?"#060c18":"#4a5a7a", border:"none", cursor:input.trim()&&!typing?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Send size={16}/></button>
+          <input value={input} onChange={e=>setInput(e.target.value)} disabled={locked} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}}} placeholder={locked?"평가를 완료하세요":"질문을 입력하세요"} style={{ ...DS.input, flex:1, padding:"11px 14px", fontSize:13, opacity:locked?0.6:1, cursor:locked?"not-allowed":"text" }}/>
+          <button onClick={()=>send(input)} disabled={locked||!input.trim()||typing} style={{ width:42, height:42, borderRadius:10, background:!locked&&input.trim()&&!typing?"linear-gradient(135deg,#00c8ff,#0080b0)":"rgba(255,255,255,0.05)", color:!locked&&input.trim()&&!typing?"#060c18":"#4a5a7a", border:"none", cursor:!locked&&input.trim()&&!typing?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Send size={16}/></button>
         </div>
       </div>
     </div>
@@ -1486,7 +1513,7 @@ function CompareScreen() {
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
   const colors = ["#00c8ff","#a855f7","#fbbf24"];
-  function toggle(id:number){setSelected(p=>p.includes(id)?p.filter(x=>x!==id):p.length<3?[...p,id]:p);}
+  function toggle(id:number){ if(locked) return; setSelected(p=>p.includes(id)?p.filter(x=>x!==id):p.length<3?[...p,id]:p);}
 
   useEffect(()=>{
     listCards()
@@ -1494,6 +1521,7 @@ function CompareScreen() {
       .catch(e=>setError(e instanceof ApiError ? e.message : "카드 목록을 불러오지 못했습니다."));
   },[]);
 
+  const locked = deriveEvaluationLocked(cards);
   const selUsers = (cards??[]).filter(u=>selected.includes(u.id));
 
   if (error) return <div style={{ padding:"28px 32px" }}><p style={{ color:"#ef4444", fontFamily:"'Noto Sans KR'", fontSize:13 }}>{error}</p></div>;
@@ -1508,10 +1536,16 @@ function CompareScreen() {
           const r=RARITY[u.rarity]; const sel=selected.includes(u.id);
           const ci=selected.indexOf(u.id);
           return (
-            <button key={u.id} onClick={()=>toggle(u.id)} style={{ display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.03)", border:`1.5px solid ${sel?(colors[ci]??r.color):"rgba(255,255,255,0.07)"}`, transition:"all 0.15s" }}>
-              <div style={{ width:22, height:22, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?(colors[ci]??r.color):"transparent"}` }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
-              <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Noto Sans KR'", color:sel?(colors[ci]??r.color):"#8899bb" }}>{u.name}</span>
-              {sel && <div style={{ width:8, height:8, borderRadius:999, background:colors[ci]??r.color }}/>}
+            <button key={u.id} disabled={locked} onClick={()=>toggle(u.id)} style={{
+              display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:9,
+              cursor:locked?"not-allowed":"pointer",
+              background:locked?"rgba(255,255,255,0.03)":(sel?r.bg:"rgba(255,255,255,0.03)"),
+              border:`1.5px solid ${locked?"rgba(255,255,255,0.07)":(sel?(colors[ci]??r.color):"rgba(255,255,255,0.07)")}`,
+              opacity:locked?0.4:1, transition:"all 0.15s",
+            }}>
+              <div style={{ width:22, height:22, borderRadius:999, overflow:"hidden", border:`1.5px solid ${!locked&&sel?(colors[ci]??r.color):"transparent"}` }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
+              <span style={{ fontSize:12, fontWeight:700, fontFamily:"'Noto Sans KR'", color:locked?"#8899bb":(sel?(colors[ci]??r.color):"#8899bb") }}>{u.name}</span>
+              {!locked && sel && <div style={{ width:8, height:8, borderRadius:999, background:colors[ci]??r.color }}/>}
             </button>
           );
         })}
@@ -1569,7 +1603,7 @@ function CompareScreen() {
       ) : (
         <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"60px 0", borderRadius:14, border:"1px dashed rgba(0,200,255,0.15)" }}>
           <BarChart2 size={36} style={{color:"#2a3a55"}}/>
-          <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", marginTop:12 }}>비교할 카드를 2~3장 선택해주세요</p>
+          <p style={{ fontSize:13, color:"#4a5a7a", fontFamily:"'Noto Sans KR'", marginTop:12 }}>{locked ? "평가를 완료하세요" : "비교할 카드를 2~3장 선택해주세요"}</p>
         </div>
       )}
     </div>
@@ -1595,7 +1629,11 @@ function ProfileScreen() {
         setProfile(me);
         setBio(me.biography ?? "");
         const detail = await getCard(me.id);
-        setCard(cardToUser(detail));
+        const built = cardToUser(detail);
+        // 내 프로필은 (다른 사람 카드와 달리) 평가 완료 여부와 무관하게 항상 볼 수 있어야 하므로,
+        // 도감 잠금으로 stats가 null로 내려온 경우 /users/me가 주는 내 실제 능력치로 대체한다.
+        const myStats = me.stats ? dtoStatsToStats(me.stats) : ZERO_STATS;
+        setCard(detail.isUnlocked ? built : { ...built, stats: myStats, rarity: me.stats ? rarityFromPower(totalPower(myStats)) : "common" });
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "프로필을 불러오지 못했습니다.");
       }

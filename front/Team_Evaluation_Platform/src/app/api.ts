@@ -284,14 +284,14 @@ export interface CardSummaryDto {
   name: string;
   profileImageUrl: string | null;
   representativeTitles: string[];
-  stats: UserStatsDto;
+  stats: UserStatsDto | null;
   isUnlocked: boolean;
   remainingCount: number;
 }
 
 export interface CardDetailDto extends CardSummaryDto {
   biography: string | null;
-  titles: CardTitleVoteDto[];
+  titles: CardTitleVoteDto[] | null;
 }
 
 export function listCards(): Promise<CardSummaryDto[]> {
