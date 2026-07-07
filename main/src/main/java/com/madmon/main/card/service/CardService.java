@@ -13,8 +13,11 @@ import com.madmon.main.title.repository.UserTitleStatsRepository;
 import com.madmon.main.user.dto.UserStatsResponse;
 import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
+import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class CardService {
 
+    private final UserRepository userRepository;
     private final UserStatsRepository userStatsRepository;
     private final UserTitleStatsRepository userTitleStatsRepository;
     private final TeamMemberRepository teamMemberRepository;
@@ -43,14 +47,14 @@ public class CardService {
     }
 
     public CardDetailResponse getCardDetail(Long viewerId, Long targetUserId) {
-        UserStats targetStats = userStatsRepository.findById(targetUserId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
-
-        User target = targetStats.getUser();
-        List<String> representativeTitles = representativeTitleNames(targetUserId);
+        // 잠금 여부를 먼저 확정한 뒤에야 그 결과에 따라 필요한 데이터만 조회한다.
+        // 잠긴 경우 능력치/자기소개/칭호 득표 내역은 아예 조회하지 않는다.
         LockStatus lockStatus = evaluateLockStatus(viewerId);
+        List<String> representativeTitles = representativeTitleNames(targetUserId);
 
         if (!lockStatus.unlocked()) {
+            User target = userRepository.findById(targetUserId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
             return new CardDetailResponse(
                     targetUserId, target.getName(), target.getProfileImageUrl(),
                     representativeTitles, null,
@@ -58,6 +62,9 @@ public class CardService {
             );
         }
 
+        UserStats targetStats = userStatsRepository.findById(targetUserId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
+        User target = targetStats.getUser();
         List<TitleVoteSummary> titles = userTitleStatsRepository.findAllByUser_IdOrderByVoteCountDesc(targetUserId).stream()
                 .map(this::toTitleVoteSummary)
                 .toList();
@@ -81,21 +88,24 @@ public class CardService {
             return LockStatus.UNLOCKED;
         }
 
-        int remainingCount = 0;
+        // 같은 사람과 여러 팀을 함께했어도 평가는 한 번만 하면 되므로(evaluation 도메인과 동일한
+        // 정책), 팀마다 따로 세지 않고 평가해야 할 사람을 팀 전체에서 중복 없이 모은다.
+        Set<Long> distinctTeammateIds = new LinkedHashSet<>();
         for (TeamMember membership : activeFinishedMemberships) {
             Long teamId = membership.getTeam().getId();
             for (TeamMember teammate : teamMemberRepository.findAllByTeamIdAndLeftAtIsNull(teamId)) {
                 Long teammateId = teammate.getUser().getId();
-                if (teammateId.equals(viewerId)) {
-                    continue;
-                }
-                if (!evaluationRepository.existsByTeamIdAndEvaluatorIdAndTargetId(teamId, viewerId, teammateId)) {
-                    remainingCount++;
+                if (!teammateId.equals(viewerId)) {
+                    distinctTeammateIds.add(teammateId);
                 }
             }
         }
 
-        return remainingCount == 0 ? LockStatus.UNLOCKED : new LockStatus(false, remainingCount);
+        long remainingCount = distinctTeammateIds.stream()
+                .filter(teammateId -> !evaluationRepository.existsByEvaluatorIdAndTargetId(viewerId, teammateId))
+                .count();
+
+        return remainingCount == 0 ? LockStatus.UNLOCKED : new LockStatus(false, (int) remainingCount);
     }
 
     // 대표 칭호(§3.4): 최다 득표 칭호를 반환하며, 동점이면 그 값과 동일한 칭호를 모두 반환한다.

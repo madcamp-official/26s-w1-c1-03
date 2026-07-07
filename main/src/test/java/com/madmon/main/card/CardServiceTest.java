@@ -155,6 +155,29 @@ class CardServiceTest {
     }
 
     @Test
+    void 같은_팀원과_여러_팀을_함께해도_한_번만_평가하면_잠금이_해제된다() throws InterruptedException {
+        User viewer = createOnboardedUser("card-viewer6", "뷰어6");
+        User teammate = createOnboardedUser("card-teammate6", "팀원6");
+
+        Team teamA = teamRepository.save(Team.create("팀6A", "COD06A", viewer, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
+        teamMemberRepository.save(TeamMember.join(teamA, viewer));
+        teamMemberRepository.save(TeamMember.join(teamA, teammate));
+        Team teamB = teamRepository.save(Team.create("팀6B", "COD06B", viewer, Instant.now().plusMillis(DEADLINE_BUFFER_MS)));
+        teamMemberRepository.save(TeamMember.join(teamB, viewer));
+        teamMemberRepository.save(TeamMember.join(teamB, teammate));
+        Thread.sleep(DEADLINE_BUFFER_MS + 200);
+
+        // teamA 맥락으로만 한 번 평가해도, teamB에서도 같은 사람이므로 더 평가할 필요가 없다.
+        evaluationRepository.save(Evaluation.create(teamA, viewer, teammate, 5, 5, 5, 5, 5, 5));
+
+        CardDetailResponse detail = cardService.getCardDetail(viewer.getId(), teammate.getId());
+
+        assertTrue(detail.isUnlocked());
+        assertEquals(0, detail.remainingCount());
+        assertNotNull(detail.stats());
+    }
+
+    @Test
     void 동점_칭호는_모두_대표_칭호로_표시된다() {
         User evaluator = createOnboardedUser("card-evaluator4", "평가자4");
         User target = createOnboardedUser("card-target4", "타겟4");

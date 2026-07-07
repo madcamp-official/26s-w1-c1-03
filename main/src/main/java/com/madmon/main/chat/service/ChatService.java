@@ -70,12 +70,14 @@ public class ChatService {
     }
 
     public List<ChatSessionResponse> getSessions(Long userId) {
+        requireUnlocked(userId);
         return chatSessionRepository.findAllByUserIdOrderByCreatedAtDesc(userId).stream()
                 .map(session -> toSessionResponse(session, targetsOf(session)))
                 .toList();
     }
 
     public ChatSessionDetailResponse getSessionDetail(Long userId, Long sessionId) {
+        requireUnlocked(userId);
         ChatSession session = getOwnedSession(userId, sessionId);
         List<User> targets = targetsOf(session);
         List<ChatMessageResponse> messages = chatMessageRepository.findAllBySessionIdOrderByCreatedAtAsc(sessionId).stream()

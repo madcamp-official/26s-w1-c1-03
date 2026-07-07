@@ -75,6 +75,19 @@ class ChatServiceTest {
     }
 
     @Test
+    void 잠긴_사용자는_기존_세션_목록도_조회할_수_없다() throws InterruptedException {
+        User asker = createOnboardedUser("chat-locked2", "잠긴사용자2");
+        User target = createOnboardedUser("chat-target-locked2", "타겟잠금2");
+        chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), null));
+
+        User teammate = createOnboardedUser("chat-teammate2", "팀원2");
+        makeLocked(asker, teammate);
+
+        BusinessException exception = assertThrows(BusinessException.class, () -> chatService.getSessions(asker.getId()));
+        assertEquals(ErrorCode.CHAT_LOCKED, exception.getErrorCode());
+    }
+
+    @Test
     void 카드_1개로_세션을_생성하면_기본_제목이_붙는다() {
         User asker = createOnboardedUser("chat-asker1", "질문자1");
         User target = createOnboardedUser("chat-target2", "타겟2");
