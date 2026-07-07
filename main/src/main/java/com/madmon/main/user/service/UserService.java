@@ -33,12 +33,7 @@ public class UserService {
     @Transactional
     public UserProfileResponse updateProfile(Long userId, UpdateProfileRequest request) {
         User user = getUser(userId);
-        if (request.profileImageUrl() != null) {
-            user.updateProfileImage(request.profileImageUrl());
-        }
-        if (request.biography() != null) {
-            user.updateBiography(request.biography());
-        }
+        user.updateProfile(request.profileImageUrl(), request.biography());
 
         UserStats stats = userStatsRepository.findById(userId).orElse(null);
         return UserProfileResponse.of(user, stats);
