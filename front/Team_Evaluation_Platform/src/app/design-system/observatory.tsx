@@ -39,6 +39,8 @@ export function ObservatoryStyle() {
       @keyframes obsStarBreathe{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
       @keyframes obsIntroBar{from{width:0}to{width:100%}}
       @keyframes obsSpinC{to{transform:translate(-50%,-50%) rotate(360deg)}}
+      @keyframes obsChartDraw{to{stroke-dashoffset:0}}
+      @keyframes obsPopIn{from{opacity:0;transform:scale(.3)}to{opacity:1;transform:scale(1)}}
       .obs-input{background:rgba(125,180,255,.05);border:1px solid rgba(125,180,255,.16);border-radius:2px;color:#eef4ff;outline:none;font-family:'Noto Sans KR',sans-serif;font-weight:300;transition:border-color .25s,box-shadow .25s}
       .obs-input::placeholder{color:#3d4f70}
       .obs-input:focus{border-color:rgba(125,211,252,.55);box-shadow:0 0 14px rgba(125,211,252,.12)}
@@ -165,23 +167,92 @@ export function ObsField({ label, labelKr, type = "text", value, onChange, place
   );
 }
 
-// 주 버튼: 하늘색→청록 그라데이션, mono 대문자.
-export function ObsButton({ children, onClick, disabled = false, type = "button", blink = false }: {
-  children: ReactNode; onClick?: () => void; disabled?: boolean; type?: "button" | "submit"; blink?: boolean;
+// 주 버튼: 하늘색→청록 그라데이션(primary) / 얇은 보더(ghost), mono 대문자.
+export function ObsButton({ children, onClick, disabled = false, type = "button", blink = false, variant = "primary" }: {
+  children: ReactNode; onClick?: () => void; disabled?: boolean; type?: "button" | "submit";
+  blink?: boolean; variant?: "primary" | "ghost";
 }) {
+  const ghost = variant === "ghost";
   return (
-    <button type={type} onClick={onClick} disabled={disabled} style={{
-      width: "100%", padding: "13px 0", borderRadius: 2, border: "none",
-      cursor: disabled ? "not-allowed" : "pointer",
-      fontFamily: OBS.mono, fontSize: 11, letterSpacing: 2.5,
-      color: disabled ? "#4a5d80" : "#020617",
-      background: disabled ? "rgba(125,180,255,.08)" : OBS.buttonGrad,
-      boxShadow: disabled ? "none" : "0 0 22px rgba(94,234,212,.3)",
-      transition: "all .4s",
-      animation: blink ? "obsBlinkDim 1.1s ease-in-out infinite" : undefined,
-    }}>
+    <button type={type} onClick={onClick} disabled={disabled}
+      className={ghost && !disabled ? "obs-chip" : undefined}
+      style={{
+        width: "100%", padding: "13px 0", borderRadius: 2,
+        border: ghost ? "1px solid rgba(125,180,255,.25)" : "none",
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontFamily: OBS.mono, fontSize: 11, letterSpacing: 2.5,
+        color: ghost ? (disabled ? "#4a5d80" : "#8fb2dd") : disabled ? "#4a5d80" : "#020617",
+        background: ghost ? "transparent" : disabled ? "rgba(125,180,255,.08)" : OBS.buttonGrad,
+        boxShadow: ghost || disabled ? "none" : "0 0 22px rgba(94,234,212,.3)",
+        transition: "all .4s",
+        animation: blink ? "obsBlinkDim 1.1s ease-in-out infinite" : undefined,
+      }}>
       {children}
     </button>
+  );
+}
+
+// 10칸 세그먼트 게이지(design.md §6 관측 모드): 클릭 입력, 채워진 칸은 하늘색→청록 + 글로우.
+export function ObsGauge({ value, onChange, max = 10 }: { value: number; onChange: (v: number) => void; max?: number }) {
+  return (
+    <div style={{ display: "flex", gap: 4, flex: 1 }}>
+      {Array.from({ length: max }, (_, i) => (
+        <div key={i} onClick={() => onChange(i + 1)} style={{
+          flex: 1, height: 10, cursor: "pointer", borderRadius: 1,
+          background: i < value ? OBS.buttonGrad : "rgba(125,180,255,.1)",
+          boxShadow: i < value ? "0 0 6px rgba(94,234,212,.5)" : "none",
+          transition: "background .25s, box-shadow .25s",
+        }} />
+      ))}
+    </div>
+  );
+}
+
+// 능력치 별자리 차트(design.md §6): 흐린 육각 그리드 + 꼭짓점 별 + 은은한 채움.
+// frac는 축별 0~1 비율, labels는 [영문 mono, 한국어+수치] 두 줄 라벨.
+export function ConstellationChart({ frac, labels, size = 230, animate = false }: {
+  frac: number[]; labels: { en: string; kr: string }[]; size?: number; animate?: boolean;
+}) {
+  const cx = size / 2, cy = size / 2, r = size / 2 - 34;
+  const pt = (i: number, f: number): [number, number] => {
+    const a = -Math.PI / 2 + i * Math.PI / 3;
+    return [cx + Math.cos(a) * r * f, cy + Math.sin(a) * r * f];
+  };
+  const dp = frac.map((v, i) => pt(i, Math.max(0, Math.min(1, v))));
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ overflow: "visible" }}>
+      {[0.33, 0.66, 1].map((f, gi) => (
+        <polygon key={"g" + gi} points={[0, 1, 2, 3, 4, 5].map(i => pt(i, f).join(",")).join(" ")}
+          fill="none" stroke="rgba(125,180,255,.12)" strokeWidth={1} />
+      ))}
+      {[0, 1, 2, 3, 4, 5].map(i => {
+        const [x, y] = pt(i, 1);
+        return <line key={"a" + i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(125,180,255,.08)" strokeWidth={1} />;
+      })}
+      <polygon points={dp.map(p => p.join(",")).join(" ")} fill="rgba(125,211,252,.09)"
+        style={animate ? { animation: "obsFadeIn .8s 1.6s both" } : undefined} />
+      {dp.map(([x1, y1], i) => {
+        const [x2, y2] = dp[(i + 1) % 6];
+        return <line key={"e" + i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#8fd0ff" strokeWidth={1.5}
+          pathLength={1} strokeDasharray={1} strokeDashoffset={animate ? 1 : 0}
+          style={animate
+            ? { animation: `obsChartDraw .45s ease forwards ${0.35 + i * 0.22}s`, filter: "drop-shadow(0 0 3px rgba(125,211,252,.8))" }
+            : { filter: "drop-shadow(0 0 3px rgba(125,211,252,.6))" }} />;
+      })}
+      {dp.map(([x, y], i) => (
+        <circle key={"v" + i} cx={x} cy={y} r={2.6} fill={OBS.starWhite}
+          style={{ filter: "drop-shadow(0 0 4px rgba(190,220,255,1))", animation: animate ? `obsPopIn .4s ease both ${0.3 + i * 0.22}s` : undefined }} />
+      ))}
+      {labels.map((t, i) => {
+        const [x, y] = pt(i, 1.28);
+        return (
+          <g key={"l" + i}>
+            <text x={x} y={y - 3} textAnchor="middle" fill={OBS.sky} style={{ font: `8.5px ${OBS.mono}`, letterSpacing: 1.5 }}>{t.en}</text>
+            <text x={x} y={y + 9} textAnchor="middle" fill={OBS.dim} style={{ font: `9px ${OBS.kr}` }}>{t.kr}</text>
+          </g>
+        );
+      })}
+    </svg>
   );
 }
 
