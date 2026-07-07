@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { RefreshCw, Lock } from "lucide-react";
+import { RefreshCw, Lock, X } from "lucide-react";
 import { listCards, getCard, ApiError } from "../../api";
 import type { User } from "../../types";
 import { cardToUser, topTitles } from "../../lib/cardMapping";
@@ -37,11 +37,11 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   const [error, setError] = useState("");
 
   const containerRef = useRef<HTMLDivElement>(null);
-  const [size, setSize] = useState({ w:1, h:1 });
 
   const [view, setView] = useState({ x:0, y:0, scale:1 });
   const [camTransition, setCamTransition] = useState("none");
   const dragRef = useRef<{ x:number; y:number; vx:number; vy:number; dragged:boolean } | null>(null);
+  const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [hoverId, setHoverId] = useState<number|null>(null);
   const [selId, setSelId] = useState<number|null>(null);
@@ -56,17 +56,6 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     listCards()
       .then(list=>setCards(list.map(cardToUser)))
       .catch(e=>setError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."));
-  },[]);
-
-  useEffect(()=>{
-    const el = containerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(entries=>{
-      const r = entries[0].contentRect;
-      setSize({ w:r.width, h:r.height });
-    });
-    ro.observe(el);
-    return ()=>ro.disconnect();
   },[]);
 
   useEffect(()=>{
@@ -124,12 +113,24 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   function selectStar(u: User) {
     if (selId===u.id || dragRef.current?.dragged) return;
     setSelId(u.id); setLockStage(1); setDetail(null); setDetailError("");
-    setTimeout(()=>{ setLockStage(2); setCamTransition("transform 1.4s cubic-bezier(.25,.9,.25,1)"); }, 750);
+    const t = setTimeout(()=>{ setLockStage(2); setCamTransition("transform 1.4s cubic-bezier(.25,.9,.25,1)"); }, 750);
+    lockTimerRef.current = t;
   }
   function backToGalaxy() {
+    if (lockTimerRef.current) { clearTimeout(lockTimerRef.current); lockTimerRef.current = null; }
     setSelId(null); setLockStage(0); setDetail(null);
     setCamTransition("transform 1.4s cubic-bezier(.25,.9,.25,1)");
   }
+
+  useEffect(()=>()=>{ if (lockTimerRef.current) clearTimeout(lockTimerRef.current); },[]);
+
+  // Esc로도 언제든 은하 화면으로 돌아갈 수 있게 — 패널/애니메이션 상태와 무관한 별도 탈출구.
+  useEffect(()=>{
+    if (selId===null) return;
+    function onKey(e: KeyboardEvent) { if (e.key==="Escape") backToGalaxy(); }
+    window.addEventListener("keydown", onKey);
+    return ()=>window.removeEventListener("keydown", onKey);
+  },[selId]);
 
   useEffect(()=>{
     if (selId===null) return;
@@ -143,17 +144,30 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   if (error) return centerMessage(error);
   if (!cards) return centerMessage("은하를 스캔하는 중...", true);
 
-  // camera transform: 선택 시 별을 화면 좌측 1/3 지점으로 딥줌, 아니면 자유 팬/줌 좌표 사용.
+  // camera transform: 선택한 별을 화면 정중앙으로 딥줌, 아니면 자유 팬/줌 좌표 사용.
+  //
+  // 락온 케이스는 컨테이너의 px 크기를 전혀 재지 않고 전부 %로 계산한다 — transform-origin을
+  // "그 별 자신의 위치(%)"로 두면, transform-origin 알고리즘(P' = O + M*(P-O))에 의해
+  // 그 별 자신(P=O)은 항상 O + (tx,ty)로 이동한다. 즉 tx=목표% - 별의 원래 %, ty도 동일하게
+  // 잡으면 컨테이너 실측 크기(px)와 무관하게 정확히 그 별이 목표 위치(%)로 온다.
+  // (이전엔 getBoundingClientRect/ResizeObserver로 잰 px 크기로 직접 translate px를 계산했는데,
+  // 그 측정치가 실제 world div 크기와 어긋나면 완전히 엉뚱한 곳으로 튀는 문제가 있었다.)
   let camTransform: string;
+  let camOrigin: string;
   if (locked && selStar) {
-    const sx = (parseFloat(selStar.layout.left) / 100) * size.w;
-    const sy = (parseFloat(selStar.layout.top) / 100) * size.h;
-    camTransform = `translate(${0.32*size.w - LOCK_SCALE*sx}px, ${0.5*size.h - LOCK_SCALE*sy}px) scale(${LOCK_SCALE})`;
+    const sxPct = parseFloat(selStar.layout.left);
+    const syPct = parseFloat(selStar.layout.top);
+    const targetXPct = 50, targetYPct = 50;
+    camOrigin = `${sxPct}% ${syPct}%`;
+    camTransform = `translate(${targetXPct - sxPct}%, ${targetYPct - syPct}%) scale(${LOCK_SCALE})`;
   } else {
+    camOrigin = "0 0";
     camTransform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
   }
 
-  const showPanel = locked && selStar;
+  // 패널은 카메라 줌 완료(lockStage 2)를 기다리지 않고 별을 고른 즉시 뜬다 — 그래야
+  // "되돌아갈 방법이 없다"고 느껴질 여지가 없다. 카메라 연출은 독립적으로 진행된다.
+  const showPanel = selId!==null && selStar;
   const panelUser = detail ?? selStar?.user ?? null;
   const panelUnlocked = panelUser?.isUnlocked ?? false;
   const repTitle = panelUser ? topTitles(panelUser.titleVotes)[0] : undefined;
@@ -167,12 +181,13 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
       onDoubleClick={resetView}
+      onClick={()=>{ if (selId!==null && !dragRef.current?.dragged) backToGalaxy(); }}
       style={{ position:"relative", height:"100%", overflow:"hidden", cursor: selId===null ? "grab" : "default" }}
     >
       <SpaceBackground/>
 
-      {/* world: 별들이 놓이는 좌표계. transform-origin을 0 0으로 고정해야 락온 수식이 맞는다. */}
-      <div style={{ position:"absolute", inset:0, transformOrigin:"0 0", transform:camTransform, transition:camTransition }}>
+      {/* world: 별들이 놓이는 좌표계. transform-origin이 위에서 계산한 camOrigin과 항상 짝이어야 한다. */}
+      <div style={{ position:"absolute", inset:0, transformOrigin:camOrigin, transform:camTransform, transition:camTransition }}>
         {stars.map(({ user, layout })=>{
           const hovered = hoverId===user.id, isSel = selId===user.id;
           const emphasize = hovered || isSel;
@@ -239,16 +254,36 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       </div>
       <div style={{ position:"absolute", bottom:18, left:24, zIndex:2, pointerEvents:"none" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px", color:SPACE.accentTeal }}>{cards.length} STARS DETECTED</div>
-        {selId===null && <div style={{ fontFamily:FONT_BODY, fontSize:10.5, color:SPACE.label, marginTop:2 }}>드래그로 이동 · 휠로 확대 · 별 클릭으로 관측</div>}
+        <div style={{ fontFamily:FONT_BODY, fontSize:10.5, color:SPACE.label, marginTop:2 }}>
+          {selId===null ? "드래그로 이동 · 휠로 확대 · 별 클릭으로 관측" : "빈 공간 클릭 또는 Esc로 은하로 돌아가기"}
+        </div>
       </div>
       <div style={{ position:"absolute", bottom:18, right:24, zIndex:2, pointerEvents:"none", textAlign:"right" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.label }}>ZOOM ×{(locked?LOCK_SCALE:view.scale).toFixed(1)}</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.faint, marginTop:2 }}>{clock} KST</div>
       </div>
 
+      {/* 화면 어디를 눌러도(패널 안 제외) 돌아갈 수 있지만, 그것만으로는 눈에 안 띄어서
+          항상 보이는 닫기 버튼도 별도로 둔다 — 패널/카메라 애니메이션 상태와 무관하게 동작. */}
+      {selId!==null && (
+        <button
+          onClick={(e)=>{ e.stopPropagation(); backToGalaxy(); }}
+          title="은하로 돌아가기 (Esc)"
+          style={{
+            position:"absolute", top:64, right:24, zIndex:4,
+            width:32, height:32, borderRadius:"50%", cursor:"pointer",
+            background:"rgba(2,6,23,0.6)", border:`1px solid ${SPACE.borderStrong}`,
+            display:"flex", alignItems:"center", justifyContent:"center", color:SPACE.accentSky,
+          }}
+        ><X size={15}/></button>
+      )}
+
       {/* ── 관측 패널 ── */}
       {showPanel && panelUser && (
-        <div style={{ position:"absolute", top:0, right:0, bottom:0, width:340, padding:20, zIndex:3, display:"flex", alignItems:"center" }}>
+        <div
+          onClick={e=>e.stopPropagation()}
+          style={{ position:"absolute", top:0, right:0, bottom:0, width:340, padding:20, zIndex:3, display:"flex", alignItems:"center" }}
+        >
           <HoloPanel style={{ width:"100%", maxHeight:"calc(100% - 40px)", overflowY:"auto", animation:"slideInPanel .85s cubic-bezier(.25,.9,.25,1) both" }}>
             <button
               onClick={backToGalaxy}
