@@ -1,5 +1,6 @@
 package com.madmon.main.evaluation.dto;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -24,4 +25,9 @@ public record SubmitEvaluationRequest(
 
         List<Long> titleIds
 ) {
+    @AssertTrue(message = "능력치 합은 6 이상 40 이하여야 합니다.")
+    public boolean isTotalWithinRange() {
+        int total = attack + defense + agility + teamwork + mana + health;
+        return total >= 6 && total <= 40;
+    }
 }

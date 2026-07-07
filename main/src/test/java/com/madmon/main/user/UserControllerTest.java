@@ -141,18 +141,18 @@ class UserControllerTest {
         mockMvc.perform(patch("/api/users/me/initial-stats")
                         .header("Authorization", "Bearer " + login())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(initialStatsBody(5, 6, 7, 8, 9, 10)))
+                        .content(initialStatsBody(2, 3, 4, 5, 6, 7)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.onboarded").value(true));
 
         UserStats stats = userStatsRepository.findById(user.getId()).orElseThrow();
-        assertEquals(0, BigDecimal.valueOf(5).compareTo(stats.getAttackScore()));
-        assertEquals(0, BigDecimal.valueOf(6).compareTo(stats.getDefenseScore()));
-        assertEquals(0, BigDecimal.valueOf(7).compareTo(stats.getAgilityScore()));
-        assertEquals(0, BigDecimal.valueOf(8).compareTo(stats.getTeamworkScore()));
-        assertEquals(0, BigDecimal.valueOf(9).compareTo(stats.getManaScore()));
-        assertEquals(0, BigDecimal.valueOf(10).compareTo(stats.getHealthScore()));
+        assertEquals(0, BigDecimal.valueOf(2).compareTo(stats.getAttackScore()));
+        assertEquals(0, BigDecimal.valueOf(3).compareTo(stats.getDefenseScore()));
+        assertEquals(0, BigDecimal.valueOf(4).compareTo(stats.getAgilityScore()));
+        assertEquals(0, BigDecimal.valueOf(5).compareTo(stats.getTeamworkScore()));
+        assertEquals(0, BigDecimal.valueOf(6).compareTo(stats.getManaScore()));
+        assertEquals(0, BigDecimal.valueOf(7).compareTo(stats.getHealthScore()));
         assertEquals(0, stats.getEvaluationCount());
     }
 
@@ -162,6 +162,16 @@ class UserControllerTest {
                         .header("Authorization", "Bearer " + login())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(initialStatsBody(0, 6, 7, 8, 9, 10)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.INVALID_INPUT_VALUE.name()));
+    }
+
+    @Test
+    void 초기_능력치_합이_40을_초과하면_400을_반환한다() throws Exception {
+        mockMvc.perform(patch("/api/users/me/initial-stats")
+                        .header("Authorization", "Bearer " + login())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(initialStatsBody(10, 10, 10, 5, 5, 5)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.INVALID_INPUT_VALUE.name()));
     }

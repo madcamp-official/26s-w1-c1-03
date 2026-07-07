@@ -153,13 +153,13 @@ class EvaluationControllerTest {
         mockMvc.perform(post("/api/evaluations")
                         .header("Authorization", "Bearer " + evaluatorToken)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(evaluationBody(10, 10, 10, 10, 10, 10, List.of())))
+                        .content(evaluationBody(6, 6, 6, 6, 6, 6, List.of())))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.totalScore").value(60));
+                .andExpect(jsonPath("$.data.totalScore").value(36));
 
         UserStats stats = userStatsRepository.findById(targetUserId).orElseThrow();
-        // EMA: 0.3 * 10 + 0.7 * 5 = 6.50
-        assertEquals(0, new BigDecimal("6.50").compareTo(stats.getAttackScore()));
+        // EMA: 0.3 * 6 + 0.7 * 5 = 5.30
+        assertEquals(0, new BigDecimal("5.30").compareTo(stats.getAttackScore()));
         assertEquals(1, stats.getEvaluationCount());
     }
 
@@ -264,6 +264,16 @@ class EvaluationControllerTest {
                         .header("Authorization", "Bearer " + evaluatorToken)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(evaluationBody(11, 5, 5, 5, 5, 5, List.of())))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.errorCode").value(ErrorCode.INVALID_INPUT_VALUE.name()));
+    }
+
+    @Test
+    void 점수_합이_40을_초과하면_400을_반환한다() throws Exception {
+        mockMvc.perform(post("/api/evaluations")
+                        .header("Authorization", "Bearer " + evaluatorToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(evaluationBody(10, 10, 10, 5, 5, 5, List.of())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.errorCode").value(ErrorCode.INVALID_INPUT_VALUE.name()));
     }
