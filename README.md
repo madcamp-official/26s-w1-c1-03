@@ -153,7 +153,7 @@
 
 - **Base URL**: `/api`
 - **인증**: `/api/auth/login`, `/api/auth/refresh`를 제외한 모든 엔드포인트는 `Authorization: Bearer <accessToken>` 헤더가 필요하다.
-- **응답 포맷(성공)**: 모든 성공 응답은 아래 형태로 감싸져 내려온다. 표의 "응답"란은 `data` 필드의 내용만 표기한다.
+- **응답 포맷(성공)**: 모든 성공 응답은 아래 형태로 감싸져 내려온다. 아래 각 엔드포인트의 `Response`는 `data` 필드의 내용만 표기한다.
   ```json
   { "success": true, "data": { ... }, "timestamp": "2026-07-07T12:00:00" }
   ```
@@ -166,71 +166,183 @@
 
 ### 인증 (Auth)
 
-| Method | Endpoint | 설명 | 요청 | 응답 | 주요 에러 |
-|---|---|---|---|---|---|
-| POST | `/api/auth/login` | 로그인, access/refresh 토큰 발급 (공개 경로) | `{userId, password}` | `{accessToken, refreshToken, passwordChanged}` | `INVALID_CREDENTIALS` |
-| POST | `/api/auth/refresh` | refresh token으로 access/refresh 토큰 재발급 (공개 경로) | `{refreshToken}` | `{accessToken, refreshToken, passwordChanged}` | `INVALID_REFRESH_TOKEN` |
-| PATCH | `/api/auth/password` | 비밀번호 변경. 성공 시 갱신된 `passwordChanged` 상태를 담은 새 토큰 쌍을 즉시 반환한다 | `{currentPassword, newPassword}` | `{accessToken, refreshToken, passwordChanged}` | `INVALID_CREDENTIALS` |
+| Method | Endpoint | 설명 | 인증 |
+|---|---|---|---|
+| POST | `/api/auth/login` | 로그인, 토큰 발급 | 불필요 |
+| POST | `/api/auth/refresh` | 토큰 재발급 | 불필요 |
+| PATCH | `/api/auth/password` | 비밀번호 변경 | 필요 |
+
+```
+POST /api/auth/login
+  Request   { userId, password }
+  Response  { accessToken, refreshToken, passwordChanged }
+  Errors    INVALID_CREDENTIALS
+
+POST /api/auth/refresh
+  Request   { refreshToken }
+  Response  { accessToken, refreshToken, passwordChanged }
+  Errors    INVALID_REFRESH_TOKEN
+
+PATCH /api/auth/password
+  설명      비밀번호 변경 성공 시 갱신된 passwordChanged 상태를 담은 새 토큰 쌍을 즉시 반환한다.
+  Request   { currentPassword, newPassword }
+  Response  { accessToken, refreshToken, passwordChanged }
+  Errors    INVALID_CREDENTIALS
+```
 
 ### 사용자 (User)
 
-| Method | Endpoint | 설명 | 요청 | 응답 | 주요 에러 |
-|---|---|---|---|---|---|
-| GET | `/api/users/me` | 내 프로필 조회 | - | `{id, userId, name, profileImageUrl, biography, passwordChanged, onboarded, stats}` | - |
-| PATCH | `/api/users/me` | 프로필 수정. **부분 수정**: 요청에 없는(null) 필드는 기존 값을 유지한다 | `{profileImageUrl?, biography?}` | `UserProfileResponse` (위와 동일) | `INVALID_INPUT_VALUE` |
-| PATCH | `/api/users/me/initial-stats` | 초기 능력치 설정(최초 1회, 값 1~10) | `{attack, defense, agility, teamwork, mana, health}` | `UserProfileResponse` | `INITIAL_STATS_ALREADY_SET` |
-| POST | `/api/users/me/profile-image` | 프로필 사진 업로드 (`multipart/form-data`, 필드명 `file`) | `file` (PNG/JPEG/WEBP, 5MB 이하) | `UserProfileResponse` | `STORAGE_UPLOAD_FAILED` |
+| Method | Endpoint | 설명 | 인증 |
+|---|---|---|---|
+| GET | `/api/users/me` | 내 프로필 조회 | 필요 |
+| PATCH | `/api/users/me` | 프로필 수정 (부분 수정) | 필요 |
+| PATCH | `/api/users/me/initial-stats` | 초기 능력치 설정(최초 1회) | 필요 |
+| POST | `/api/users/me/profile-image` | 프로필 사진 업로드 | 필요 |
 
-`stats`는 온보딩(초기 능력치 설정)을 완료하지 않았으면 `null`이다.
+```
+GET /api/users/me
+  Response  { id, userId, name, profileImageUrl, biography, passwordChanged, onboarded, stats }
+            stats는 온보딩(초기 능력치 설정) 전에는 null.
+
+PATCH /api/users/me
+  설명      요청 JSON에 없는(null) 필드는 기존 값을 그대로 유지한다(부분 수정).
+  Request   { profileImageUrl?, biography? }
+  Response  위 GET과 동일한 UserProfileResponse
+  Errors    INVALID_INPUT_VALUE
+
+PATCH /api/users/me/initial-stats
+  Request   { attack, defense, agility, teamwork, mana, health }  # 각 1~10
+  Response  UserProfileResponse
+  Errors    INITIAL_STATS_ALREADY_SET, INVALID_INPUT_VALUE
+
+POST /api/users/me/profile-image
+  설명      multipart/form-data, 필드명 file (PNG/JPEG/WEBP, 5MB 이하)
+  Response  UserProfileResponse
+  Errors    STORAGE_UPLOAD_FAILED
+```
 
 ### 팀 (Team)
 
-| Method | Endpoint | 설명 | 요청 | 응답 | 주요 에러 |
-|---|---|---|---|---|---|
-| POST | `/api/teams` | 팀 생성(생성자가 자동으로 팀장 겸 첫 멤버가 됨) | `{name, projectDeadline}` | `{id, name, inviteCode, ownerId, ownerName, memberCount, projectDeadline}` | `INVALID_INPUT_VALUE` |
-| POST | `/api/teams/join` | 초대 코드로 팀 참여(탈퇴 후 재참여 포함) | `{inviteCode}` | `TeamResponse` (위와 동일) | `TEAM_NOT_FOUND`, `ALREADY_TEAM_MEMBER`, `TEAM_DEADLINE_PASSED` |
-| GET | `/api/teams` | 내가 속한(탈퇴하지 않은) 팀 목록 조회 | - | `TeamResponse[]` | - |
-| GET | `/api/teams/{teamId}` | 팀 상세 조회(멤버 목록 포함) | - | `{team: TeamResponse, members: TeamMemberResponse[]}` | `TEAM_NOT_FOUND`, `NOT_TEAM_MEMBER` |
-| DELETE | `/api/teams/{teamId}/members/me` | 팀 탈퇴 | - | `null` | `NOT_TEAM_MEMBER` |
+| Method | Endpoint | 설명 | 인증 |
+|---|---|---|---|
+| POST | `/api/teams` | 팀 생성 | 필요 |
+| POST | `/api/teams/join` | 초대 코드로 팀 참여 | 필요 |
+| GET | `/api/teams` | 내 팀 목록 조회 | 필요 |
+| GET | `/api/teams/{teamId}` | 팀 상세(멤버 목록) 조회 | 필요 |
+| DELETE | `/api/teams/{teamId}/members/me` | 팀 탈퇴 | 필요 |
 
-`TeamMemberResponse`: `{userId, loginId, name, profileImageUrl, isOwner}`. `projectDeadline`이 지난 팀에는 신규 가입도, 탈퇴 후 재가입도 불가능하다.
+```
+POST /api/teams
+  설명      생성자가 자동으로 팀장 겸 첫 멤버가 된다.
+  Request   { name, projectDeadline }
+  Response  { id, name, inviteCode, ownerId, ownerName, memberCount, projectDeadline }
+  Errors    INVALID_INPUT_VALUE
+
+POST /api/teams/join
+  설명      탈퇴 후 재참여 포함. 마감 기한이 지난 팀은 신규/재참여 모두 불가.
+  Request   { inviteCode }
+  Response  위 POST /api/teams와 동일한 TeamResponse
+  Errors    TEAM_NOT_FOUND, ALREADY_TEAM_MEMBER, TEAM_DEADLINE_PASSED
+
+GET /api/teams
+  Response  TeamResponse[]  (탈퇴하지 않은 팀만)
+
+GET /api/teams/{teamId}
+  Response  { team: TeamResponse, members: TeamMemberResponse[] }
+            TeamMemberResponse: { userId, loginId, name, profileImageUrl, isOwner }
+  Errors    TEAM_NOT_FOUND, NOT_TEAM_MEMBER
+
+DELETE /api/teams/{teamId}/members/me
+  Response  없음
+  Errors    NOT_TEAM_MEMBER
+```
 
 ### 팀원 평가 (Evaluation)
 
-| Method | Endpoint | 설명 | 요청 | 응답 | 주요 에러 |
-|---|---|---|---|---|---|
-| GET | `/api/evaluations/targets` | 내가 평가해야 할 대상자 목록 조회(같은 사람과 여러 팀을 함께했어도 한 번만 노출) | - | `{teamId, teamName, userId, name, profileImageUrl, alreadyEvaluated}[]` | - |
-| POST | `/api/evaluations` | 팀원 평가 제출(능력치 6항목 + 칭호 투표). 같은 대상은 팀이 달라도 한 번만 평가 가능 | `{teamId, targetUserId, attack, defense, agility, teamwork, mana, health, titleIds[]}` | `{id, teamId, targetUserId, totalScore}` | `PROJECT_NOT_FINISHED`, `NOT_TEAM_MEMBER`, `EVALUATION_ALREADY_SUBMITTED`, `TITLE_NOT_FOUND`, `INVALID_INPUT_VALUE` |
+| Method | Endpoint | 설명 | 인증 |
+|---|---|---|---|
+| GET | `/api/evaluations/targets` | 평가해야 할 대상자 목록 조회 | 필요 |
+| POST | `/api/evaluations` | 팀원 평가 제출 | 필요 |
 
-평가 점수는 단순 평균이 아니라 EMA(지수 이동 평균, α=0.3)로 누적 반영된다. `titleIds`는 중복 선택 불가.
+```
+GET /api/evaluations/targets
+  설명      같은 사람과 여러 팀을 함께했어도 평가 대상은 한 번만 노출된다.
+  Response  { teamId, teamName, userId, name, profileImageUrl, alreadyEvaluated }[]
+
+POST /api/evaluations
+  설명      능력치 6항목 + 칭호 투표(중복 선택 불가). 같은 대상은 팀이 달라도 한 번만 평가 가능.
+            점수는 단순 평균이 아니라 EMA(지수 이동 평균, α=0.3)로 누적 반영된다.
+  Request   { teamId, targetUserId, attack, defense, agility, teamwork, mana, health, titleIds[] }  # 점수 각 1~10
+  Response  { id, teamId, targetUserId, totalScore }
+  Errors    PROJECT_NOT_FINISHED, NOT_TEAM_MEMBER, EVALUATION_ALREADY_SUBMITTED,
+            TITLE_NOT_FOUND, INVALID_INPUT_VALUE
+```
 
 ### 카드 도감 (Card)
 
-| Method | Endpoint | 설명 | 요청 | 응답 | 주요 에러 |
-|---|---|---|---|---|---|
-| GET | `/api/cards` | 전체 참가자 카드 목록 조회 | - | `CardSummaryResponse[]` | - |
-| GET | `/api/cards/{userId}` | 카드 상세 조회 | - | `CardDetailResponse` | `RESOURCE_NOT_FOUND` |
+| Method | Endpoint | 설명 | 인증 |
+|---|---|---|---|
+| GET | `/api/cards` | 전체 참가자 카드 목록 조회 | 필요 |
+| GET | `/api/cards/{userId}` | 카드 상세 조회 | 필요 |
 
-- `CardSummaryResponse`: `{userId, name, profileImageUrl, representativeTitles[], stats, isUnlocked, remainingCount}`
-- `CardDetailResponse`: `{userId, name, profileImageUrl, representativeTitles[], stats, isUnlocked, remainingCount, biography, titles}` (`titles`: `{name, icon, voteCount}[]`)
-- 잠긴 상태(`isUnlocked=false`)에서는 이름/프로필사진/대표 칭호만 내려오고 `stats`·`biography`·`titles`는 `null`이다. `remainingCount`는 잠금 해제까지 남은 평가 인원 수.
+```
+GET /api/cards
+  Response  CardSummaryResponse[]
+            { userId, name, profileImageUrl, representativeTitles[], stats, isUnlocked, remainingCount }
+
+GET /api/cards/{userId}
+  Response  CardDetailResponse
+            { userId, name, profileImageUrl, representativeTitles[], stats, isUnlocked,
+              remainingCount, biography, titles }
+            titles: { name, icon, voteCount }[]
+  Errors    RESOURCE_NOT_FOUND
+
+  잠긴 상태(isUnlocked=false)에서는 이름/프로필사진/대표 칭호만 내려오고 stats·biography·titles는
+  null이다. remainingCount는 잠금 해제까지 남은 평가 인원 수.
+```
 
 ### AI 분석 (Chat)
 
-| Method | Endpoint | 설명 | 요청 | 응답 | 주요 에러 |
-|---|---|---|---|---|---|
-| POST | `/api/chat/sessions` | 분석 세션 생성(카드 1장이면 개별 분석, 여러 장이면 비교/조합 분석) | `{targetUserIds[], title?}` | `{id, title, targets[], createdAt}` | `CHAT_LOCKED`, `RESOURCE_NOT_FOUND` |
-| GET | `/api/chat/sessions` | 내 세션 목록 조회 | - | `ChatSessionResponse[]` | `CHAT_LOCKED` |
-| GET | `/api/chat/sessions/{sessionId}` | 세션 상세(대화 내역 포함) 조회 | - | `{id, title, targets[], messages[], createdAt}` | `CHAT_LOCKED`, `RESOURCE_NOT_FOUND` |
-| POST | `/api/chat/sessions/{sessionId}/messages` | 세션에 메시지 전송, AI 응답 수신 | `{content}` | `{id, role, content, createdAt}` (AI 메시지만 반환) | `CHAT_LOCKED`, `RESOURCE_NOT_FOUND`, `OPENAI_REQUEST_FAILED` |
+| Method | Endpoint | 설명 | 인증 |
+|---|---|---|---|
+| POST | `/api/chat/sessions` | 분석 세션 생성 | 필요 |
+| GET | `/api/chat/sessions` | 내 세션 목록 조회 | 필요 |
+| GET | `/api/chat/sessions/{sessionId}` | 세션 상세(대화 내역) 조회 | 필요 |
+| POST | `/api/chat/sessions/{sessionId}/messages` | 메시지 전송, AI 응답 수신 | 필요 |
 
-`targets`는 `{userId, name, profileImageUrl}[]`. 카드 상세와 동일한 잠금 정책이 세션 생성/조회/메시지 전송 전체에 적용된다.
+```
+POST /api/chat/sessions
+  설명      카드 1장이면 개별 분석, 여러 장이면 비교/조합 분석.
+  Request   { targetUserIds[], title? }
+  Response  { id, title, targets[], createdAt }   # targets: { userId, name, profileImageUrl }[]
+  Errors    CHAT_LOCKED, RESOURCE_NOT_FOUND
+
+GET /api/chat/sessions
+  Response  ChatSessionResponse[]  (위 POST 응답과 동일한 모양)
+  Errors    CHAT_LOCKED
+
+GET /api/chat/sessions/{sessionId}
+  Response  { id, title, targets[], messages[], createdAt }
+  Errors    CHAT_LOCKED, RESOURCE_NOT_FOUND
+
+POST /api/chat/sessions/{sessionId}/messages
+  Request   { content }
+  Response  { id, role, content, createdAt }   # AI(assistant) 메시지만 반환
+  Errors    CHAT_LOCKED, RESOURCE_NOT_FOUND, OPENAI_REQUEST_FAILED
+```
+
+카드 상세와 동일한 잠금 정책이 세션 생성/조회/메시지 전송 전체에 적용된다.
 
 ### 칭호 (Title)
 
-| Method | Endpoint | 설명 | 요청 | 응답 |
-|---|---|---|---|---|
-| GET | `/api/titles` | 투표 가능한 전체 칭호 목록 조회 | - | `{id, name, description, icon}[]` |
+| Method | Endpoint | 설명 | 인증 |
+|---|---|---|---|
+| GET | `/api/titles` | 투표 가능한 전체 칭호 목록 조회 | 필요 |
+
+```
+GET /api/titles
+  Response  { id, name, description, icon }[]
+```
 
 ---
 
@@ -239,6 +351,8 @@
 > 접속 가능한 링크, 실행 방법, 주요 구현 내용
 
 - **서비스 URL:**
+http://madmon.madcamp-kaist.org
+
 - **실행 방법:**
 
 ```bash
