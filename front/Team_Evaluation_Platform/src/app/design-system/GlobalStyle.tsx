@@ -14,6 +14,7 @@ export function GlobalStyle() {
       @keyframes starBreathe { 0%,100%{filter:brightness(1) saturate(1)} 50%{filter:brightness(1.4) saturate(1.15)} }
       @keyframes targetPulse { 0%{transform:scale(0.5);opacity:.9} 100%{transform:scale(2.1);opacity:0} }
       @keyframes slideInPanel { from{opacity:0;transform:translateX(48px)} to{opacity:1;transform:translateX(0)} }
+      @keyframes blinkDim { 0%,100%{opacity:1} 50%{opacity:.35} }
       input[type=range]{height:4px;cursor:pointer}
       input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:rgba(255,255,255,0.1)}
       input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;margin-top:-5px}
