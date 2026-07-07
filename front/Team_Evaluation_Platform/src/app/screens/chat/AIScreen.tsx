@@ -35,7 +35,7 @@ export function AIScreen() {
       const mapped = list.map(cardToUser);
       setCards(mapped);
       if (mapped[0]) setSelected([mapped[0].id]);
-    }).catch(e=>setError(e instanceof ApiError ? e.message : "카드 목록을 불러오지 못했습니다."));
+    }).catch(e=>setError(e instanceof ApiError ? e.message : "참가자 목록을 불러오지 못했습니다."));
   },[]);
 
   // 선택된 카드 조합이 바뀌면 새 대화 세션에서 다시 시작한다.

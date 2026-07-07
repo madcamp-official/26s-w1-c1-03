@@ -36,7 +36,7 @@ export function CompareScreen() {
   useEffect(()=>{
     listCards()
       .then(list=>setCards(list.map(cardToUser)))
-      .catch(e=>setError(e instanceof ApiError ? e.message : "카드 목록을 불러오지 못했습니다."));
+      .catch(e=>setError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."));
   },[]);
 
   const locked = deriveEvaluationLocked(cards);
