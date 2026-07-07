@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Notebook, ChevronRight, LogOut, BookOpen, Users, Star, Sparkles, BarChart2, User } from "lucide-react";
+import { Notebook, ChevronRight, LogOut, Telescope, Users, Star, Sparkles, BarChart2, User } from "lucide-react";
 import { getMyProfile, type UserProfileDto } from "../api";
 import type { MainScreen } from "../types";
 import { RARITY } from "../constants/rarity";
@@ -7,7 +7,7 @@ import { FALLBACK_AVATAR, handleImgError } from "../lib/avatar";
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 const NAV = [
-  { id:"pokedex" as MainScreen,     label:"도감",       Icon:BookOpen  },
+  { id:"pokedex" as MainScreen,     label:"은하",       Icon:Telescope },
   { id:"teams" as MainScreen,       label:"팀 관리",    Icon:Users     },
   { id:"evaluate" as MainScreen,    label:"팀원 평가",  Icon:Star      },
   { id:"ai-analysis" as MainScreen, label:"AI 분석",    Icon:Sparkles  },

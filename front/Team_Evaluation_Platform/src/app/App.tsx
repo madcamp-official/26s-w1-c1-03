@@ -8,7 +8,7 @@ import { ScreenErrorBoundary } from "./components/ScreenErrorBoundary";
 import { LoginScreen } from "./screens/auth/LoginScreen";
 import { ChangePasswordScreen } from "./screens/auth/ChangePasswordScreen";
 import { ProfileSetupScreen } from "./screens/auth/ProfileSetupScreen";
-import { PokedexScreen } from "./screens/pokedex/PokedexScreen";
+import { GalaxyScreen } from "./screens/galaxy/GalaxyScreen";
 import { TeamsScreen } from "./screens/teams/TeamsScreen";
 import { EvaluateScreen } from "./screens/evaluate/EvaluateScreen";
 import { AIScreen } from "./screens/chat/AIScreen";
@@ -79,7 +79,7 @@ export default function App() {
         <Sidebar screen={screen} setScreen={s=>{setScreen(s);}} onLogout={handleLogout}/>
         <main style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
           <ScreenErrorBoundary key={screen}>
-            {screen==="pokedex"     && <PokedexScreen onEval={()=>setScreen("evaluate")}/>}
+            {screen==="pokedex"     && <GalaxyScreen onEval={()=>setScreen("evaluate")}/>}
             {screen==="teams"       && <TeamsScreen/>}
             {screen==="evaluate"    && <EvaluateScreen onDone={()=>setScreen("pokedex")}/>}
             {screen==="ai-analysis" && <AIScreen/>}
