@@ -211,31 +211,28 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
                 background:`radial-gradient(circle, rgba(${layout.glowC},.35), transparent 70%)`,
                 opacity: emphasize ? 1 : 0, transition:"opacity .4s ease", pointerEvents:"none",
               }}/>
-              {/* 락온된 별에는 조준원 회전 + 반복 펄스가 "관측 중"인 내내(확대된 뒤에도) 계속
-                  돈다 — design_example 실제 동작 기준. "TARGET LOCK" 텍스트만 선택 직후
-                  0.75초짜리 확인 문구로 잠깐 떴다 사라진다. */}
+              {/* TARGET LOCK: design_example 실제 마크업 그대로(고정 110px 링 2개 + 텍스트),
+                  별이 선택돼 있는 내내(확대된 뒤에도) 계속 돈다 — 잠깐 떴다 사라지는 게 아니다. */}
               {isSel && (
                 <>
                   <div style={{
-                    position:"absolute", left:"50%", top:"50%", width:layout.size*2.8, height:layout.size*2.8,
-                    marginLeft:-layout.size*1.4, marginTop:-layout.size*1.4, borderRadius:"50%",
-                    border:`1.5px dashed ${SPACE.accentTeal}`, animation:"orbitSpin 8s linear infinite",
+                    position:"absolute", left:"50%", top:"50%", width:110, height:110,
+                    transform:"translate(-50%,-50%)", borderRadius:"50%",
+                    border:"1px dashed rgba(94,234,212,.75)", animation:"spinSlowC 9s linear infinite",
                     pointerEvents:"none",
                   }}/>
                   <div style={{
-                    position:"absolute", left:"50%", top:"50%", width:layout.size*2.4, height:layout.size*2.4,
-                    marginLeft:-layout.size*1.2, marginTop:-layout.size*1.2, borderRadius:"50%",
-                    border:`1.5px solid ${SPACE.accentTeal}`, animation:"targetPulse 2.2s ease-out infinite",
+                    position:"absolute", left:"50%", top:"50%", width:110, height:110,
+                    transform:"translate(-50%,-50%)", borderRadius:"50%",
+                    border:"1px solid rgba(94,234,212,.4)", animation:"pulseRing 1.6s ease-out infinite",
                     pointerEvents:"none",
                   }}/>
+                  <div style={{
+                    position:"absolute", left:"50%", top:"50%", transform:"translate(-50%,-84px)",
+                    whiteSpace:"nowrap", fontFamily:FONT_HUD, fontSize:9, letterSpacing:"3px", color:"#5EEAD4",
+                    animation:"fadeIn .5s both", pointerEvents:"none",
+                  }}>TARGET LOCK</div>
                 </>
-              )}
-              {isSel && lockStage===1 && (
-                <div style={{
-                  position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", marginTop:layout.size*1.6,
-                  whiteSpace:"nowrap", fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.accentTeal,
-                  animation:"fadeIn .2s ease both", pointerEvents:"none",
-                }}>TARGET LOCK</div>
               )}
               {/* star core */}
               <div style={{
