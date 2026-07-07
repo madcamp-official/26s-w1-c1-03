@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { Notebook, Lock } from "lucide-react";
 import { changePassword as apiChangePassword, ApiError } from "../../api";
-import { DS } from "../../design-system/tokens";
-import { Btn, Field } from "../../design-system/primitives";
+import {
+  OBS, ObservatoryStyle, SpaceBackground, ObsPanel, ObsField, ObsButton, ObsError, MonoLabel,
+} from "../../design-system/observatory";
 
 export function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
   const [cur, setCur] = useState("");
@@ -25,34 +25,44 @@ export function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
     }
   }
   return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#070b12", position:"relative", overflow:"hidden" }}>
-      <div style={{ position:"absolute", inset:0, backgroundImage:"radial-gradient(circle at 50% 30%, rgba(168,85,247,0.08) 0%, transparent 60%)" }}/>
-      <div style={{ ...DS.card, width:400, padding:"38px 36px", position:"relative", zIndex:1 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:9, marginBottom:24 }}>
-          <div style={{ width:32, height:32, borderRadius:9, background:"linear-gradient(135deg,rgba(0,200,255,0.2),rgba(168,85,247,0.2))", border:"1px solid rgba(0,200,255,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <Notebook size={15} style={{color:"#00c8ff"}}/>
+    <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", background: OBS.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <ObservatoryStyle/>
+      <SpaceBackground/>
+
+      <div style={{ position: "absolute", top: 26, left: 32, display: "flex", alignItems: "baseline", gap: 14, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
+        <span style={{ fontFamily: OBS.display, fontWeight: 600, fontSize: 14, letterSpacing: 5, color: OBS.starWhite }}>MADMON</span>
+        <MonoLabel size={10} spacing={3}>DEEP-SKY OBSERVATORY</MonoLabel>
+      </div>
+      <div style={{ position: "absolute", bottom: 26, left: 32, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
+        <MonoLabel size={10} spacing={2.5}><span style={{ color: OBS.violet }}>◉</span> SECURITY PROTOCOL ACTIVE</MonoLabel>
+      </div>
+
+      <div style={{ position: "relative", zIndex: 1, animation: "obsFadeUp 1s both" }}>
+        <ObsPanel width={400} style={{ padding: "24px 28px 26px" }} bracketColor={OBS.violet}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
+            <MonoLabel size={9.5} spacing={3.5} color={OBS.violet}>SECURITY PROTOCOL</MonoLabel>
+            <MonoLabel size={9.5} spacing={2}>AUTH-02</MonoLabel>
           </div>
-          <div>
-            <div style={{ fontSize:11, fontFamily:"'Noto Sans KR'", color:"#00c8ff", fontWeight:700 }}>매드몬 도감</div>
-            <div style={{ fontSize:9, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>팀원 평가 플랫폼</div>
+          <div style={{ marginBottom: 22 }}>
+            <div style={{ fontFamily: OBS.display, fontSize: 18, fontWeight: 600, letterSpacing: 1, color: OBS.title, marginBottom: 5 }}>
+              비밀번호 변경
+            </div>
+            <p style={{ fontSize: 12, fontWeight: 300, lineHeight: 1.7, color: OBS.sub, fontFamily: OBS.kr, margin: 0 }}>
+              최초 접속이 확인되었습니다. 관측소 보안을 위해 접속 코드를 재설정해주세요.
+            </p>
           </div>
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:28 }}>
-          <div style={{ width:36, height:36, borderRadius:10, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <Lock size={16} style={{color:"#a855f7"}}/>
-          </div>
-          <div>
-            <h2 style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>비밀번호 변경</h2>
-            <p style={{ fontSize:11, color:"#4a5a7a", fontFamily:"'Noto Sans KR'" }}>최초 로그인 시 비밀번호를 변경해주세요</p>
-          </div>
-        </div>
-        <form onSubmit={e=>{ e.preventDefault(); handle(); }} style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <Field label="현재 비밀번호" type="password" value={cur} onChange={setCur} placeholder="기존 비밀번호" autoComplete="current-password"/>
-          <Field label="새 비밀번호" type="password" value={np} onChange={setNp} placeholder="8자 이상" autoComplete="new-password"/>
-          <Field label="새 비밀번호 확인" type="password" value={nc} onChange={setNc} placeholder="다시 입력" autoComplete="new-password"/>
-          {err && <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>}
-          <Btn full type="submit" variant="purple" disabled={loading}>{loading?"변경 중...":"변경하기"}</Btn>
-        </form>
+          <form onSubmit={e => { e.preventDefault(); handle(); }} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <ObsField label="CURRENT CODE" labelKr="현재 비밀번호" type="password" value={cur} onChange={setCur} placeholder="기존 비밀번호" autoComplete="current-password"/>
+            <ObsField label="NEW CODE" labelKr="새 비밀번호" type="password" value={np} onChange={setNp} placeholder="8자 이상" autoComplete="new-password"/>
+            <ObsField label="CONFIRM CODE" labelKr="새 비밀번호 확인" type="password" value={nc} onChange={setNc} placeholder="다시 입력" autoComplete="new-password"/>
+            {err && <ObsError>{err}</ObsError>}
+            <div style={{ marginTop: 4 }}>
+              <ObsButton type="submit" disabled={loading} blink={loading}>
+                {loading ? "⌁ UPDATING CODE…" : "◉ UPDATE ACCESS CODE · 변경"}
+              </ObsButton>
+            </div>
+          </form>
+        </ObsPanel>
       </div>
     </div>
   );

@@ -1,25 +1,28 @@
 import { useState, useEffect, useRef } from "react";
-import { Check, Bot, Send, RefreshCw } from "lucide-react";
 import { listCards, createChatSession, sendChatMessage, ApiError } from "../../api";
 import type { User, ChatMessage } from "../../types";
-import { RARITY } from "../../constants/rarity";
 import { cardToUser, deriveEvaluationLocked } from "../../lib/cardMapping";
 import { handleImgError } from "../../lib/avatar";
-import { DS } from "../../design-system/tokens";
+import { OBS, ObservatoryStyle, SpaceBackground, MonoLabel } from "../../design-system/observatory";
 
 const AI_QUESTIONS = [
   "이 사람의 강점은?", "우리 팀 조합은 어때?", "누가 백엔드에 적합할까?",
   "팀의 시너지는?", "부족한 역할은?", "누굴 추가하면 좋을까?",
 ];
 
-// (기존에는 여기서 로컬 목업 AI 응답을 만들었지만, 이제 AIScreen이 실제 /api/chat 세션을 호출한다.)
+// 별 색 변주(design.md §3): 청백 / 순백 / 보라를 대상 목록에 순환 적용한다.
+const STAR_COLORS = [
+  { core: "#9ed2ff", glow: "125,190,255" },
+  { core: "#f2f6ff", glow: "220,235,255" },
+  { core: "#c4b0ff", glow: "167,139,250" },
+];
 
-// ─── AI Analysis Screen ───────────────────────────────────────────────────────
+// ─── AI Analysis Screen (MADMON CORE) ─────────────────────────────────────────
 export function AIScreen() {
   const [cards, setCards] = useState<User[]|null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [sessionId, setSessionId] = useState<number|null>(null);
-  const [msgs, setMsgs] = useState<ChatMessage[]>([{ role:"ai", text:"안녕하세요! 선택된 카드를 기반으로 팀원 분석을 도와드립니다. 아래 예시 질문을 선택하거나 직접 입력해보세요." }]);
+  const [msgs, setMsgs] = useState<ChatMessage[]>([{ role:"ai", text:"MADMON CORE 온라인. 선택된 별들의 관측 기록을 기반으로 분석을 시작합니다. 아래 예시 질문을 선택하거나 직접 입력하세요." }]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [error, setError] = useState("");
@@ -58,7 +61,7 @@ export function AIScreen() {
       setDisplayIdx(newMsgs.length); setDisplayText("");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "AI 응답을 가져오지 못했습니다.");
-      setMsgs(m=>[...m,{role:"ai",text:"죄송해요, 지금은 답변을 가져올 수 없어요. 잠시 후 다시 시도해주세요."}]);
+      setMsgs(m=>[...m,{role:"ai",text:"통신 링크가 불안정합니다. 안테나를 재정렬하는 동안 잠시 후 다시 질문해 주세요."}]);
     } finally {
       setTyping(false);
     }
@@ -75,69 +78,129 @@ export function AIScreen() {
     return ()=>clearInterval(iv);
   },[displayIdx]);
 
+  const canSend = !locked && input.trim() !== "" && !typing;
+
   return (
-    <div style={{ display:"flex", height:"100%", overflow:"hidden" }}>
-      {/* Left panel */}
-      <div style={{ width:220, borderRight:"1px solid rgba(255,255,255,0.06)", padding:"18px 14px", display:"flex", flexDirection:"column", gap:10, overflowY:"auto" }}>
-        <p style={{ fontSize:11, color:"#8899bb", fontFamily:"'Noto Sans KR'", marginBottom:4 }}>분석할 카드 선택</p>
+    <div style={{ display:"flex", height:"100%", overflow:"hidden", position:"relative", background:OBS.bg }}>
+      <ObservatoryStyle/>
+      <SpaceBackground density={45} dimmed/>
+
+      {/* 좌측: 관측 대상 선택 */}
+      <div style={{ position:"relative", zIndex:1, width:236, borderRight:OBS.borderSoft, padding:"20px 16px", display:"flex", flexDirection:"column", gap:9, overflowY:"auto" }}>
+        <div style={{ marginBottom:8 }}>
+          <MonoLabel size={9.5} spacing={3.5}>TARGET SELECTION <span style={{ color:OBS.faint }}>· 분석 대상</span></MonoLabel>
+        </div>
         {cards===null ? (
-          <div style={{ display:"flex", alignItems:"center", gap:6 }}><RefreshCw size={13} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/><span style={{ color:"#8899bb", fontFamily:"'Noto Sans KR'", fontSize:11 }}>불러오는 중...</span></div>
-        ) : cards.map(u=>{
-          const r=RARITY[u.rarity]; const sel=selected.includes(u.id);
+          <div style={{ animation:"obsBlinkDim 1.1s ease-in-out infinite" }}>
+            <MonoLabel size={9.5} spacing={2.5} color={OBS.teal}>⌁ SCANNING GALAXY…</MonoLabel>
+          </div>
+        ) : cards.map((u,idx)=>{
+          const star=STAR_COLORS[idx%STAR_COLORS.length]; const sel=selected.includes(u.id);
           return (
-            <div key={u.id} onClick={()=>toggleSel(u.id)} style={{ display:"flex", alignItems:"center", gap:8, padding:"8px 10px", borderRadius:9, cursor:"pointer", background:sel?r.bg:"rgba(255,255,255,0.02)", border:`1px solid ${sel?r.border:"rgba(255,255,255,0.06)"}`, transition:"all 0.15s" }}>
-              <div style={{ width:28, height:28, borderRadius:999, overflow:"hidden", border:`1.5px solid ${sel?r.color:"transparent"}`, flexShrink:0 }}><img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/></div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:11, fontWeight:700, fontFamily:"'Noto Sans KR'", color:sel?r.color:"#dde5f0", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{u.name}</div>
+            <div key={u.id} onClick={()=>toggleSel(u.id)} className="obs-chip" style={{
+              display:"flex", alignItems:"center", gap:10, padding:"9px 11px", borderRadius:2, cursor:"pointer",
+              background: sel ? "rgba(94,234,212,.06)" : "rgba(125,180,255,.03)",
+              border: sel ? "1px solid rgba(94,234,212,.45)" : "1px solid rgba(125,180,255,.14)",
+            }}>
+              <div style={{
+                width:7, height:7, borderRadius:"50%", flexShrink:0, background:star.core,
+                boxShadow: sel
+                  ? `0 0 7px 2px rgba(${star.glow},.9), 0 0 14px 4px rgba(${star.glow},.4)`
+                  : `0 0 5px 1px rgba(${star.glow},.5)`,
+                transition:"box-shadow .3s",
+              }}/>
+              <div style={{ width:26, height:26, borderRadius:"50%", overflow:"hidden", flexShrink:0, border:"1px solid rgba(125,180,255,.25)", boxShadow: sel ? `0 0 10px rgba(${star.glow},.35)` : "none" }}>
+                <img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
               </div>
-              {sel && <Check size={11} style={{color:r.color,flexShrink:0}}/>}
+              <div style={{ flex:1, minWidth:0, fontSize:12.5, fontWeight:sel?500:300, fontFamily:OBS.kr, color:sel?"#BAE6FD":OBS.body, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {u.name}
+              </div>
+              {sel && <span style={{ color:OBS.teal, fontSize:9, flexShrink:0, fontFamily:OBS.mono }}>◉</span>}
             </div>
           );
         })}
-      </div>
-      {/* Chat panel */}
-      <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-        <div style={{ padding:"16px 20px", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:28, height:28, borderRadius:8, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", display:"flex", alignItems:"center", justifyContent:"center" }}><Bot size={14} style={{color:"#a855f7"}}/></div>
-          <div>
-            <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>AI 팀 분석</div>
-            <div style={{ fontSize:10, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>{selUsers.length}명 선택됨</div>
+        {locked && (
+          <div style={{ marginTop:6, padding:"10px 11px", border:"1px dashed rgba(125,180,255,.25)", borderRadius:2 }}>
+            <div style={{ marginBottom:4 }}><MonoLabel size={8.5} spacing={2} color={OBS.violet}>SPECTRAL DATA LOCKED</MonoLabel></div>
+            <div style={{ fontSize:11, fontWeight:300, lineHeight:1.6, color:OBS.dim, fontFamily:OBS.kr }}>동료 관측(평가)을 완료하면 분석이 열립니다.</div>
           </div>
+        )}
+      </div>
+
+      {/* 우측: MADMON CORE 콘솔 */}
+      <div style={{ position:"relative", zIndex:1, flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        {/* 헤더 */}
+        <div style={{ padding:"17px 24px", borderBottom:OBS.borderSoft, display:"flex", alignItems:"center", gap:11 }}>
+          <span style={{ color:OBS.teal, fontSize:13 }}>◈</span>
+          <div style={{ flex:1 }}>
+            <MonoLabel size={10.5} spacing={3} color={OBS.starWhite}>MADMON CORE</MonoLabel>
+            <div style={{ marginTop:3 }}>
+              <MonoLabel size={8.5} spacing={2}>OBSERVATORY AI · <span style={{ color:OBS.teal }}>ONLINE</span></MonoLabel>
+            </div>
+          </div>
+          <MonoLabel size={9} spacing={2}>{selUsers.length} TARGET{selUsers.length===1?"":"S"} LOCKED <span style={{ color:OBS.faint }}>· {selUsers.length}명 선택됨</span></MonoLabel>
         </div>
-        <div style={{ flex:1, overflowY:"auto", padding:"16px 20px", display:"flex", flexDirection:"column", gap:12 }}>
+
+        {/* 로그 */}
+        <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
           {msgs.map((m,i)=>{
             const isLast=i===msgs.length-1; const isUser=m.role==="user";
             const text=(isLast&&i===displayIdx)?displayText:m.text;
             return (
-              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:9, flexDirection:isUser?"row-reverse":"row" }}>
-                {!isUser && <div style={{ width:28, height:28, borderRadius:8, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, marginTop:2 }}><Bot size={12} style={{color:"#a855f7"}}/></div>}
-                <div style={{ maxWidth:"72%", padding:"10px 14px", borderRadius:12, fontSize:13, fontFamily:"'Noto Sans KR'", lineHeight:1.65, whiteSpace:"pre-line", background:isUser?"rgba(0,200,255,0.12)":"rgba(255,255,255,0.04)", color:isUser?"#00c8ff":"#dde5f0", border:`1px solid ${isUser?"rgba(0,200,255,0.25)":"rgba(255,255,255,0.06)"}` }}>
+              <div key={i} style={{ marginBottom:16, animation:"obsFadeIn .5s both" }}>
+                <div style={{ marginBottom:4 }}>
+                  <MonoLabel size={8.5} spacing={2.5} color={isUser?OBS.sky:OBS.teal}>{isUser?"YOU ▸":"CORE ⌁"}</MonoLabel>
+                </div>
+                <div style={{ fontSize:13, fontWeight:300, lineHeight:1.75, whiteSpace:"pre-wrap", fontFamily:OBS.kr, color:isUser?"#8fa8cf":OBS.body }}>
                   {text}
                 </div>
               </div>
             );
           })}
           {typing && (
-            <div style={{ display:"flex", alignItems:"center", gap:9 }}>
-              <div style={{ width:28, height:28, borderRadius:8, background:"rgba(168,85,247,0.15)", border:"1px solid rgba(168,85,247,0.3)", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Bot size={12} style={{color:"#a855f7"}}/></div>
-              <div style={{ padding:"10px 14px", borderRadius:12, background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.06)", display:"flex", gap:4 }}>
-                {[0,1,2].map(i=><div key={i} style={{ width:6, height:6, borderRadius:999, background:"#8899bb", animation:`bounce 1s ${i*0.2}s infinite` }}/>)}
-              </div>
+            <div style={{ animation:"obsBlinkDim 1s ease-in-out infinite" }}>
+              <MonoLabel size={9} spacing={3} color={OBS.teal}>⌁ TRANSMITTING…</MonoLabel>
             </div>
           )}
           <div ref={msgEnd}/>
         </div>
-        {error && <p style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'", padding:"0 20px" }}>{error}</p>}
-        {/* Example Qs */}
-        <div style={{ padding:"8px 20px 0", display:"flex", flexWrap:"wrap", gap:5, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" }}>
+
+        {error && (
+          <div style={{ padding:"0 24px 6px" }}>
+            <MonoLabel size={8.5} spacing={2} color="#f87171">⚠ LINK ERROR</MonoLabel>
+            <span style={{ fontSize:11.5, fontWeight:300, color:"#fca5a5", fontFamily:OBS.kr, marginLeft:8 }}>{error}</span>
+          </div>
+        )}
+
+        {/* 예시 질문 */}
+        <div style={{ padding:"6px 24px 0", display:"flex", flexWrap:"wrap", gap:7, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" }}>
           {AI_QUESTIONS.map(q=>(
-            <button key={q} disabled={locked} onClick={()=>send(q)} style={{ padding:"5px 11px", borderRadius:999, fontSize:11, fontFamily:"'Noto Sans KR'", cursor:"pointer", background:"rgba(168,85,247,0.08)", color:"#a855f7", border:"1px solid rgba(168,85,247,0.2)", transition:"all 0.15s" }}>{q}</button>
+            <button key={q} disabled={locked} onClick={()=>send(q)} className="obs-chip" style={{
+              padding:"5px 11px", borderRadius:2, fontSize:11.5, fontWeight:300, fontFamily:OBS.kr, cursor:"pointer",
+              background:"rgba(125,180,255,.05)", color:OBS.body, border:"1px solid rgba(125,180,255,.22)",
+            }}>
+              <span style={{ color:OBS.violet, fontSize:8, marginRight:6, fontFamily:OBS.mono }}>✦</span>{q}
+            </button>
           ))}
         </div>
-        {/* Input */}
-        <div style={{ padding:"12px 20px 20px", display:"flex", gap:8 }}>
-          <input value={input} onChange={e=>setInput(e.target.value)} disabled={locked} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}}} placeholder={locked?"평가를 완료하세요":"질문을 입력하세요"} style={{ ...DS.input, flex:1, padding:"11px 14px", fontSize:13, opacity:locked?0.6:1, cursor:locked?"not-allowed":"text" }}/>
-          <button onClick={()=>send(input)} disabled={locked||!input.trim()||typing} style={{ width:42, height:42, borderRadius:10, background:!locked&&input.trim()&&!typing?"linear-gradient(135deg,#00c8ff,#0080b0)":"rgba(255,255,255,0.05)", color:!locked&&input.trim()&&!typing?"#060c18":"#4a5a7a", border:"none", cursor:!locked&&input.trim()&&!typing?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><Send size={16}/></button>
+
+        {/* 입력 콘솔 */}
+        <div style={{ margin:"12px 24px 20px", display:"flex", alignItems:"center", gap:11, padding:"12px 16px", border:OBS.border, borderRadius:2, background:"rgba(8,17,38,.72)", backdropFilter:"blur(6px)" }}>
+          <span style={{ fontFamily:OBS.mono, fontSize:11, color:locked?OBS.faint:OBS.teal }}>▸</span>
+          <input
+            value={input}
+            onChange={e=>setInput(e.target.value)}
+            disabled={locked}
+            onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send(input);}}}
+            placeholder={locked?"평가를 완료하세요":"별에 대해 질문하세요…"}
+            style={{ flex:1, background:"transparent", border:"none", outline:"none", color:OBS.starWhite, fontFamily:OBS.kr, fontSize:13, fontWeight:300, opacity:locked?0.6:1, cursor:locked?"not-allowed":"text" }}
+          />
+          <button onClick={()=>send(input)} disabled={!canSend} className={canSend?"obs-hover-bright":undefined} style={{
+            background:"none", border:"none", padding:"4px 2px",
+            cursor:canSend?"pointer":"not-allowed",
+            fontFamily:OBS.mono, fontSize:10, letterSpacing:2,
+            color:canSend?OBS.sky:OBS.faint,
+          }}>SEND</button>
         </div>
       </div>
     </div>
