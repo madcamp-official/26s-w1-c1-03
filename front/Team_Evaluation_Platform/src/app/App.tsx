@@ -586,14 +586,21 @@ function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChanged:boole
   const [pw, setPw] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
   async function handle() {
+    if (locked) return;
     if (!id||!pw){setErr("아이디와 비밀번호를 입력해주세요."); return;}
     setErr(""); setLoading(true);
     try {
       const res = await apiLogin(id, pw);
       onLoginSuccess(res.passwordChanged);
     } catch (e) {
-      setErr(e instanceof ApiError ? e.message : "로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+      if (e instanceof ApiError && e.errorCode === "ACCOUNT_LOCKED") {
+        setLocked(true);
+        setErr("시도 횟수가 너무 많아 로그인이 차단되었습니다. 관리자에게 문의하세요.");
+      } else {
+        setErr(e instanceof ApiError ? e.message : "로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+      }
     } finally {
       setLoading(false);
     }
@@ -616,7 +623,7 @@ function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChanged:boole
             <AlertTriangle size={13} style={{color:"#ef4444",flexShrink:0}}/>
             <span style={{ fontSize:12, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{err}</span>
           </div>}
-          <Btn full type="submit" disabled={loading} icon={loading?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:undefined}>
+          <Btn full type="submit" disabled={loading||locked} icon={loading?<RefreshCw size={14} style={{animation:"spin 1s linear infinite"}}/>:undefined}>
             {loading?"로그인 중...":"로그인"}
           </Btn>
           <p style={{ fontSize:11, color:"#4a5a7a", textAlign:"center", fontFamily:"'Noto Sans KR'" }}>
