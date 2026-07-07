@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Eye, EyeOff, Info } from "lucide-react";
 import { DS } from "./tokens";
@@ -76,50 +76,72 @@ export function Field({ label, type="text", value, onChange, placeholder, error,
 // 안에서 열릴 때 그 컨테이너의 스크롤 영역 크기 계산에 말풍선 박스가 끼어들어 표/레이아웃이
 // 미세하게 흔들리는 문제가 있었다. document.body에 포털로 그려 position:fixed로 좌표를
 // 직접 계산하면 어떤 조상의 레이아웃/스크롤 크기에도 영향을 주지 않는다.
-export function InfoTooltip({ children, text, placement="bottom" }: { children: React.ReactNode; text: string; placement?: "top"|"bottom" }) {
+export interface TooltipRect { top:number; bottom:number; left:number; right:number; }
+
+// 툴팁 말풍선의 표시 부분만 분리한 프리미티브 — InfoTooltip(HTML 트리거)뿐 아니라
+// div로 감쌀 수 없는 SVG 라벨(ConstellationChart)에서도 같은 말풍선을 쓰기 위함.
+// placement를 생략하면 트리거의 화면 위치에 따라 위/아래를 자동으로 고른다(모바일에서
+// 화면 하단 요소의 툴팁이 뷰포트 밖으로 나가는 것 방지).
+export function TooltipBubble({ rect, text, placement }: { rect: TooltipRect; text: string; placement?: "top"|"bottom" }) {
+  const place = placement ?? (rect.top > window.innerHeight/2 ? "top" : "bottom");
+  const alignRight = rect.left + (rect.right-rect.left)/2 > window.innerWidth/2;
+  return createPortal(
+    <div style={{
+      position:"fixed", zIndex:1000,
+      ...(place==="top" ? { bottom: window.innerHeight-rect.top+9 } : { top: rect.bottom+9 }),
+      ...(alignRight ? { right: Math.max(12, window.innerWidth-rect.right) } : { left: Math.max(12, rect.left) }),
+      width:"min(260px, calc(100vw - 24px))", padding:"11px 14px", borderRadius:10,
+      background:"#0e1526", border:"1px solid rgba(0,200,255,0.25)",
+      boxShadow:"0 10px 30px rgba(0,0,0,0.5)",
+      fontSize:11, lineHeight:1.65, color:"#c7d2e6", fontFamily:"'Noto Sans KR'",
+      whiteSpace:"pre-line", pointerEvents:"none",
+    }}>
+      <div style={{
+        position:"absolute", ...(place==="top" ? { bottom:-6 } : { top:-6 }), ...(alignRight ? { right:14 } : { left:14 }),
+        width:11, height:11, background:"#0e1526",
+        ...(place==="top"
+          ? { borderRight:"1px solid rgba(0,200,255,0.25)", borderBottom:"1px solid rgba(0,200,255,0.25)" }
+          : { borderLeft:"1px solid rgba(0,200,255,0.25)", borderTop:"1px solid rgba(0,200,255,0.25)" }),
+        transform:"rotate(45deg)",
+      }}/>
+      {text}
+    </div>,
+    document.body
+  );
+}
+
+export function InfoTooltip({ children, text, placement }: { children: React.ReactNode; text: string; placement?: "top"|"bottom" }) {
   const [open, setOpen] = useState(false);
-  const [rect, setRect] = useState<{top:number;bottom:number;left:number;right:number}|null>(null);
+  const [rect, setRect] = useState<TooltipRect|null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
-  function handleEnter() {
+  function show() {
     const r = ref.current?.getBoundingClientRect();
     if (r) setRect({ top:r.top, bottom:r.bottom, left:r.left, right:r.right });
     setOpen(true);
   }
 
-  const alignRight = rect ? (rect.left + (rect.right-rect.left)/2 > window.innerWidth/2) : false;
+  // 호버가 없는 터치 환경 지원: 탭으로 열고, 트리거 바깥을 누르면 닫는다.
+  useEffect(()=>{
+    if (!open) return;
+    function onDown(e: PointerEvent) {
+      if (ref.current && e.target instanceof Node && ref.current.contains(e.target)) return;
+      setOpen(false);
+    }
+    document.addEventListener("pointerdown", onDown);
+    return ()=>document.removeEventListener("pointerdown", onDown);
+  },[open]);
 
   return (
     <div
       ref={ref}
-      onMouseEnter={handleEnter}
+      onMouseEnter={show}
       onMouseLeave={()=>setOpen(false)}
+      onClick={show}
       style={{ position:"relative", display:"inline-flex", alignItems:"center", cursor:"help" }}
     >
       {children}
-      {open && rect && createPortal(
-        <div style={{
-          position:"fixed", zIndex:1000,
-          ...(placement==="top" ? { bottom: window.innerHeight-rect.top+9 } : { top: rect.bottom+9 }),
-          ...(alignRight ? { right: window.innerWidth-rect.right } : { left: rect.left }),
-          width:260, padding:"11px 14px", borderRadius:10,
-          background:"#0e1526", border:"1px solid rgba(0,200,255,0.25)",
-          boxShadow:"0 10px 30px rgba(0,0,0,0.5)",
-          fontSize:11, lineHeight:1.65, color:"#c7d2e6", fontFamily:"'Noto Sans KR'",
-          whiteSpace:"pre-line", pointerEvents:"none",
-        }}>
-          <div style={{
-            position:"absolute", ...(placement==="top" ? { bottom:-6 } : { top:-6 }), ...(alignRight ? { right:14 } : { left:14 }),
-            width:11, height:11, background:"#0e1526",
-            ...(placement==="top"
-              ? { borderRight:"1px solid rgba(0,200,255,0.25)", borderBottom:"1px solid rgba(0,200,255,0.25)" }
-              : { borderLeft:"1px solid rgba(0,200,255,0.25)", borderTop:"1px solid rgba(0,200,255,0.25)" }),
-            transform:"rotate(45deg)",
-          }}/>
-          {text}
-        </div>,
-        document.body
-      )}
+      {open && rect && <TooltipBubble rect={rect} text={text} placement={placement}/>}
     </div>
   );
 }

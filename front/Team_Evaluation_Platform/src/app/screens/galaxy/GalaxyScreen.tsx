@@ -3,6 +3,7 @@ import { RefreshCw, Lock, Search, X } from "lucide-react";
 import { listCards, getCard, listMyTeams, getTeam, ApiError } from "../../api";
 import type { User } from "../../types";
 import { cardToUser, topTitles } from "../../lib/cardMapping";
+import { brightnessOf, gradeForStats } from "../../lib/brightness";
 import { starAppearanceFor, galaxyPositions, teamLineColorFor } from "../../lib/starLayout";
 import type { TeamCluster } from "../../lib/starLayout";
 import { useIsMobile } from "../../lib/useIsMobile";
@@ -104,9 +105,11 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     const pos = galaxyPositions(cards.map(u=>u.id), sortedTeams);
     return cards.map(u=>{
       const p = pos.get(u.id)!;
+      // 밝기 등급 색(청/백/황/적) — 잠긴 카드는 능력치를 모르므로 기존 id 기반 색으로 둔다.
+      const grade = u.isUnlocked ? gradeForStats(u.stats) : null;
       return {
         user: u, x: p.x, y: p.y,
-        layout: { ...starAppearanceFor(u.id), left:`${p.x.toFixed(2)}%`, top:`${p.y.toFixed(2)}%` },
+        layout: { ...starAppearanceFor(u.id, grade ?? undefined), left:`${p.x.toFixed(2)}%`, top:`${p.y.toFixed(2)}%` },
       };
     });
   },[cards, sortedTeams]);
@@ -286,6 +289,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   const panelUser = detail ?? selStar?.user ?? null;
   const panelUnlocked = panelUser?.isUnlocked ?? false;
   const repTitle = panelUser ? topTitles(panelUser.titleVotes)[0] : undefined;
+  const panelGrade = panelUnlocked && panelUser ? gradeForStats(panelUser.stats) : null;
 
   return (
     <div
@@ -568,6 +572,19 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
                 </div>
               ) : (
                 <>
+                  {/* 밝기(Magnitude) — 능력치 총합 × 2.5. 등급 색은 별 코어 색과 동일. */}
+                  {panelGrade && (
+                    <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
+                      <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label }}>MAGNITUDE</span>
+                      <span style={{ fontFamily:FONT_DISPLAY, fontSize:19, fontWeight:500, color:panelGrade.color, textShadow:`0 0 12px rgba(${panelGrade.glowC},.55)` }}>
+                        {brightnessOf(panelUser.stats)}
+                      </span>
+                      <span style={{ fontFamily:FONT_BODY, fontSize:11, color:panelGrade.color }}>
+                        {panelGrade.label}
+                        <span style={{ fontFamily:FONT_HUD, fontSize:8.5, letterSpacing:"1.5px", color:SPACE.faint, marginLeft:6 }}>{panelGrade.en} CLASS</span>
+                      </span>
+                    </div>
+                  )}
                   {panelUser.bio && <p style={{ fontSize:12, color:SPACE.textDim, fontFamily:FONT_BODY, fontStyle:"italic", textAlign:"center", margin:0 }}>"{panelUser.bio}"</p>}
                   <div style={{ width:"100%" }}>
                     <HudLabel en="SPECTRAL ANALYSIS" kr="능력치 분석"/>

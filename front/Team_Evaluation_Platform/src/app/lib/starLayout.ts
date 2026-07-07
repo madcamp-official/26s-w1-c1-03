@@ -14,11 +14,12 @@ export interface StarAppearance {
   breathe: string;
 }
 
-// 크기/색/반짝임처럼 "그 사람 고유의" 외형 — 배치와 무관하게 id로만 결정된다.
-export function starAppearanceFor(id: number): StarAppearance {
+// 크기/반짝임처럼 "그 사람 고유의" 외형 — 배치와 무관하게 id로만 결정된다.
+// tint를 주면 색만 그 값(예: 밝기 등급 색)으로 바꾸고, 없으면 기존 id 기반 색을 쓴다.
+export function starAppearanceFor(id: number, tint?: { color: string; glowC: string }): StarAppearance {
   const r1 = seededRandom(id * 13 + 1);
   const r2 = seededRandom(id * 13 + 2);
-  const { color, glowC } = starColorFor(id);
+  const { color, glowC } = tint ?? starColorFor(id);
   return {
     size: 12 + r1 * 9,
     color, glowC,

@@ -5,7 +5,7 @@ import {
 } from "../../api";
 import { STATS } from "../../constants/stats";
 import { validateProfileImage } from "../../lib/imageValidation";
-import { handleImgError } from "../../lib/avatar";
+import { AVATAR_IMG, handleImgError } from "../../lib/avatar";
 import { useIsMobile } from "../../lib/useIsMobile";
 import { InfoTooltip } from "../../design-system/primitives";
 import {
@@ -139,8 +139,9 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
               {/* 궤도 링이 도는 원형 업로드 슬롯 */}
               <div style={{ position:"relative", width:152, height:152, display:"flex", alignItems:"center", justifyContent:"center" }}>
                 <div style={{ position:"absolute", left:"50%", top:"50%", width:148, height:148, transform:"translate(-50%,-50%)", border:"1px dashed rgba(125,180,255,.35)", borderRadius:"50%", animation:"obsSpinC 22s linear infinite" }}>
-                  <div style={{ position:"absolute", top:-3, left:"50%", width:6, height:6, borderRadius:"50%", background:OBS.teal, boxShadow:"0 0 8px 2px rgba(94,234,212,.7)" }}/>
-                  <div style={{ position:"absolute", bottom:8, right:4, width:4, height:4, borderRadius:"50%", background:OBS.violet, boxShadow:"0 0 6px 2px rgba(167,139,250,.7)" }}/>
+                  {/* 위성 점의 중심이 궤도 반지름 이내여야 회전 중에도 링 밖으로 나가지 않는다. */}
+                  <div style={{ position:"absolute", top:0, left:"50%", width:6, height:6, marginLeft:-3, borderRadius:"50%", background:OBS.teal, boxShadow:"0 0 8px 2px rgba(94,234,212,.7)" }}/>
+                  <div style={{ position:"absolute", top:"50%", right:8, width:4, height:4, marginTop:-2, borderRadius:"50%", background:OBS.violet, boxShadow:"0 0 6px 2px rgba(167,139,250,.7)" }}/>
                 </div>
                 <div
                   onClick={()=>!photoUploading&&fileInputRef.current?.click()}
@@ -156,7 +157,7 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
                   {photoUploading
                     ? <div style={{ animation:"obsBlinkDim 1.1s ease-in-out infinite" }}><MonoLabel size={9} spacing={2} color={OBS.teal}>⌁ UPLOADING…</MonoLabel></div>
                     : photoUrl
-                    ? <img src={photoUrl} alt="" onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                    ? <img src={photoUrl} alt="" onError={handleImgError} style={AVATAR_IMG}/>
                     : <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                         <span style={{ color:OBS.sky, fontSize:15 }}>◉</span>
                         <span style={{ fontSize:11, fontWeight:300, color:OBS.dim, fontFamily:OBS.kr }}>클릭하여 업로드</span>

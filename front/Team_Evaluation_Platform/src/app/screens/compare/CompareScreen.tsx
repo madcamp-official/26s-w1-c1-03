@@ -11,6 +11,7 @@ import { HoloPanel } from "../../design-system/HoloPanel";
 import { HudLabel } from "../../design-system/HudLabel";
 import { StarPortrait } from "../../design-system/StarPortrait";
 import { ConstellationChart } from "../../design-system/ConstellationChart";
+import { InfoTooltip } from "../../design-system/primitives";
 
 const FONT_BODY = "'Noto Sans KR'";
 const FONT_DISPLAY = "'Space Grotesk'";
@@ -138,10 +139,12 @@ export function CompareScreen() {
                     return (
                       <tr key={s.key} style={{ borderTop:`1px solid ${SPACE.border}` }}>
                         <td style={{ padding:"9px 10px" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                            <s.Icon size={11} style={{ color:s.color }}/>
-                            <span style={{ color:SPACE.textDim }}>{s.label}</span>
-                          </div>
+                          <InfoTooltip text={s.desc}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                              <s.Icon size={11} style={{ color:s.color }}/>
+                              <span style={{ color:SPACE.textDim }}>{s.label}</span>
+                            </div>
+                          </InfoTooltip>
                         </td>
                         {vals.map((v,i)=>{
                           const uColor = starColorFor(selUsers[i].id).color;

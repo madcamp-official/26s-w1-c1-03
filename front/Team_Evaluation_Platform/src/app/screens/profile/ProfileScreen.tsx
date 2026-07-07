@@ -6,6 +6,7 @@ import {
 } from "../../api";
 import type { User } from "../../types";
 import { ZERO_STATS, dtoStatsToStats, rarityFromPower, totalPower, cardToUser, topTitles } from "../../lib/cardMapping";
+import { brightnessOf } from "../../lib/brightness";
 import { validateProfileImage } from "../../lib/imageValidation";
 import { FALLBACK_AVATAR } from "../../lib/avatar";
 import { useIsMobile } from "../../lib/useIsMobile";
@@ -125,10 +126,19 @@ export function ProfileScreen() {
               {repTitle && <RepresentativeTitle label={repTitle}/>}
             </div>
 
-            <div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"8px 0", borderTop:`1px solid ${SPACE.border}`, borderBottom:`1px solid ${SPACE.border}` }}>
-              <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label, textTransform:"uppercase" }}>OBSERVATIONS</span>
-              <span style={{ fontFamily:FONT_HUD, fontSize:15, color:SPACE.accentTeal, fontWeight:500 }}>{observations}</span>
-              <span style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label }}>회 관측됨</span>
+            <div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexWrap:"wrap", padding:"8px 0", borderTop:`1px solid ${SPACE.border}`, borderBottom:`1px solid ${SPACE.border}` }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label, textTransform:"uppercase" }}>OBSERVATIONS</span>
+                <span style={{ fontFamily:FONT_HUD, fontSize:15, color:SPACE.accentTeal, fontWeight:500 }}>{observations}</span>
+                <span style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label }}>회 관측됨</span>
+              </span>
+              <span style={{ color:SPACE.faint }}>·</span>
+              {/* 밝기(Magnitude) = 능력치 총합 × 2.5. 등급 색은 은하/AI 화면 전용이라 여긴 수치만. */}
+              <span style={{ display:"inline-flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label, textTransform:"uppercase" }}>MAGNITUDE</span>
+                <span style={{ fontFamily:FONT_HUD, fontSize:15, color:SPACE.accentSky, fontWeight:500 }}>{brightnessOf(u.stats)}</span>
+                <span style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label }}>밝기</span>
+              </span>
             </div>
 
             <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:8 }}>

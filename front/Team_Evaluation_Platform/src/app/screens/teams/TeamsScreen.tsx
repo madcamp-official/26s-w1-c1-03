@@ -1,16 +1,13 @@
 import { useState, useEffect } from "react";
 import { Check, Copy, RefreshCw } from "lucide-react";
 import {
-  listMyTeams, createTeam, joinTeam, getTeam, listCards, listEvaluationTargets, ApiError,
+  listMyTeams, createTeam, joinTeam, getTeam, listEvaluationTargets, ApiError,
   type TeamDetailDto, type TeamSummaryDto, type EvaluationTargetDto,
 } from "../../api";
-import type { Rarity } from "../../types";
-import { RARITY } from "../../constants/rarity";
-import { rarityFromCardStats } from "../../lib/cardMapping";
-import { FALLBACK_AVATAR, handleImgError } from "../../lib/avatar";
+import { AVATAR_IMG, FALLBACK_AVATAR, handleImgError } from "../../lib/avatar";
 import { copyToClipboard } from "../../lib/clipboard";
 import { useIsMobile } from "../../lib/useIsMobile";
-import { SPACE, FONT } from "../../design-system/space";
+import { SPACE, FONT, starColorFor } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
 import { HudLabel } from "../../design-system/HudLabel";
@@ -48,7 +45,6 @@ function transmitButtonStyle(enabled: boolean): React.CSSProperties {
 export function TeamsScreen() {
   const [tab, setTab] = useState<"list"|"create"|"join">("list");
   const [myTeams, setMyTeams] = useState<TeamDetailDto[]|null>(null);
-  const [rarityMap, setRarityMap] = useState<Record<number, Rarity|null>>({});
   const [evalTargets, setEvalTargets] = useState<EvaluationTargetDto[]>([]);
   const [tname, setTname] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -63,12 +59,12 @@ export function TeamsScreen() {
 
   async function loadTeams() {
     try {
-      const [summaries, cards, targets] = await Promise.all([
-        listMyTeams(), listCards(), listEvaluationTargets().catch(()=>[] as EvaluationTargetDto[]),
+      const [summaries, targets] = await Promise.all([
+        listMyTeams(), listEvaluationTargets().catch(()=>[] as EvaluationTargetDto[]),
       ]);
       const details = await Promise.all(summaries.map(t=>getTeam(t.id)));
-      setMyTeams(details);
-      setRarityMap(Object.fromEntries(cards.map(c=>[c.userId, rarityFromCardStats(c.stats)])));
+      // API가 주는 순서(생성/기한 순)를 그대로 뒤집어 최근 팀이 위로 오게 한다.
+      setMyTeams([...details].reverse());
       setEvalTargets(targets);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "팀 목록을 불러오지 못했습니다.");
@@ -127,7 +123,7 @@ export function TeamsScreen() {
         {/* 헤더 */}
         <div style={{ marginBottom:24 }}>
           <div style={{ fontFamily:FONT.hud, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · GALAXY REGISTRY</div>
-          <h1 style={{ fontFamily:"'Space Grotesk', 'Noto Sans KR', sans-serif", fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px", margin:0 }}>은하 관리</h1>
+          <h1 style={{ fontFamily:"'Space Grotesk', 'Noto Sans KR', sans-serif", fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px", margin:0 }}>팀 관리</h1>
           <p style={{ margin:"6px 0 0", fontSize:12.5, fontWeight:300, lineHeight:1.7, color:SPACE.textDim, fontFamily:FONT.body }}>
             팀은 하나의 은하입니다. 새 은하를 형성하거나, 접근 코드로 다른 은하에 도킹하세요.
           </p>
@@ -200,16 +196,16 @@ export function TeamsScreen() {
 
                 <div style={{ display:"flex", gap:14, flexWrap:"wrap" }}>
                   {members.map(m=>{
-                    const rarity = rarityMap[m.userId];
-                    const glow = rarity ? RARITY[rarity].color : null;
+                    // 팀원 평가 화면의 별 배경색과 같은 로직 — id 기반 고정 별 색.
+                    const star = starColorFor(m.userId);
                     return (
                       <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
                         <div style={{
                           width:40, height:40, borderRadius:"50%", overflow:"hidden",
-                          border:`1px solid ${glow ?? "rgba(125,180,255,.3)"}`,
-                          boxShadow: glow ? `0 0 9px ${glow}66` : "none",
+                          border:`1px solid ${star.color}`,
+                          boxShadow:`0 0 9px rgba(${star.glowC},.45)`,
                         }}>
-                          <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                          <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={AVATAR_IMG}/>
                         </div>
                         <span style={{ fontSize:10.5, fontWeight:300, color:SPACE.textDim, fontFamily:FONT.body }}>{m.name}</span>
                       </div>

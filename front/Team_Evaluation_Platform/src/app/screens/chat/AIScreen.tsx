@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { listCards, createChatSession, sendChatMessage, ApiError } from "../../api";
 import type { User, ChatMessage } from "../../types";
 import { cardToUser, deriveEvaluationLocked } from "../../lib/cardMapping";
-import { handleImgError } from "../../lib/avatar";
+import { gradeForStats } from "../../lib/brightness";
+import { AVATAR_IMG, handleImgError } from "../../lib/avatar";
 import { useIsMobile } from "../../lib/useIsMobile";
 import { OBS, ObservatoryStyle, SpaceBackground, MonoLabel } from "../../design-system/observatory";
 
@@ -103,7 +104,10 @@ export function AIScreen() {
             ? { display:"flex", gap:8, overflowX:"auto", paddingBottom:2 }
             : { display:"flex", flexDirection:"column", gap:9 } }>
             {cards.map((u,idx)=>{
-              const star=STAR_COLORS[idx%STAR_COLORS.length]; const sel=selected.includes(u.id);
+              // 밝기 등급 색(청/백/황/적) — 잠긴 카드는 능력치를 모르므로 기존 순환 색으로 둔다.
+              const grade = u.isUnlocked ? gradeForStats(u.stats) : null;
+              const star = grade ? { core:grade.color, glow:grade.glowC } : STAR_COLORS[idx%STAR_COLORS.length];
+              const sel=selected.includes(u.id);
               return (
                 <div key={u.id} onClick={()=>toggleSel(u.id)} className="obs-chip" style={{
                   display:"flex", alignItems:"center", gap:10, padding:"9px 11px", borderRadius:2, cursor:"pointer",
@@ -119,7 +123,7 @@ export function AIScreen() {
                     transition:"box-shadow .3s",
                   }}/>
                   <div style={{ width:26, height:26, borderRadius:"50%", overflow:"hidden", flexShrink:0, border:"1px solid rgba(125,180,255,.25)", boxShadow: sel ? `0 0 10px rgba(${star.glow},.35)` : "none" }}>
-                    <img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                    <img src={u.photo} alt={u.name} onError={handleImgError} style={AVATAR_IMG}/>
                   </div>
                   <div style={{ flex:1, minWidth:0, fontSize:12.5, fontWeight:sel?500:300, fontFamily:OBS.kr, color:sel?"#BAE6FD":OBS.body, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                     {u.name}

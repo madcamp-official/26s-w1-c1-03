@@ -3,7 +3,7 @@ import { Telescope, Users, Star, Sparkles, BarChart2, User, LogOut } from "lucid
 import { getMyProfile, type UserProfileDto } from "../api";
 import type { MainScreen } from "../types";
 import { SPACE, FONT, starColorFor } from "../design-system/space";
-import { FALLBACK_AVATAR, handleImgError } from "../lib/avatar";
+import { AVATAR_IMG, FALLBACK_AVATAR, handleImgError } from "../lib/avatar";
 
 // ─── Sidebar (design.md: 화면 밖 네 모서리 HUD 언어를 내비게이션에도 그대로 적용) ──────
 // EN mono 라벨 + KR 보조 라벨의 이중 언어 문법은 TeamsScreen 탭과 동일하게 맞춘다.
@@ -109,7 +109,7 @@ export function Sidebar({ screen, setScreen, onLogout, mobile = false }: {
       <div style={{ padding:"14px 10px", borderTop:`1px solid ${SPACE.border}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 9px", borderRadius:2, background:"rgba(125,180,255,0.04)" }}>
           <div style={{ width:28, height:28, borderRadius:"50%", overflow:"hidden", border:`1.5px solid ${myColor}`, flexShrink:0, boxShadow:`0 0 8px ${myColor}55` }}>
-            <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" onError={handleImgError} style={AVATAR_IMG}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:12, fontWeight:500, fontFamily:FONT.body, color:SPACE.starWhite2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{me?.name ?? "..."}</div>
