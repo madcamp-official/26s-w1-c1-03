@@ -182,7 +182,10 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       onClick={()=>{ if (selId!==null && !dragRef.current?.dragged) backToGalaxy(); }}
       style={{ position:"relative", height:"100%", overflow:"hidden", cursor: selId===null ? "grab" : "default" }}
     >
-      <SpaceBackground/>
+      {/* 배경이 카메라 팬/줌을 살짝 따라가는 패럴랙스 — 전경의 15%만 따라가게 감쇠해서
+          "화면이 통째로 고정된" 느낌 없이 은은한 원근감을 준다. 락온 중엔 view가 그대로
+          유지되므로 자연스럽게 그 시점에서 멈춘다. */}
+      <SpaceBackground driftX={view.x*0.15} driftY={view.y*0.15} driftScale={view.scale}/>
 
       {/* world: 별들이 놓이는 좌표계. transform-origin은 항상 0 0(위 camTransform 계산과 짝). */}
       <div style={{ position:"absolute", inset:0, transformOrigin:"0 0", transform:camTransform, transition:camTransition }}>

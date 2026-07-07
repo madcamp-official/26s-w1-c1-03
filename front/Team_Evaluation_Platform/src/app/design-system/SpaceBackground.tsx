@@ -16,7 +16,12 @@ const NEBULAE: NebulaSpec[] = [
 
 // design.md §5: 남색 그라데이션 + 표류하는 성운 2~3개 + 반짝이는 입자 별 ~70개.
 // 모든 화면 공통 배경이므로 부모에 position:relative를 주고 이 컴포넌트를 절대배치로 깐다.
-export function SpaceBackground({ density = 70 }: { density?: number }) {
+//
+// driftX/driftY/driftScale: 은하 화면처럼 카메라를 드래그/휠줌하는 화면에서, 배경이 화면에
+// 아예 고정된 것처럼 보이지 않도록 카메라 움직임의 일부만 따라가는 패럴랙스 효과를 주는
+// 선택적 값. 성운(더 먼 레이어)은 더 적게, 별 입자(더 가까운 레이어)는 조금 더 따라가게
+// 해서 원근감을 준다. 값을 안 주면(기본 0/1) 기존처럼 완전히 고정된 배경이 된다.
+export function SpaceBackground({ density = 70, driftX = 0, driftY = 0, driftScale = 1 }: { density?: number; driftX?: number; driftY?: number; driftScale?: number }) {
   const dots = useMemo(() => {
     const rnd = makeRng(7);
     return Array.from({ length: density }, (_, i) => {
@@ -34,22 +39,29 @@ export function SpaceBackground({ density = 70 }: { density?: number }) {
     });
   }, [density]);
 
+  const nebScale = 1 + (driftScale - 1) * 0.5;
+  const starScale = 1 + (driftScale - 1) * 0.25;
+
   return (
     <div style={{ position:"absolute", inset:0, overflow:"hidden", pointerEvents:"none", background:"linear-gradient(160deg, #020617 0%, #081126 55%, #0B1736 100%)" }}>
-      {NEBULAE.map((n,i)=>(
-        <div key={i} style={{
-          position:"absolute", width:n.w, height:n.h, left:n.l, top:n.t, borderRadius:"50%",
-          background:`radial-gradient(closest-side, ${n.c}, transparent 70%)`,
-          filter:"blur(30px)", animation:`${n.anim} ${n.dur} ease-in-out infinite`,
-        }}/>
-      ))}
-      {dots.map(d=>(
-        <div key={d.key} style={{
-          position:"absolute", left:d.left, top:d.top, width:d.size, height:d.size, borderRadius:"50%",
-          background:d.color, opacity:0.7,
-          animation:`twk ${d.dur} ease-in-out ${d.delay} infinite`,
-        }}/>
-      ))}
+      <div style={{ position:"absolute", inset:0, transform:`translate(${driftX*0.35}px, ${driftY*0.35}px) scale(${nebScale})`, transition:"transform 0.4s ease-out" }}>
+        {NEBULAE.map((n,i)=>(
+          <div key={i} style={{
+            position:"absolute", width:n.w, height:n.h, left:n.l, top:n.t, borderRadius:"50%",
+            background:`radial-gradient(closest-side, ${n.c}, transparent 70%)`,
+            filter:"blur(30px)", animation:`${n.anim} ${n.dur} ease-in-out infinite`,
+          }}/>
+        ))}
+      </div>
+      <div style={{ position:"absolute", inset:0, transform:`translate(${driftX*0.6}px, ${driftY*0.6}px) scale(${starScale})`, transition:"transform 0.4s ease-out" }}>
+        {dots.map(d=>(
+          <div key={d.key} style={{
+            position:"absolute", left:d.left, top:d.top, width:d.size, height:d.size, borderRadius:"50%",
+            background:d.color, opacity:0.7,
+            animation:`twk ${d.dur} ease-in-out ${d.delay} infinite`,
+          }}/>
+        ))}
+      </div>
     </div>
   );
 }
