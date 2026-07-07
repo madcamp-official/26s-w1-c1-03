@@ -16,10 +16,47 @@ const NAV = [
   { id:"profile" as MainScreen,     en:"SELF-LOG", kr:"내 프로필",  Icon:User      },
 ];
 
-export function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen:(s:MainScreen)=>void; onLogout:()=>void }) {
+export function Sidebar({ screen, setScreen, onLogout, mobile = false }: {
+  screen:MainScreen; setScreen:(s:MainScreen)=>void; onLogout:()=>void; mobile?:boolean;
+}) {
   const [me, setMe] = useState<UserProfileDto|null>(null);
   useEffect(()=>{ getMyProfile().then(setMe).catch(()=>{}); },[]);
   const myColor = me ? starColorFor(me.id).color : SPACE.accentTeal;
+
+  // 모바일: 화면 하단에 고정되는 내비게이션 바. 여섯 파트 + 로그아웃을 아이콘 중심으로 압축한다.
+  if (mobile) {
+    return (
+      <nav style={{
+        flexShrink:0, display:"flex", alignItems:"stretch",
+        background:"linear-gradient(180deg, rgba(4,9,24,0.96), rgba(8,17,38,0.94))",
+        backdropFilter:"blur(14px)", borderTop:`1px solid ${SPACE.border}`,
+        padding:"5px 2px calc(5px + env(safe-area-inset-bottom))",
+      }}>
+        {NAV.map(item=>{
+          const active = screen===item.id;
+          return (
+            <button key={item.id} onClick={()=>setScreen(item.id)} style={{
+              flex:1, minWidth:0, display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+              padding:"7px 0 5px", borderRadius:2, cursor:"pointer",
+              background: active ? "rgba(94,234,212,0.08)" : "transparent",
+              border:`1px solid ${active ? "rgba(94,234,212,0.4)" : "transparent"}`,
+              transition:"all 0.15s",
+            }}>
+              <item.Icon size={16} style={{ color: active ? SPACE.accentTeal : SPACE.textDim }}/>
+              <span style={{ fontFamily:FONT.body, fontSize:9.5, color: active ? SPACE.starWhite2 : SPACE.label, whiteSpace:"nowrap" }}>{item.kr}</span>
+            </button>
+          );
+        })}
+        <button onClick={onLogout} title="로그아웃" style={{
+          flex:"0 0 44px", display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+          padding:"7px 0 5px", background:"none", border:"none", cursor:"pointer",
+        }}>
+          <LogOut size={16} style={{ color:SPACE.label }}/>
+          <span style={{ fontFamily:FONT.body, fontSize:9.5, color:SPACE.faint }}>로그아웃</span>
+        </button>
+      </nav>
+    );
+  }
 
   return (
     <aside style={{

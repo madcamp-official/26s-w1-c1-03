@@ -5,6 +5,7 @@ import type { User } from "../../types";
 import { cardToUser, topTitles } from "../../lib/cardMapping";
 import { starAppearanceFor, galaxyPositions, teamLineColorFor } from "../../lib/starLayout";
 import type { TeamCluster } from "../../lib/starLayout";
+import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
@@ -47,7 +48,14 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   const [view, setView] = useState({ x:0, y:0, scale:1 });
   const [camTransition, setCamTransition] = useState("none");
   const dragRef = useRef<{ x:number; y:number; vx:number; vy:number; dragged:boolean } | null>(null);
+  // 터치 제스처: 한 손가락 = 팬, 두 손가락 = 핀치 줌. 마우스 팬/휠 줌과 같은 카메라를 움직인다.
+  const touchRef = useRef<
+    | { mode:"pan"; x:number; y:number; vx:number; vy:number }
+    | { mode:"pinch"; d0:number; px:number; py:number; v:{ x:number; y:number; scale:number } }
+    | null
+  >(null);
   const lockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMobile = useIsMobile();
 
   const [hoverId, setHoverId] = useState<number|null>(null);
   const [selId, setSelId] = useState<number|null>(null);
@@ -167,6 +175,50 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   function onMouseUp() {
     if (dragRef.current) setTimeout(()=>{ dragRef.current = null; }, 0);
   }
+
+  // ── touch pan/pinch (컨테이너 touchAction:none과 짝 — 브라우저 스크롤/줌을 끄고 직접 처리) ──
+  function onTouchStart(e: React.TouchEvent) {
+    if (selId!==null) return;
+    if (e.touches.length===1) {
+      const t = e.touches[0];
+      touchRef.current = { mode:"pan", x:t.clientX, y:t.clientY, vx:view.x, vy:view.y };
+    } else if (e.touches.length>=2) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const [a,b] = [e.touches[0], e.touches[1]];
+      touchRef.current = {
+        mode:"pinch",
+        d0: Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY),
+        px: (a.clientX+b.clientX)/2 - rect.left,
+        py: (a.clientY+b.clientY)/2 - rect.top,
+        v: view,
+      };
+    }
+  }
+  function onTouchMove(e: React.TouchEvent) {
+    const t0 = touchRef.current;
+    if (!t0 || selId!==null) return;
+    if (t0.mode==="pan" && e.touches.length===1) {
+      const t = e.touches[0];
+      setCamTransition("none");
+      setView({ scale:view.scale, x:t0.vx + (t.clientX-t0.x), y:t0.vy + (t.clientY-t0.y) });
+    } else if (t0.mode==="pinch" && e.touches.length>=2) {
+      const [a,b] = [e.touches[0], e.touches[1]];
+      const d = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
+      if (t0.d0 <= 0) return;
+      const s1 = Math.min(MAX_SCALE, Math.max(MIN_SCALE, t0.v.scale * (d/t0.d0)));
+      const k = s1 / t0.v.scale;
+      setCamTransition("none");
+      // 휠 줌과 같은 식: 두 손가락의 중점을 고정점 삼아 확대/축소한다.
+      setView({ scale:s1, x: t0.px - (t0.px - t0.v.x)*k, y: t0.py - (t0.py - t0.v.y)*k });
+    }
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (e.touches.length===0) { touchRef.current = null; return; }
+    // 핀치 중 손가락 하나를 떼면 남은 손가락 기준의 팬으로 자연스럽게 이어간다.
+    const t = e.touches[0];
+    touchRef.current = { mode:"pan", x:t.clientX, y:t.clientY, vx:view.x, vy:view.y };
+  }
   function resetView() {
     if (selId!==null) return;
     setCamTransition("transform .9s cubic-bezier(.25,.9,.25,1)");
@@ -221,7 +273,8 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   if (locked && selStar) {
     const sxPct = parseFloat(selStar.layout.left);
     const syPct = parseFloat(selStar.layout.top);
-    const targetXPct = 50, targetYPct = 50;
+    // 모바일은 하단 시트가 화면 아래쪽을 덮으므로 별을 위쪽 1/3 지점으로 데려온다.
+    const targetXPct = 50, targetYPct = isMobile ? 30 : 50;
     camTransform = `translate(${targetXPct - LOCK_SCALE*sxPct}%, ${targetYPct - LOCK_SCALE*syPct}%) scale(${LOCK_SCALE})`;
   } else {
     camTransform = `translate(${view.x}px, ${view.y}px) scale(${view.scale})`;
@@ -242,12 +295,17 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchEnd}
       onDoubleClick={resetView}
       onClick={()=>{ if (selId!==null && !dragRef.current?.dragged) backToGalaxy(); }}
-      style={{ position:"relative", height:"100%", overflow:"hidden", cursor: selId===null ? "grab" : "default" }}
+      style={{ position:"relative", height:"100%", overflow:"hidden", cursor: selId===null ? "grab" : "default", touchAction:"none" }}
     >
       <style>{`
         @keyframes slideInPanelL { from{opacity:0;transform:translateX(-48px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes slideInPanelUp { from{opacity:0;transform:translateY(48px)} to{opacity:1;transform:translateY(0)} }
         .gx-search{background:rgba(125,180,255,.05);border:1px solid rgba(125,180,255,.16);border-radius:2px;color:#eef4ff;outline:none;font-family:'Noto Sans KR',sans-serif;font-weight:300;transition:border-color .25s,box-shadow .25s}
         .gx-search::placeholder{color:#3d4f70}
         .gx-search:focus{border-color:rgba(125,211,252,.55);box-shadow:0 0 14px rgba(125,211,252,.12)}
@@ -363,7 +421,9 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       <div style={{ position:"absolute", bottom:18, left:24, zIndex:2, pointerEvents:"none" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px", color:SPACE.accentTeal }}>{cards.length} STARS DETECTED</div>
         <div style={{ fontFamily:FONT_BODY, fontSize:10.5, color:SPACE.label, marginTop:2 }}>
-          {selId===null ? "드래그로 이동 · 휠로 확대 · 별 클릭으로 관측" : "빈 공간 클릭 또는 Esc로 은하로 돌아가기"}
+          {selId===null
+            ? (isMobile ? "드래그로 이동 · 핀치로 확대 · 별을 터치해 관측" : "드래그로 이동 · 휠로 확대 · 별 클릭으로 관측")
+            : (isMobile ? "빈 공간을 터치해 은하로 돌아가기" : "빈 공간 클릭 또는 Esc로 은하로 돌아가기")}
         </div>
       </div>
       <div style={{ position:"absolute", bottom:18, right:24, zIndex:2, pointerEvents:"none", textAlign:"right" }}>
@@ -376,6 +436,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
         onClick={e=>{ e.stopPropagation(); setSearchOpen(o=>!o); }}
         onMouseDown={e=>e.stopPropagation()}
         onDoubleClick={e=>e.stopPropagation()}
+        onTouchStart={e=>e.stopPropagation()}
         style={{
           position:"absolute", top:64, left:24, zIndex:3,
           display:"flex", alignItems:"center", gap:7, padding:"7px 12px", borderRadius:3, cursor:"pointer",
@@ -397,7 +458,9 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
           onMouseDown={e=>e.stopPropagation()}
           onDoubleClick={e=>e.stopPropagation()}
           onWheel={e=>e.stopPropagation()}
-          style={{ position:"absolute", top:102, left:24, width:266, zIndex:3, maxHeight:"calc(100% - 128px)", display:"flex" }}
+          onTouchStart={e=>e.stopPropagation()}
+          onTouchMove={e=>e.stopPropagation()}
+          style={{ position:"absolute", top:102, left:24, width: isMobile ? "min(300px, calc(100vw - 48px))" : 266, zIndex:3, maxHeight:"calc(100% - 128px)", display:"flex", touchAction:"pan-y" }}
         >
           <HoloPanel style={{ width:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:"16px 16px 12px", animation:"slideInPanelL .7s cubic-bezier(.25,.9,.25,1) both" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
@@ -464,9 +527,16 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       {showPanel && panelUser && (
         <div
           onClick={e=>e.stopPropagation()}
-          style={{ position:"absolute", top:0, right:0, bottom:0, width:340, padding:20, zIndex:3, display:"flex", alignItems:"center" }}
+          onTouchStart={e=>e.stopPropagation()}
+          onTouchMove={e=>e.stopPropagation()}
+          style={ isMobile
+            // 모바일: 오른쪽 사이드 패널 대신 화면 하단에서 올라오는 시트 — 별은 위쪽 절반에 남는다.
+            ? { position:"absolute", left:0, right:0, bottom:0, maxHeight:"64%", padding:12, zIndex:3, display:"flex", boxSizing:"border-box", touchAction:"pan-y" }
+            : { position:"absolute", top:0, right:0, bottom:0, width:340, padding:20, zIndex:3, display:"flex", alignItems:"center" } }
         >
-          <HoloPanel style={{ width:"100%", maxHeight:"calc(100% - 40px)", overflowY:"auto", animation:"slideInPanel .85s cubic-bezier(.25,.9,.25,1) .7s both" }}>
+          <HoloPanel style={ isMobile
+            ? { width:"100%", overflowY:"auto", animation:"slideInPanelUp .6s cubic-bezier(.25,.9,.25,1) .35s both" }
+            : { width:"100%", maxHeight:"calc(100% - 40px)", overflowY:"auto", animation:"slideInPanel .85s cubic-bezier(.25,.9,.25,1) .7s both" } }>
             <button
               onClick={backToGalaxy}
               style={{ background:"none", border:"none", cursor:"pointer", padding:0, marginBottom:16, display:"flex", alignItems:"center", gap:6, fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px", color:SPACE.accentSky }}

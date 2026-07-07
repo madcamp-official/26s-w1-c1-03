@@ -8,6 +8,7 @@ import type { User } from "../../types";
 import { ZERO_STATS, dtoStatsToStats, rarityFromPower, totalPower, cardToUser, topTitles } from "../../lib/cardMapping";
 import { validateProfileImage } from "../../lib/imageValidation";
 import { FALLBACK_AVATAR } from "../../lib/avatar";
+import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
@@ -34,6 +35,7 @@ function centerMessage(text: string, spinning=false) {
 
 // ─── Profile Screen ───────────────────────────────────────────────────────────
 export function ProfileScreen() {
+  const isMobile = useIsMobile();
   const [profile, setProfile] = useState<UserProfileDto|null>(null);
   const [card, setCard] = useState<User|null>(null);
   const [bio, setBio] = useState("");
@@ -99,15 +101,15 @@ export function ProfileScreen() {
   return (
     <div style={{ position:"relative", height:"100%", overflowY:"auto" }}>
       <SpaceBackground/>
-      <div style={{ position:"relative", zIndex:1, padding:"36px 40px 48px", minHeight:"100%", boxSizing:"border-box" }}>
+      <div style={{ position:"relative", zIndex:1, padding: isMobile ? "22px 16px 34px" : "36px 40px 48px", minHeight:"100%", boxSizing:"border-box" }}>
         <div style={{ marginBottom:30 }}>
           <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · SELF-LOG</div>
           <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px" }}>내 관측 기록</h1>
         </div>
 
         <div style={{ display:"flex", gap:26, flexWrap:"wrap", alignItems:"flex-start" }}>
-          {/* Left: star identity panel */}
-          <HoloPanel style={{ width:296, display:"flex", flexDirection:"column", alignItems:"center", gap:18 }}>
+          {/* Left: star identity panel — 모바일은 한 열로 쌓이도록 전체 폭을 쓴다 */}
+          <HoloPanel style={{ width: isMobile ? "100%" : 296, boxSizing:"border-box", display:"flex", flexDirection:"column", alignItems:"center", gap:18 }}>
             <StarPortrait
               photo={u.photo}
               editable
@@ -165,11 +167,11 @@ export function ProfileScreen() {
           </HoloPanel>
 
           {/* Right: spectral analysis + fragments */}
-          <div style={{ flex:1, minWidth:340, display:"flex", flexDirection:"column", gap:22 }}>
+          <div style={{ flex:1, minWidth: isMobile ? 0 : 340, width: isMobile ? "100%" : undefined, display:"flex", flexDirection:"column", gap:22 }}>
             <HoloPanel>
               <HudLabel en="SPECTRAL ANALYSIS" kr="능력치 분석"/>
               <div style={{ display:"flex", justifyContent:"center" }}>
-                <ConstellationChart stats={u.stats} size={300}/>
+                <ConstellationChart stats={u.stats} size={isMobile ? 236 : 300}/>
               </div>
             </HoloPanel>
 

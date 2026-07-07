@@ -25,7 +25,7 @@ export function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
     }
   }
   return (
-    <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", background: OBS.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100dvh", position: "relative", overflow: "hidden", background: OBS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", boxSizing: "border-box" }}>
       <ObservatoryStyle/>
       <SpaceBackground/>
 
@@ -33,12 +33,12 @@ export function ChangePasswordScreen({ onDone }: { onDone:()=>void }) {
         <span style={{ fontFamily: OBS.display, fontWeight: 600, fontSize: 14, letterSpacing: 5, color: OBS.starWhite }}>MADMON</span>
         <MonoLabel size={10} spacing={3}>DEEP-SKY OBSERVATORY</MonoLabel>
       </div>
-      <div style={{ position: "absolute", bottom: 26, left: 32, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
+      <div className="hide-mobile" style={{ position: "absolute", bottom: 26, left: 32, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
         <MonoLabel size={10} spacing={2.5}><span style={{ color: OBS.violet }}>◉</span> SECURITY PROTOCOL ACTIVE</MonoLabel>
       </div>
 
       <div style={{ position: "relative", zIndex: 1, animation: "obsFadeUp 1s both" }}>
-        <ObsPanel width={400} style={{ padding: "24px 28px 26px" }} bracketColor={OBS.violet}>
+        <ObsPanel width="min(400px, calc(100vw - 32px))" style={{ padding: "24px 28px 26px" }} bracketColor={OBS.violet}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18 }}>
             <MonoLabel size={9.5} spacing={3.5} color={OBS.violet}>SECURITY PROTOCOL</MonoLabel>
             <MonoLabel size={9.5} spacing={2}>AUTH-02</MonoLabel>

@@ -23,6 +23,9 @@ export function GlobalStyle() {
       ::-webkit-scrollbar-track{background:transparent}
       ::-webkit-scrollbar-thumb{background:rgba(0,200,255,0.2);border-radius:2px}
       textarea{font-family:'Noto Sans KR',sans-serif!important}
+      html{-webkit-text-size-adjust:100%}
+      body{overscroll-behavior:none}
+      @media (max-width:768px){ .hide-mobile{display:none!important} }
     `}</style>
   );
 }

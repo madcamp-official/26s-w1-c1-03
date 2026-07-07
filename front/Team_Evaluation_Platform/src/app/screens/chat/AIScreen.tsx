@@ -3,6 +3,7 @@ import { listCards, createChatSession, sendChatMessage, ApiError } from "../../a
 import type { User, ChatMessage } from "../../types";
 import { cardToUser, deriveEvaluationLocked } from "../../lib/cardMapping";
 import { handleImgError } from "../../lib/avatar";
+import { useIsMobile } from "../../lib/useIsMobile";
 import { OBS, ObservatoryStyle, SpaceBackground, MonoLabel } from "../../design-system/observatory";
 
 const AI_QUESTIONS = [
@@ -29,6 +30,7 @@ export function AIScreen() {
   const [displayIdx, setDisplayIdx] = useState<number>(-1);
   const [displayText, setDisplayText] = useState("");
   const msgEnd = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
 
   useEffect(()=>{
     listCards().then(list=>{
@@ -81,46 +83,55 @@ export function AIScreen() {
   const canSend = !locked && input.trim() !== "" && !typing;
 
   return (
-    <div style={{ display:"flex", height:"100%", overflow:"hidden", position:"relative", background:OBS.bg }}>
+    <div style={{ display:"flex", flexDirection: isMobile ? "column" : "row", height:"100%", overflow:"hidden", position:"relative", background:OBS.bg }}>
       <ObservatoryStyle/>
       <SpaceBackground density={45} dimmed/>
 
-      {/* 좌측: 관측 대상 선택 */}
-      <div style={{ position:"relative", zIndex:1, width:236, borderRight:OBS.borderSoft, padding:"20px 16px", display:"flex", flexDirection:"column", gap:9, overflowY:"auto" }}>
-        <div style={{ marginBottom:8 }}>
+      {/* 관측 대상 선택 — 데스크톱은 좌측 세로 패널, 모바일은 상단 가로 스크롤 스트립 */}
+      <div style={ isMobile
+        ? { position:"relative", zIndex:1, borderBottom:OBS.borderSoft, padding:"12px 14px 10px", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }
+        : { position:"relative", zIndex:1, width:236, borderRight:OBS.borderSoft, padding:"20px 16px", display:"flex", flexDirection:"column", gap:9, overflowY:"auto" } }>
+        <div style={{ marginBottom: isMobile ? 0 : 8 }}>
           <MonoLabel size={9.5} spacing={3.5}>TARGET SELECTION <span style={{ color:OBS.faint }}>· 분석 대상</span></MonoLabel>
         </div>
         {cards===null ? (
           <div style={{ animation:"obsBlinkDim 1.1s ease-in-out infinite" }}>
             <MonoLabel size={9.5} spacing={2.5} color={OBS.teal}>⌁ SCANNING GALAXY…</MonoLabel>
           </div>
-        ) : cards.map((u,idx)=>{
-          const star=STAR_COLORS[idx%STAR_COLORS.length]; const sel=selected.includes(u.id);
-          return (
-            <div key={u.id} onClick={()=>toggleSel(u.id)} className="obs-chip" style={{
-              display:"flex", alignItems:"center", gap:10, padding:"9px 11px", borderRadius:2, cursor:"pointer",
-              background: sel ? "rgba(94,234,212,.06)" : "rgba(125,180,255,.03)",
-              border: sel ? "1px solid rgba(94,234,212,.45)" : "1px solid rgba(125,180,255,.14)",
-            }}>
-              <div style={{
-                width:7, height:7, borderRadius:"50%", flexShrink:0, background:star.core,
-                boxShadow: sel
-                  ? `0 0 7px 2px rgba(${star.glow},.9), 0 0 14px 4px rgba(${star.glow},.4)`
-                  : `0 0 5px 1px rgba(${star.glow},.5)`,
-                transition:"box-shadow .3s",
-              }}/>
-              <div style={{ width:26, height:26, borderRadius:"50%", overflow:"hidden", flexShrink:0, border:"1px solid rgba(125,180,255,.25)", boxShadow: sel ? `0 0 10px rgba(${star.glow},.35)` : "none" }}>
-                <img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
-              </div>
-              <div style={{ flex:1, minWidth:0, fontSize:12.5, fontWeight:sel?500:300, fontFamily:OBS.kr, color:sel?"#BAE6FD":OBS.body, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-                {u.name}
-              </div>
-              {sel && <span style={{ color:OBS.teal, fontSize:9, flexShrink:0, fontFamily:OBS.mono }}>◉</span>}
-            </div>
-          );
-        })}
+        ) : (
+          <div style={ isMobile
+            ? { display:"flex", gap:8, overflowX:"auto", paddingBottom:2 }
+            : { display:"flex", flexDirection:"column", gap:9 } }>
+            {cards.map((u,idx)=>{
+              const star=STAR_COLORS[idx%STAR_COLORS.length]; const sel=selected.includes(u.id);
+              return (
+                <div key={u.id} onClick={()=>toggleSel(u.id)} className="obs-chip" style={{
+                  display:"flex", alignItems:"center", gap:10, padding:"9px 11px", borderRadius:2, cursor:"pointer",
+                  flex: isMobile ? "0 0 auto" : undefined,
+                  background: sel ? "rgba(94,234,212,.06)" : "rgba(125,180,255,.03)",
+                  border: sel ? "1px solid rgba(94,234,212,.45)" : "1px solid rgba(125,180,255,.14)",
+                }}>
+                  <div style={{
+                    width:7, height:7, borderRadius:"50%", flexShrink:0, background:star.core,
+                    boxShadow: sel
+                      ? `0 0 7px 2px rgba(${star.glow},.9), 0 0 14px 4px rgba(${star.glow},.4)`
+                      : `0 0 5px 1px rgba(${star.glow},.5)`,
+                    transition:"box-shadow .3s",
+                  }}/>
+                  <div style={{ width:26, height:26, borderRadius:"50%", overflow:"hidden", flexShrink:0, border:"1px solid rgba(125,180,255,.25)", boxShadow: sel ? `0 0 10px rgba(${star.glow},.35)` : "none" }}>
+                    <img src={u.photo} alt={u.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                  </div>
+                  <div style={{ flex:1, minWidth:0, fontSize:12.5, fontWeight:sel?500:300, fontFamily:OBS.kr, color:sel?"#BAE6FD":OBS.body, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                    {u.name}
+                  </div>
+                  {sel && <span style={{ color:OBS.teal, fontSize:9, flexShrink:0, fontFamily:OBS.mono }}>◉</span>}
+                </div>
+              );
+            })}
+          </div>
+        )}
         {locked && (
-          <div style={{ marginTop:6, padding:"10px 11px", border:"1px dashed rgba(125,180,255,.25)", borderRadius:2 }}>
+          <div style={{ marginTop: isMobile ? 2 : 6, padding:"10px 11px", border:"1px dashed rgba(125,180,255,.25)", borderRadius:2 }}>
             <div style={{ marginBottom:4 }}><MonoLabel size={8.5} spacing={2} color={OBS.violet}>SPECTRAL DATA LOCKED</MonoLabel></div>
             <div style={{ fontSize:11, fontWeight:300, lineHeight:1.6, color:OBS.dim, fontFamily:OBS.kr }}>동료 관측(평가)을 완료하면 분석이 열립니다.</div>
           </div>
@@ -128,21 +139,21 @@ export function AIScreen() {
       </div>
 
       {/* 우측: MADMON CORE 콘솔 */}
-      <div style={{ position:"relative", zIndex:1, flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+      <div style={{ position:"relative", zIndex:1, flex:1, minHeight:0, display:"flex", flexDirection:"column", overflow:"hidden" }}>
         {/* 헤더 */}
-        <div style={{ padding:"17px 24px", borderBottom:OBS.borderSoft, display:"flex", alignItems:"center", gap:11 }}>
+        <div style={{ padding: isMobile ? "12px 14px" : "17px 24px", borderBottom:OBS.borderSoft, display:"flex", alignItems:"center", gap:11 }}>
           <span style={{ color:OBS.teal, fontSize:13 }}>◈</span>
           <div style={{ flex:1 }}>
             <MonoLabel size={10.5} spacing={3} color={OBS.starWhite}>MADMON CORE</MonoLabel>
-            <div style={{ marginTop:3 }}>
+            <div className="hide-mobile" style={{ marginTop:3 }}>
               <MonoLabel size={8.5} spacing={2}>OBSERVATORY AI · <span style={{ color:OBS.teal }}>ONLINE</span></MonoLabel>
             </div>
           </div>
-          <MonoLabel size={9} spacing={2}>{selUsers.length} TARGET{selUsers.length===1?"":"S"} LOCKED <span style={{ color:OBS.faint }}>· {selUsers.length}명 선택됨</span></MonoLabel>
+          <MonoLabel size={9} spacing={2}>{selUsers.length} TARGET{selUsers.length===1?"":"S"} LOCKED <span className="hide-mobile" style={{ color:OBS.faint }}>· {selUsers.length}명 선택됨</span></MonoLabel>
         </div>
 
         {/* 로그 */}
-        <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
+        <div style={{ flex:1, overflowY:"auto", padding: isMobile ? "14px 14px" : "20px 24px" }}>
           {msgs.map((m,i)=>{
             const isLast=i===msgs.length-1; const isUser=m.role==="user";
             const text=(isLast&&i===displayIdx)?displayText:m.text;
@@ -166,18 +177,21 @@ export function AIScreen() {
         </div>
 
         {error && (
-          <div style={{ padding:"0 24px 6px" }}>
+          <div style={{ padding: isMobile ? "0 14px 6px" : "0 24px 6px" }}>
             <MonoLabel size={8.5} spacing={2} color="#f87171">⚠ LINK ERROR</MonoLabel>
             <span style={{ fontSize:11.5, fontWeight:300, color:"#fca5a5", fontFamily:OBS.kr, marginLeft:8 }}>{error}</span>
           </div>
         )}
 
-        {/* 예시 질문 */}
-        <div style={{ padding:"6px 24px 0", display:"flex", flexWrap:"wrap", gap:7, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" }}>
+        {/* 예시 질문 — 모바일은 화면을 덜 차지하게 한 줄 가로 스크롤로 */}
+        <div style={ isMobile
+          ? { padding:"6px 14px 0", display:"flex", flexWrap:"nowrap", overflowX:"auto", gap:7, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto", flexShrink:0 }
+          : { padding:"6px 24px 0", display:"flex", flexWrap:"wrap", gap:7, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" } }>
           {AI_QUESTIONS.map(q=>(
             <button key={q} disabled={locked} onClick={()=>send(q)} className="obs-chip" style={{
               padding:"5px 11px", borderRadius:2, fontSize:11.5, fontWeight:300, fontFamily:OBS.kr, cursor:"pointer",
               background:"rgba(125,180,255,.05)", color:OBS.body, border:"1px solid rgba(125,180,255,.22)",
+              flexShrink: isMobile ? 0 : undefined, whiteSpace:"nowrap",
             }}>
               <span style={{ color:OBS.violet, fontSize:8, marginRight:6, fontFamily:OBS.mono }}>✦</span>{q}
             </button>
@@ -185,7 +199,7 @@ export function AIScreen() {
         </div>
 
         {/* 입력 콘솔 */}
-        <div style={{ margin:"12px 24px 20px", display:"flex", alignItems:"center", gap:11, padding:"12px 16px", border:OBS.border, borderRadius:2, background:"rgba(8,17,38,.72)", backdropFilter:"blur(6px)" }}>
+        <div style={{ margin: isMobile ? "10px 14px 14px" : "12px 24px 20px", display:"flex", alignItems:"center", gap:11, padding:"12px 16px", border:OBS.border, borderRadius:2, background:"rgba(8,17,38,.72)", backdropFilter:"blur(6px)" }}>
           <span style={{ fontFamily:OBS.mono, fontSize:11, color:locked?OBS.faint:OBS.teal }}>▸</span>
           <input
             value={input}

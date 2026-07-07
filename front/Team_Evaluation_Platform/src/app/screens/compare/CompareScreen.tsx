@@ -4,6 +4,7 @@ import { listCards, ApiError } from "../../api";
 import type { Stats, User } from "../../types";
 import { STATS } from "../../constants/stats";
 import { cardToUser, deriveEvaluationLocked } from "../../lib/cardMapping";
+import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE, starColorFor, observatoryCode } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
@@ -29,6 +30,7 @@ function centerMessage(text: string, spinning=false) {
 
 // ─── Compare Screen ───────────────────────────────────────────────────────────
 export function CompareScreen() {
+  const isMobile = useIsMobile();
   const [cards, setCards] = useState<User[]|null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
@@ -51,7 +53,7 @@ export function CompareScreen() {
   return (
     <div style={{ position:"relative", height:"100%", overflowY:"auto" }}>
       <SpaceBackground/>
-      <div style={{ position:"relative", zIndex:1, padding:"36px 40px 48px", minHeight:"100%", boxSizing:"border-box" }}>
+      <div style={{ position:"relative", zIndex:1, padding: isMobile ? "22px 16px 34px" : "36px 40px 48px", minHeight:"100%", boxSizing:"border-box" }}>
         <div style={{ marginBottom:26 }}>
           <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · COMPARATIVE ANALYSIS</div>
           <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px" }}>별자리 비교</h1>
@@ -96,7 +98,7 @@ export function CompareScreen() {
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:22 }}>
             {/* 선택된 별들 */}
-            <div style={{ display:"flex", gap:28, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", gap: isMobile ? 18 : 28, flexWrap:"wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
               {selUsers.map(u=>{
                 const { color, glowC } = starColorFor(u.id);
                 return (
@@ -114,7 +116,7 @@ export function CompareScreen() {
             <HoloPanel>
               <HudLabel en="SPECTRAL COMPARISON" kr="능력치 비교"/>
               <div style={{ display:"flex", justifyContent:"center" }}>
-                <ConstellationChart series={series} size={300}/>
+                <ConstellationChart series={series} size={isMobile ? 236 : 300}/>
               </div>
             </HoloPanel>
 

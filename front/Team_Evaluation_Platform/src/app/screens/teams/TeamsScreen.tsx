@@ -9,6 +9,7 @@ import { RARITY } from "../../constants/rarity";
 import { rarityFromCardStats } from "../../lib/cardMapping";
 import { FALLBACK_AVATAR, handleImgError } from "../../lib/avatar";
 import { copyToClipboard } from "../../lib/clipboard";
+import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE, FONT } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
@@ -58,6 +59,7 @@ export function TeamsScreen() {
   const [copiedKey, setCopiedKey] = useState<string|null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const isMobile = useIsMobile();
 
   async function loadTeams() {
     try {
@@ -121,7 +123,7 @@ export function TeamsScreen() {
   return (
     <div style={{ position:"relative", height:"100%", overflow:"hidden" }}>
       <SpaceBackground/>
-      <div style={{ position:"absolute", inset:0, zIndex:1, overflowY:"auto", padding:"36px 40px 48px", boxSizing:"border-box" }}>
+      <div style={{ position:"absolute", inset:0, zIndex:1, overflowY:"auto", padding: isMobile ? "22px 16px 34px" : "36px 40px 48px", boxSizing:"border-box" }}>
         {/* 헤더 */}
         <div style={{ marginBottom:24 }}>
           <div style={{ fontFamily:FONT.hud, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · GALAXY REGISTRY</div>
@@ -134,7 +136,7 @@ export function TeamsScreen() {
         {error && <p style={{ fontSize:12, color:"#f87171", fontFamily:FONT.body, marginBottom:14 }}>{error}</p>}
 
         {/* 탭 */}
-        <div style={{ display:"flex", gap:8, marginBottom:26 }}>
+        <div style={{ display:"flex", gap:8, marginBottom:26, flexWrap:"wrap" }}>
           {TABS.map(({k,en,kr})=>{
             const active = tab===k;
             return (
@@ -167,8 +169,8 @@ export function TeamsScreen() {
               const teamKey = String(team.id);
               const done = status==="done";
               return (
-              <HoloPanel key={team.id} style={{ padding:"20px 24px", animation:`fadeUp .6s ${idx*0.08}s both` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+              <HoloPanel key={team.id} style={{ padding: isMobile ? "18px 16px" : "20px 24px", animation:`fadeUp .6s ${idx*0.08}s both` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14, flexWrap:"wrap", gap:10 }}>
                   <div>
                     <div style={{ fontFamily:FONT.hud, fontSize:9, letterSpacing:"2px", color:SPACE.label, marginBottom:4 }}>GALAXY</div>
                     <div style={{ fontFamily:"'Space Grotesk', 'Noto Sans KR', sans-serif", fontSize:18, fontWeight:500, color:SPACE.starWhite }}>{team.name}</div>
@@ -187,7 +189,7 @@ export function TeamsScreen() {
                   </div>
                 </div>
 
-                <div style={{ display:"flex", gap:22, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${SPACE.border}` }}>
+                <div style={{ display:"flex", gap:22, rowGap:8, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${SPACE.border}`, flexWrap:"wrap" }}>
                   <span style={{ fontFamily:FONT.hud, fontSize:9.5, letterSpacing:"2px", color:SPACE.label }}>
                     STARS <span style={{ color:SPACE.accentSky }}>{team.memberCount}</span>
                   </span>

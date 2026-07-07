@@ -69,7 +69,7 @@ export function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChange
     }
   }
   return (
-    <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", background: OBS.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <div style={{ minHeight: "100dvh", position: "relative", overflow: "hidden", background: OBS.bg, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px", boxSizing: "border-box" }}>
       <ObservatoryStyle/>
       <SpaceBackground/>
 
@@ -78,10 +78,10 @@ export function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChange
         <span style={{ fontFamily: OBS.display, fontWeight: 600, fontSize: 14, letterSpacing: 5, color: OBS.starWhite }}>MADMON</span>
         <MonoLabel size={10} spacing={3}>DEEP-SKY OBSERVATORY</MonoLabel>
       </div>
-      <div style={{ position: "absolute", bottom: 26, left: 32, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
+      <div className="hide-mobile" style={{ position: "absolute", bottom: 26, left: 32, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
         <MonoLabel size={10} spacing={2.5}><span style={{ color: OBS.teal }}>◉</span> OBSERVATION LINK STANDBY</MonoLabel>
       </div>
-      <div style={{ position: "absolute", bottom: 26, right: 32, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
+      <div className="hide-mobile" style={{ position: "absolute", bottom: 26, right: 32, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
         <MonoLabel size={10} spacing={2}>RA 05h 34m · DEC +22° 00′</MonoLabel>
       </div>
 
@@ -101,7 +101,7 @@ export function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChange
         </div>
 
         {/* 관측자 인증 패널 */}
-        <ObsPanel width={392} style={{ padding: "24px 28px 26px" }}>
+        <ObsPanel width="min(392px, calc(100vw - 32px))" style={{ padding: "24px 28px 26px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
             <MonoLabel size={9.5} spacing={3.5} color={OBS.teal}>OBSERVER AUTHENTICATION</MonoLabel>
             <MonoLabel size={9.5} spacing={2}>AUTH-01</MonoLabel>
