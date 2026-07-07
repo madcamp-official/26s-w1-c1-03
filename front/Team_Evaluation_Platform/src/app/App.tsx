@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { Component, useState, useEffect, useRef, useMemo } from "react";
+import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
   Lock, Eye, EyeOff, Search, X, Plus, Copy, Notebook, UserPlus, Check,
@@ -6,7 +7,7 @@ import {
   User, LogOut, BookOpen, Swords, Shield, Zap, Heart, Info,
   CheckCircle2, Bot, SlidersHorizontal, ArrowUpDown,
   ChevronLeft, RefreshCw, Upload, AlertTriangle, Filter,
-  ArrowDownWideNarrow, ArrowUpNarrowWide, Calendar,
+  ArrowDownWideNarrow, ArrowUpNarrowWide,
 } from "lucide-react";
 import {
   login as apiLogin, changePassword as apiChangePassword, getMyProfile,
@@ -330,7 +331,7 @@ function Pill({ label, color="#00c8ff", small=false }: { label:string; color?:st
   return (
     <span style={{
       display:"inline-flex", alignItems:"center",
-      padding: small ? "2px 8px" : "4px 10px",
+      padding: small ? "1px 6px" : "4px 10px",
       borderRadius:999,
       fontSize: small ? 10 : 11,
       background:`${color}1a`,
@@ -378,7 +379,11 @@ function MiniHex({ stats, size=72, color="#00c8ff" }: { stats:Stats; size?:numbe
 // 라벨 반경(labelR) 사이의 간격을 모든 꼭짓점에 대해 항상 동일하게 보장할 수 있다.
 function BigHex({ stats, size=260, users, colors }: { stats?:Stats; size?:number; users?:User[]; colors?:string[] }) {
   const defaultColors = ["#00c8ff","#a855f7","#fbbf24"];
-  const cx=50, cy=50, r=32, labelR=44;
+  // labelR-r 간격은 viewBox 단위라 렌더 크기(size)에 비례해 그대로 확대된다 — size가 커질수록
+  // 그래프와 글씨 사이가 실제 화면에서 점점 더 멀어 보이는 원인이었다. 목표 픽셀 간격을 정해두고
+  // size에 반비례하는 viewBox 간격을 역산하면, 카드 크기와 무관하게 실제 여백이 일정해진다.
+  const TARGET_GAP_PX = 15;
+  const cx=50, cy=50, r=32, labelR=r + (TARGET_GAP_PX*100)/size;
   const n = STATS.length;
   const angleOf = (i:number) => (i*360/n - 90) * Math.PI/180;
 
@@ -432,19 +437,27 @@ function CardFront({ user }: { user:User }) {
   const top = topTitles(user.titleVotes);
   return (
     <div style={{ width:"100%", height:"100%", display:"flex", flexDirection:"column" }}>
-      <div style={{ position:"relative", flex:"0 0 58%", background:"#060c18", overflow:"hidden" }}>
+      <div style={{ position:"relative", flex:"0 0 54%", background:"#060c18", overflow:"hidden" }}>
         <img src={user.photo} alt={user.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover", filter:"brightness(0.82) saturate(1.1)" }}/>
         <div style={{ position:"absolute", inset:0, background:"linear-gradient(to bottom,transparent 45%,#0d1525 100%)" }}/>
         <div style={{ position:"absolute", top:8, right:8, padding:"2px 7px", borderRadius:6, background:`${r.color}22`, color:r.color, border:`1px solid ${r.color}55`, fontSize:9, fontFamily:"'Noto Sans KR'", fontWeight:700 }}>{r.label}</div>
         <div style={{ position:"absolute", top:8, left:8, padding:"2px 7px", borderRadius:6, background:"rgba(0,0,0,0.6)", color:"#8899bb", fontSize:9, fontFamily:"'Orbitron',monospace" }}>PWR <span style={{color:r.color,fontWeight:700}}>{totalPower(user.stats)}</span></div>
       </div>
-      <div style={{ padding:"10px 12px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:6, flex:1 }}>
-        <div style={{ fontSize:16, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", lineHeight:1.2 }}>{user.name}</div>
-        <div style={{ display:"flex", flexDirection:"column-reverse", alignItems:"flex-end", justifyContent:"flex-end", gap:3 }}>
-          {top.map(t=><Pill key={t} label={t} color={r.color} small/>)}
+      {/* 이름/칭호가 길어져 줄바꿈되어도 오른쪽 그래프는 독립된 flex 칸이라 밀려 내려가거나
+          잘리지 않는다(이전엔 grid 2행 구조라 1행 높이가 늘어나면 2행의 그래프가 카드
+          밖으로 밀려 잘렸다). */}
+      <div style={{ padding:"10px 12px", display:"flex", alignItems:"center", gap:8, flex:1, minHeight:0 }}>
+        <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:4, justifyContent:"center" }}>
+          <div style={{
+            fontSize:15, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", lineHeight:1.25,
+            display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden",
+          }}>{user.name}</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:3 }}>
+            {top.map(t=><Pill key={t} label={t} color={r.color} small/>)}
+          </div>
         </div>
-        <div style={{ gridColumn:"1 / span 2", display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-          <MiniHex stats={user.stats} size={64} color={r.color}/>
+        <div style={{ flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <MiniHex stats={user.stats} size={58} color={r.color}/>
         </div>
       </div>
     </div>
@@ -548,13 +561,18 @@ function GridCard({ user, onClick, locked=false }: { user:User; onClick:()=>void
           <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{user.name}</div>
         </div>
       ) : (
-        <div style={{ padding:"8px 10px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
-          <div style={{ fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0" }}>{user.name}</div>
-          <div style={{ display:"flex", flexDirection:"column-reverse", alignItems:"flex-end", justifyContent:"flex-end", gap:3 }}>
-            {top.map(t=><Pill key={t} label={t} color={r.color} small/>)}
+        <div style={{ padding:"8px 10px", display:"flex", alignItems:"center", gap:6 }}>
+          <div style={{ flex:1, minWidth:0, display:"flex", flexDirection:"column", gap:3 }}>
+            <div style={{
+              fontSize:13, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", lineHeight:1.25,
+              display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical", overflow:"hidden",
+            }}>{user.name}</div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:3 }}>
+              {top.map(t=><Pill key={t} label={t} color={r.color} small/>)}
+            </div>
           </div>
-          <div style={{ gridColumn:"1 / span 2", display:"flex", justifyContent:"center" }}>
-            <MiniHex stats={user.stats} size={60} color={r.color}/>
+          <div style={{ flexShrink:0 }}>
+            <MiniHex stats={user.stats} size={52} color={r.color}/>
           </div>
         </div>
       )}
@@ -1042,41 +1060,82 @@ function formatDeadline(iso: string): string {
   const pad = (n:number)=>String(n).padStart(2,"0");
   return `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-// <input type="datetime-local"> min 속성 및 유효성 검사에 쓸, 로컬 타임존 기준 "지금"을 만든다.
-function nowForDatetimeLocal(): string {
-  const d = new Date();
-  d.setSeconds(0,0);
-  return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+function parseDeadlineParts(v: string): { year:string; month:string; day:string; hour:string; minute:string } {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v);
+  return m ? { year:m[1], month:m[2], day:m[3], hour:m[4], minute:m[5] } : { year:"", month:"", day:"", hour:"", minute:"" };
 }
 
-// 브라우저 기본 datetime-local 위젯의 어두운 팝업 캘린더/오전·오후 표기/달력 아이콘 툴팁을
-// 손볼 수 있는 범위에서 손본 전용 필드. 연도 4자리 입력 후 자동으로 월로 넘어가는 동작은
-// 브라우저가 내부적으로 구현하는 영역이라 조정할 수 없어 그대로 둔다.
-function DeadlineField({ value, onChange, min, error }: { value:string; onChange:(v:string)=>void; min?:string; error?:string }) {
-  const ref = useRef<HTMLInputElement>(null);
-  function openPicker() {
-    const el = ref.current;
-    if (!el) return;
-    if (typeof el.showPicker === "function") el.showPicker();
-    else el.focus();
+// 네이티브 <input type="datetime-local">는 오전/오후 표기를 브라우저·OS 로케일에 맡길 뿐
+// 24시간제로 강제할 방법이 없고, 연도 4자리 입력 후 자동으로 월 칸으로 넘어가는 동작도
+// 브라우저 내부 구현이라 통제가 안 된다. 그래서 연/월/일/시/분을 각각 우리가 직접 관리하는
+// 숫자 칸으로 구현해 두 문제 모두를 프론트에서 직접 통제한다.
+function DeadlineField({ value, onChange, error }: { value:string; onChange:(v:string)=>void; error?:string }) {
+  const initial = parseDeadlineParts(value);
+  const [year, setYear] = useState(initial.year);
+  const [month, setMonth] = useState(initial.month);
+  const [day, setDay] = useState(initial.day);
+  const [hour, setHour] = useState(initial.hour);
+  const [minute, setMinute] = useState(initial.minute);
+  const yearRef = useRef<HTMLInputElement>(null);
+  const monthRef = useRef<HTMLInputElement>(null);
+  const dayRef = useRef<HTMLInputElement>(null);
+  const hourRef = useRef<HTMLInputElement>(null);
+  const minuteRef = useRef<HTMLInputElement>(null);
+
+  function emit(next: { year?:string; month?:string; day?:string; hour?:string; minute?:string }) {
+    const y = next.year ?? year, mo = next.month ?? month, d = next.day ?? day, h = next.hour ?? hour, mi = next.minute ?? minute;
+    if (y.length===4 && mo.length===2 && d.length===2 && h.length===2 && mi.length===2) onChange(`${y}-${mo}-${d}T${h}:${mi}`);
+    else onChange("");
   }
+
+  const digitsOnly = (v:string, maxLen:number) => v.replace(/[^0-9]/g,"").slice(0,maxLen);
+  // 두 자리를 다 채우는 순간 유효 범위로 맞추고 다음 칸으로 넘어간다(연도는 4자리 채우면 바로 월로).
+  const clamp2 = (digits:string, lo:number, hi:number) => digits.length<2 ? digits : String(Math.min(Math.max(parseInt(digits,10)||0, lo), hi)).padStart(2,"0");
+
+  function handleYear(v:string) {
+    const digits = digitsOnly(v,4);
+    setYear(digits); emit({year:digits});
+    if (digits.length===4) monthRef.current?.focus();
+  }
+  function handleMonth(v:string) {
+    const digits = clamp2(digitsOnly(v,2),1,12);
+    setMonth(digits); emit({month:digits});
+    if (digits.length===2) dayRef.current?.focus();
+  }
+  function handleDay(v:string) {
+    const digits = clamp2(digitsOnly(v,2),1,31);
+    setDay(digits); emit({day:digits});
+    if (digits.length===2) hourRef.current?.focus();
+  }
+  function handleHour(v:string) {
+    const digits = clamp2(digitsOnly(v,2),0,23);
+    setHour(digits); emit({hour:digits});
+    if (digits.length===2) minuteRef.current?.focus();
+  }
+  function handleMinute(v:string) {
+    const digits = clamp2(digitsOnly(v,2),0,59);
+    setMinute(digits); emit({minute:digits});
+  }
+  function backspaceTo(ref: React.RefObject<HTMLInputElement>, current:string) {
+    return (e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key==="Backspace" && current==="") ref.current?.focus(); };
+  }
+
+  const segStyle: React.CSSProperties = { ...DS.input, padding:"11px 0", textAlign:"center", fontSize:14, fontFamily:"'Orbitron',monospace", boxSizing:"border-box" };
+  const sep = (ch:string) => <span style={{ color:"#4a5a7a", fontSize:14 }}>{ch}</span>;
+
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-      <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>프로젝트 마감기한</span>
-      <div style={{ position:"relative" }}>
-        <input
-          ref={ref}
-          type="datetime-local"
-          lang="en-GB"
-          value={value}
-          min={min}
-          onChange={e=>onChange(e.target.value)}
-          className="deadline-input"
-          style={{ ...DS.input, width:"100%", padding:"11px 42px 11px 14px", boxSizing:"border-box", fontSize:14, colorScheme:"light" }}
-        />
-        <button type="button" title="캘린더" onClick={openPicker} style={{ position:"absolute", right:12, top:"50%", transform:"translateY(-50%)", background:"none", border:"none", color:"#8899bb", cursor:"pointer", display:"flex", alignItems:"center" }}>
-          <Calendar size={15}/>
-        </button>
+      <span style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>프로젝트 마감기한 <span style={{color:"#4a5a7a"}}>(24시간 형식)</span></span>
+      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+        <input ref={yearRef} value={year} onChange={e=>handleYear(e.target.value)} placeholder="YYYY" inputMode="numeric" style={{ ...segStyle, width:60 }}/>
+        {sep("-")}
+        <input ref={monthRef} value={month} onChange={e=>handleMonth(e.target.value)} onKeyDown={backspaceTo(yearRef,month)} placeholder="MM" inputMode="numeric" style={{ ...segStyle, width:38 }}/>
+        {sep("-")}
+        <input ref={dayRef} value={day} onChange={e=>handleDay(e.target.value)} onKeyDown={backspaceTo(monthRef,day)} placeholder="DD" inputMode="numeric" style={{ ...segStyle, width:38 }}/>
+        <span style={{ width:6 }}/>
+        <input ref={hourRef} value={hour} onChange={e=>handleHour(e.target.value)} onKeyDown={backspaceTo(dayRef,hour)} placeholder="HH" inputMode="numeric" style={{ ...segStyle, width:38 }}/>
+        {sep(":")}
+        <input ref={minuteRef} value={minute} onChange={e=>handleMinute(e.target.value)} onKeyDown={backspaceTo(hourRef,minute)} placeholder="mm" inputMode="numeric" style={{ ...segStyle, width:38 }}/>
       </div>
       {error && <span style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>{error}</span>}
     </div>
@@ -1091,6 +1150,7 @@ function TeamsScreen() {
   const [tname, setTname] = useState("");
   const [deadline, setDeadline] = useState("");
   const [deadlineError, setDeadlineError] = useState("");
+  const [deadlineFieldKey, setDeadlineFieldKey] = useState(0);
   const [code, setCode] = useState("");
   const [created, setCreated] = useState<string|null>(null);
   const [copiedKey, setCopiedKey] = useState<string|null>(null);
@@ -1129,7 +1189,7 @@ function TeamsScreen() {
     try {
       const team = await createTeam(tname, new Date(deadline).toISOString());
       setCreated(team.inviteCode);
-      setTname(""); setDeadline("");
+      setTname(""); setDeadline(""); setDeadlineFieldKey(k=>k+1);
       loadTeams();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "팀 생성 중 오류가 발생했습니다.");
@@ -1215,7 +1275,7 @@ function TeamsScreen() {
         <div style={{ ...DS.card, padding:"24px", maxWidth:420 }}>
           <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
             <Field label="팀 이름" value={tname} onChange={setTname} placeholder="예) 감마팀"/>
-            <DeadlineField value={deadline} min={nowForDatetimeLocal()} onChange={v=>{setDeadline(v);setDeadlineError("");}} error={deadlineError||undefined}/>
+            <DeadlineField key={deadlineFieldKey} value={deadline} onChange={v=>{setDeadline(v);setDeadlineError("");}} error={deadlineError||undefined}/>
             <Btn icon={<Plus size={13}/>} onClick={create} disabled={busy}>{busy?"생성 중...":"팀 생성"}</Btn>
             {created && (
               <div style={{ padding:"16px", borderRadius:10, background:"rgba(52,211,153,0.06)", border:"1px solid rgba(52,211,153,0.25)" }}>
@@ -1276,12 +1336,18 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
     : "";
 
   function setR(uid:number,key:string,v:number){setRatings(p=>({...p,[uid]:{...p[uid],[key]:v}}))}
+  // 초기 능력치 설정과 동일한 규칙(백엔드 SubmitEvaluationRequest.isTotalWithinRange()): 총합 6~40.
+  function statsSum(r: Partial<Stats>|undefined): number {
+    return STATS.reduce((sum,s)=>sum+((r?.[s.key as keyof Stats])??5),0);
+  }
 
   async function submit(uid:number) {
     const titleId = titles[uid];
     const target = teammates?.find(t=>t.userId===uid);
     if (!titleId || !target) return;
     const r = ratings[uid] ?? {};
+    const sum = statsSum(r);
+    if (sum<6 || sum>40) { setError("능력치 총합을 6-40 사이로 설정해주세요."); return; }
     setSubmitting(uid); setError("");
     try {
       await submitEvaluation({
@@ -1339,6 +1405,9 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
       <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
         {teammates.map(u=>{
           const isDone=done.includes(u.userId);
+          const uRatings = ratings[u.userId];
+          const sum = statsSum(uRatings);
+          const sumValid = sum>=6 && sum<=40;
           return (
             <div key={u.userId} style={{ ...DS.card, overflow:"hidden" }}>
               <div style={{ padding:"14px 18px", background:isDone?"rgba(52,211,153,0.04)":"rgba(255,255,255,0.01)", borderBottom:"1px solid rgba(255,255,255,0.06)", display:"flex", alignItems:"center", gap:12 }}>
@@ -1364,8 +1433,15 @@ function EvaluateScreen({ onDone }: { onDone:()=>void }) {
                       <StatSlider key={s.key} label={s.label} desc={s.desc} value={(ratings[u.userId]?.[s.key as keyof Stats]??5) as number} onChange={v=>setR(u.userId,s.key,v)} color={s.color} Icon={s.Icon}/>
                     ))}
                   </div>
+                  <div style={{ padding:"12px", borderRadius:10, background:"rgba(0,200,255,0.04)", border:"1px solid rgba(0,200,255,0.1)", position:"relative" }}>
+                    <div style={{ display:"flex", justifyContent:"center" }}>
+                      <MiniHex stats={Object.fromEntries(STATS.map(s=>[s.key,((uRatings?.[s.key as keyof Stats])??5)*10])) as unknown as Stats} size={90} color="#00c8ff"/>
+                    </div>
+                    <span style={{ position:"absolute", left:14, bottom:12, fontSize:18, fontFamily:"'Orbitron',monospace", fontWeight:800, color: sumValid?"#00c8ff":"#ef4444" }}>{sum}</span>
+                  </div>
+                  {!sumValid && <span style={{ fontSize:11, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>능력치 총합을 6-40 사이로 설정해주세요.</span>}
                   <div style={{ display:"flex", justifyContent:"flex-end" }}>
-                    <Btn disabled={!titles[u.userId]||submitting===u.userId} onClick={()=>submit(u.userId)} icon={<Check size={13}/>}>{submitting===u.userId?"제출 중...":"평가 제출"}</Btn>
+                    <Btn disabled={!titles[u.userId]||submitting===u.userId||!sumValid} onClick={()=>submit(u.userId)} icon={<Check size={13}/>}>{submitting===u.userId?"제출 중...":"평가 제출"}</Btn>
                   </div>
                 </div>
               )}
@@ -1417,7 +1493,7 @@ function AIScreen() {
         setSessionId(sid);
       }
       const reply = await sendChatMessage(sid, q);
-      setMsgs(m=>[...m,{role:"ai",text:reply.assistantMessage.content}]);
+      setMsgs(m=>[...m,{role:"ai",text:reply.content}]);
       setDisplayIdx(newMsgs.length); setDisplayText("");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "AI 응답을 가져오지 못했습니다.");
@@ -1568,7 +1644,7 @@ function CompareScreen() {
           {/* Radar comparison */}
           <div style={{ ...DS.card, padding:"20px" }}>
             <h3 style={{ fontSize:14, fontWeight:700, fontFamily:"'Noto Sans KR'", color:"#dde5f0", marginBottom:12 }}>능력치 비교</h3>
-            <BigHex users={selUsers} size={420} colors={colors}/>
+            <BigHex users={selUsers} size={280} colors={colors}/>
             {/* Stat table */}
             <div style={{ marginTop:16, overflowX:"auto" }}>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12, fontFamily:"'Noto Sans KR'" }}>
@@ -1745,6 +1821,27 @@ function ProfileScreen() {
   );
 }
 
+// 화면 하나가 예기치 못한 렌더링 오류(예: 백엔드 응답 모양이 프론트 가정과 달라 발생하는
+// 타입 오류)로 죽어도 앱 전체가 새까맣게 사라지는 대신 해당 화면에만 안내 문구가 뜨게 한다.
+class ScreenErrorBoundary extends Component<{ children: ReactNode }, { error: Error|null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error: Error) { return { error }; }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding:"28px 32px", display:"flex", flexDirection:"column", gap:6 }}>
+          <p style={{ fontSize:14, fontWeight:700, color:"#ef4444", fontFamily:"'Noto Sans KR'" }}>화면을 표시하는 중 문제가 발생했습니다.</p>
+          <p style={{ fontSize:12, color:"#8899bb", fontFamily:"'Noto Sans KR'" }}>다른 메뉴를 눌렀다가 다시 돌아오거나, 새로고침해주세요.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // ─── App Shell ────────────────────────────────────────────────────────────────
 function GlobalStyle() {
   return (
@@ -1824,12 +1921,14 @@ export default function App() {
       <div style={{ display:"flex", height:"100vh", background:"#070b12", overflow:"hidden" }}>
         <Sidebar screen={screen} setScreen={s=>{setScreen(s);}} onLogout={handleLogout}/>
         <main style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
-          {screen==="pokedex"     && <PokedexScreen onEval={()=>setScreen("evaluate")}/>}
-          {screen==="teams"       && <TeamsScreen/>}
-          {screen==="evaluate"    && <EvaluateScreen onDone={()=>setScreen("pokedex")}/>}
-          {screen==="ai-analysis" && <AIScreen/>}
-          {screen==="compare"     && <CompareScreen/>}
-          {screen==="profile"     && <ProfileScreen/>}
+          <ScreenErrorBoundary key={screen}>
+            {screen==="pokedex"     && <PokedexScreen onEval={()=>setScreen("evaluate")}/>}
+            {screen==="teams"       && <TeamsScreen/>}
+            {screen==="evaluate"    && <EvaluateScreen onDone={()=>setScreen("pokedex")}/>}
+            {screen==="ai-analysis" && <AIScreen/>}
+            {screen==="compare"     && <CompareScreen/>}
+            {screen==="profile"     && <ProfileScreen/>}
+          </ScreenErrorBoundary>
         </main>
       </div>
     </>

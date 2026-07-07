@@ -38,6 +38,7 @@ interface ApiEnvelope<T> {
   data?: T;
   errorCode?: string;
   message?: string;
+  errors?: { field: string; reason: string }[];
 }
 
 async function request<T>(
@@ -73,7 +74,10 @@ async function request<T>(
     if (refreshed) return request<T>(path, options, { auth, retry: false });
   }
 
-  throw new ApiError(body.errorCode ?? "UNKNOWN_ERROR", body.message ?? "요청 처리 중 오류가 발생했습니다.", res.status);
+  // 능력치 합계(6~40) 같은 Bean Validation 실패는 최상위 message가 아니라 errors[].reason에
+  // 구체적인 문구로 담겨 내려오므로(GlobalExceptionHandler), 있으면 그쪽을 우선한다.
+  const message = body.errors?.[0]?.reason ?? body.message ?? "요청 처리 중 오류가 발생했습니다.";
+  throw new ApiError(body.errorCode ?? "UNKNOWN_ERROR", message, res.status);
 }
 
 async function tryRefresh(): Promise<boolean> {
@@ -329,11 +333,6 @@ export interface ChatSessionDetailDto extends ChatSessionDto {
   messages: ChatMessageDto[];
 }
 
-export interface SendMessageResultDto {
-  userMessage: ChatMessageDto;
-  assistantMessage: ChatMessageDto;
-}
-
 export function listChatSessions(): Promise<ChatSessionDto[]> {
   return request<ChatSessionDto[]>("/chat/sessions", { method: "GET" });
 }
@@ -346,8 +345,10 @@ export function getChatSession(sessionId: number): Promise<ChatSessionDetailDto>
   return request<ChatSessionDetailDto>(`/chat/sessions/${sessionId}`, { method: "GET" });
 }
 
-export function sendChatMessage(sessionId: number, content: string): Promise<SendMessageResultDto> {
-  return request<SendMessageResultDto>(`/chat/sessions/${sessionId}/messages`, {
+// ChatController.sendMessage는 {userMessage, assistantMessage} 묶음이 아니라 방금 생성된
+// AI 응답 메시지 하나(ChatMessageResponse)만 돌려준다.
+export function sendChatMessage(sessionId: number, content: string): Promise<ChatMessageDto> {
+  return request<ChatMessageDto>(`/chat/sessions/${sessionId}/messages`, {
     method: "POST",
     body: JSON.stringify({ content }),
   });
