@@ -15,7 +15,9 @@ const NEBULAE: NebulaSpec[] = [
 ];
 
 // design.md §5: 남색 그라데이션 + 표류하는 성운 2~3개 + 반짝이는 입자 별 ~70개.
-// 모든 화면 공통 배경이므로 부모에 position:relative를 주고 이 컴포넌트를 절대배치로 깐다.
+// 모든 화면 공통 배경. position:fixed로 뷰포트 전체에 깔아 화면 내부 스크롤(overflowY:auto)이
+// 얼마나 길어지든 배경이 잘리지 않게 한다(예전엔 absolute라 스크롤 컨테이너의 1개 화면
+// 높이만큼만 채워져서, 아래로 스크롤하면 배경이 끝나고 검은 여백이 보이는 버그가 있었다).
 //
 // driftX/driftY/driftScale: 은하 화면처럼 카메라를 드래그/휠줌하는 화면에서, 배경이 화면에
 // 아예 고정된 것처럼 보이지 않도록 카메라 움직임의 일부만 따라가는 패럴랙스 효과를 주는
@@ -43,7 +45,7 @@ export function SpaceBackground({ density = 70, driftX = 0, driftY = 0, driftSca
   const starScale = 1 + (driftScale - 1) * 0.25;
 
   return (
-    <div style={{ position:"absolute", inset:0, overflow:"hidden", pointerEvents:"none", background:"linear-gradient(160deg, #020617 0%, #081126 55%, #0B1736 100%)" }}>
+    <div style={{ position:"fixed", inset:0, overflow:"hidden", pointerEvents:"none", background:"linear-gradient(160deg, #020617 0%, #081126 55%, #0B1736 100%)" }}>
       <div style={{ position:"absolute", inset:0, transform:`translate(${driftX*0.35}px, ${driftY*0.35}px) scale(${nebScale})`, transition:"transform 0.4s ease-out" }}>
         {NEBULAE.map((n,i)=>(
           <div key={i} style={{
