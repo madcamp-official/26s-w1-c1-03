@@ -1,9 +1,9 @@
-package com.madmon.main.card.dto;
+package com.madmon.main.star.dto;
 
 import com.madmon.main.user.dto.UserStatsResponse;
 import java.util.List;
 
-public record CardSummaryResponse(
+public record StarSummaryResponse(
         Long userId,
         String name,
         String profileImageUrl,

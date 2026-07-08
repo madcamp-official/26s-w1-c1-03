@@ -1,9 +1,9 @@
-package com.madmon.main.card.controller;
+package com.madmon.main.star.controller;
 
 import com.madmon.main.auth.jwt.AuthenticatedUser;
-import com.madmon.main.card.dto.CardDetailResponse;
-import com.madmon.main.card.dto.CardSummaryResponse;
-import com.madmon.main.card.service.CardService;
+import com.madmon.main.star.dto.StarDetailResponse;
+import com.madmon.main.star.dto.StarSummaryResponse;
+import com.madmon.main.star.service.StarService;
 import com.madmon.main.common.response.ApiResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -14,22 +14,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/cards")
+@RequestMapping("/api/stars")
 @RequiredArgsConstructor
-public class CardController {
+public class StarController {
 
-    private final CardService cardService;
+    private final StarService starService;
 
     @GetMapping
-    public ApiResponse<List<CardSummaryResponse>> getCards(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
-        return ApiResponse.success(cardService.getCards(authenticatedUser.id()));
+    public ApiResponse<List<StarSummaryResponse>> getStars(@AuthenticationPrincipal AuthenticatedUser authenticatedUser) {
+        return ApiResponse.success(starService.getStars(authenticatedUser.id()));
     }
 
     @GetMapping("/{userId}")
-    public ApiResponse<CardDetailResponse> getCardDetail(
+    public ApiResponse<StarDetailResponse> getStarDetail(
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,
             @PathVariable Long userId
     ) {
-        return ApiResponse.success(cardService.getCardDetail(authenticatedUser.id(), userId));
+        return ApiResponse.success(starService.getStarDetail(authenticatedUser.id(), userId));
     }
 }

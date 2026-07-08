@@ -1,8 +1,8 @@
-package com.madmon.main.card.service;
+package com.madmon.main.star.service;
 
-import com.madmon.main.card.dto.CardDetailResponse;
-import com.madmon.main.card.dto.CardSummaryResponse;
-import com.madmon.main.card.dto.TitleVoteSummary;
+import com.madmon.main.star.dto.StarDetailResponse;
+import com.madmon.main.star.dto.StarSummaryResponse;
+import com.madmon.main.star.dto.TitleVoteSummary;
 import com.madmon.main.common.exception.BusinessException;
 import com.madmon.main.common.exception.ErrorCode;
 import com.madmon.main.evaluation.repository.EvaluationRepository;
@@ -22,14 +22,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-// 카드 도감은 자체 Entity/Repository가 없는 읽기 전용 조합 계층이다(BACKEND_DEVELOPMENT_PLAN.md §2.2).
+// 은하(별 목록)는 자체 Entity/Repository가 없는 읽기 전용 조합 계층이다(BACKEND_DEVELOPMENT_PLAN.md §2.2).
 // 원래 설계상으로는 user/team/evaluation/title 각 도메인의 Service를 조합해야 하지만,
 // 이 시점에는 Team/Evaluation/Title의 Service 계층(Phase 7~8)이 아직 없어 해당 도메인의
 // Repository를 직접 사용한다. Phase 7~8의 Service가 만들어지면 그쪽 Service 호출로 교체하는 것을 권장한다.
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
-public class CardService {
+public class StarService {
 
     private final UserRepository userRepository;
     private final UserStatsRepository userStatsRepository;
@@ -37,16 +37,16 @@ public class CardService {
     private final TeamMemberRepository teamMemberRepository;
     private final EvaluationRepository evaluationRepository;
 
-    // 목록의 잠금 여부는 카드별이 아니라 "보는 사람이 자기 평가를 끝냈는가"로 결정되므로,
-    // 조회당 한 번만 계산해 모든 카드에 동일하게 적용한다.
-    public List<CardSummaryResponse> getCards(Long viewerId) {
+    // 목록의 잠금 여부는 별마다 다른 게 아니라 "보는 사람이 자기 평가를 끝냈는가"로 결정되므로,
+    // 조회당 한 번만 계산해 모든 별에 동일하게 적용한다.
+    public List<StarSummaryResponse> getStars(Long viewerId) {
         LockStatus lockStatus = evaluateLockStatus(viewerId);
         return userStatsRepository.findAllWithUser().stream()
                 .map(stats -> toSummary(stats, lockStatus))
                 .toList();
     }
 
-    public CardDetailResponse getCardDetail(Long viewerId, Long targetUserId) {
+    public StarDetailResponse getStarDetail(Long viewerId, Long targetUserId) {
         // 잠금 여부를 먼저 확정한 뒤에야 그 결과에 따라 필요한 데이터만 조회한다.
         // 잠긴 경우 능력치/자기소개/칭호 득표 내역은 아예 조회하지 않는다.
         LockStatus lockStatus = evaluateLockStatus(viewerId);
@@ -55,7 +55,7 @@ public class CardService {
         if (!lockStatus.unlocked()) {
             User target = userRepository.findById(targetUserId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.RESOURCE_NOT_FOUND));
-            return new CardDetailResponse(
+            return new StarDetailResponse(
                     targetUserId, target.getName(), target.getProfileImageUrl(),
                     representativeTitles, null,
                     false, lockStatus.remainingCount(), null, null
@@ -69,7 +69,7 @@ public class CardService {
                 .map(this::toTitleVoteSummary)
                 .toList();
 
-        return new CardDetailResponse(
+        return new StarDetailResponse(
                 targetUserId, target.getName(), target.getProfileImageUrl(),
                 representativeTitles, UserStatsResponse.from(targetStats),
                 true, 0, target.getBiography(), titles
@@ -126,9 +126,9 @@ public class CardService {
                 .toList();
     }
 
-    private CardSummaryResponse toSummary(UserStats stats, LockStatus lockStatus) {
+    private StarSummaryResponse toSummary(UserStats stats, LockStatus lockStatus) {
         User user = stats.getUser();
-        return new CardSummaryResponse(
+        return new StarSummaryResponse(
                 user.getId(),
                 user.getName(),
                 user.getProfileImageUrl(),

@@ -161,7 +161,7 @@
   { "success": false, "errorCode": "INVALID_INPUT_VALUE", "message": "입력값이 올바르지 않습니다.", "errors": [], "timestamp": "..." }
   ```
 - **능력치 6항목**: 모든 능력치는 `attack`(공격력) · `defense`(방어력) · `agility`(민첩성) · `teamwork`(협동력) · `mana`(마력) · `health`(체력) 6개 필드로 구성된다.
-- **잠금 정책**: 자신이 속한 팀 중 마감이 지난 팀이 하나라도 있으면, 그 팀의 팀원 전원을 평가할 때까지 카드 상세/AI 분석 기능이 잠긴다(같은 사람과 여러 팀을 함께했어도 평가는 한 번만 하면 된다). 평가 대상 자체가 없으면 잠금 없이 열람 가능하다.
+- **잠금 정책**: 자신이 속한 팀 중 마감이 지난 팀이 하나라도 있으면, 그 팀의 팀원 전원을 평가할 때까지 별 상세/AI 분석 기능이 잠긴다(같은 사람과 여러 팀을 함께했어도 평가는 한 번만 하면 된다). 평가 대상 자체가 없으면 잠금 없이 열람 가능하다.
 
 ### 인증 (Auth)
 
@@ -277,20 +277,20 @@ POST /api/evaluations
             TITLE_NOT_FOUND, INVALID_INPUT_VALUE
 ```
 
-### 카드 도감 (Card)
+### 참가자(별) 관측 (Star)
 
 | Method | Endpoint | 설명 | 인증 |
 |---|---|---|---|
-| GET | `/api/cards` | 전체 참가자 카드 목록 조회 | 필요 |
-| GET | `/api/cards/{userId}` | 카드 상세 조회 | 필요 |
+| GET | `/api/stars` | 전체 참가자(별) 목록 조회 | 필요 |
+| GET | `/api/stars/{userId}` | 별 상세 조회 | 필요 |
 
 ```
-GET /api/cards
-  Response  CardSummaryResponse[]
+GET /api/stars
+  Response  StarSummaryResponse[]
             { userId, name, profileImageUrl, representativeTitles[], stats, isUnlocked, remainingCount }
 
-GET /api/cards/{userId}
-  Response  CardDetailResponse
+GET /api/stars/{userId}
+  Response  StarDetailResponse
             { userId, name, profileImageUrl, representativeTitles[], stats, isUnlocked,
               remainingCount, biography, titles }
             titles: { name, icon, voteCount }[]
@@ -311,7 +311,7 @@ GET /api/cards/{userId}
 
 ```
 POST /api/chat/sessions
-  설명      카드 1장이면 개별 분석, 여러 장이면 비교/조합 분석.
+  설명      별 1개면 개별 분석, 여러 개면 비교/조합 분석.
   Request   { targetUserIds[], title? }
   Response  { id, title, targets[], createdAt }   # targets: { userId, name, profileImageUrl }[]
   Errors    CHAT_LOCKED, RESOURCE_NOT_FOUND
@@ -330,7 +330,7 @@ POST /api/chat/sessions/{sessionId}/messages
   Errors    CHAT_LOCKED, RESOURCE_NOT_FOUND, OPENAI_REQUEST_FAILED
 ```
 
-카드 상세와 동일한 잠금 정책이 세션 생성/조회/메시지 전송 전체에 적용된다.
+별 상세와 동일한 잠금 정책이 세션 생성/조회/메시지 전송 전체에 적용된다.
 
 ### 칭호 (Title)
 

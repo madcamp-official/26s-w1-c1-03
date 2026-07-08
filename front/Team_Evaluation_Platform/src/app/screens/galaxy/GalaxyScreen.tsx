@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { RefreshCw, Lock, Search, X } from "lucide-react";
-import { listCards, getCard, listMyTeams, getTeam, ApiError } from "../../api";
+import { listStars, getStar, listMyTeams, getTeam, ApiError } from "../../api";
 import type { User } from "../../types";
-import { cardToUser, topTitles } from "../../lib/cardMapping";
+import { starToUser, topTitles } from "../../lib/starMapping";
 import { brightnessOf, gradeForStats, gradeForBrightness, spectrumPct, surfaceTempOf } from "../../lib/brightness";
 import { starAppearanceFor, galaxyPositions, teamLineColorFor } from "../../lib/starLayout";
 import type { TeamCluster } from "../../lib/starLayout";
@@ -36,7 +36,7 @@ function centerMessage(text: string, spinning=false) {
 // design.md §68-78: 팀원 전체가 산개한 별로 떠 있는 은하 화면. 자유 팬/줌으로 탐험하다가
 // 별을 클릭하면 TARGET LOCK → 카메라 딥줌 → 우측 관측 패널이 뜬다.
 export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
-  const [cards, setCards] = useState<User[]|null>(null);
+  const [stars, setStars] = useState<User[]|null>(null);
   const [error, setError] = useState("");
   // null = 아직 로딩 중. 팀 정보를 못 가져와도([]) 은하 자체는 무소속 배치로 동작한다.
   const [teams, setTeams] = useState<TeamCluster[]|null>(null);
@@ -83,8 +83,8 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   const [clock, setClock] = useState("");
 
   useEffect(()=>{
-    listCards()
-      .then(list=>setCards(list.map(cardToUser)))
+    listStars()
+      .then(list=>setStars(list.map(starToUser)))
       .catch(e=>setError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."));
   },[]);
 
@@ -115,24 +115,24 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   // 색 배정(teamLineColorFor)과 배치(galaxyPositions)가 같은 순서를 보게 id로 정렬해 공유한다.
   const sortedTeams = useMemo(()=> teams ? [...teams].sort((a,b)=>a.id-b.id) : [], [teams]);
 
-  const stars = useMemo(()=>{
-    if (!cards) return [];
-    const pos = galaxyPositions(cards.map(u=>u.id), sortedTeams);
-    return cards.map(u=>{
+  const starMarkers = useMemo(()=>{
+    if (!stars) return [];
+    const pos = galaxyPositions(stars.map(u=>u.id), sortedTeams);
+    return stars.map(u=>{
       const p = pos.get(u.id)!;
-      // 밝기 등급 색(청/백/황/적) — 잠긴 카드는 능력치를 모르므로 기존 id 기반 색으로 둔다.
+      // 밝기 등급 색(청/백/황/적) — 잠긴 별은 능력치를 모르므로 기존 id 기반 색으로 둔다.
       const grade = u.isUnlocked ? gradeForStats(u.stats) : null;
       return {
         user: u, x: p.x, y: p.y,
         layout: { ...starAppearanceFor(u.id, grade ?? undefined), left:`${p.x.toFixed(2)}%`, top:`${p.y.toFixed(2)}%` },
       };
     });
-  },[cards, sortedTeams]);
+  },[stars, sortedTeams]);
 
   // 팀 별자리 선: 같은 팀 멤버의 모든 쌍을 그 팀 색의 연한 점선으로 잇는다.
   // 여러 팀에 속한 사람은 팀마다 선이 그려지므로 자연히 모든 소속 팀과 연결된다.
   const teamLines = useMemo(()=>{
-    const byId = new Map(stars.map(s=>[s.user.id, s]));
+    const byId = new Map(starMarkers.map(s=>[s.user.id, s]));
     return sortedTeams.map((t,k)=>{
       const pts = [...new Set(t.memberIds)]
         .map(id=>byId.get(id))
@@ -143,7 +143,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
           segs.push({ x1:pts[i].x, y1:pts[i].y, x2:pts[j].x, y2:pts[j].y });
       return { id:t.id, name:t.name, ...teamLineColorFor(k), segs };
     });
-  },[sortedTeams, stars]);
+  },[sortedTeams, starMarkers]);
 
   // userId → 소속 팀 인덱스 목록(명단에서 팀 색 표시용).
   const teamsByUser = useMemo(()=>{
@@ -157,11 +157,11 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   // 검색: 부분 일치("홍"→홍길동·홍준표, "홍길"→홍길동). 비우면 전체 명단.
   const roster = useMemo(()=>{
     const q = query.trim().toLowerCase();
-    const list = q ? stars.filter(s=>s.user.name.toLowerCase().includes(q)) : stars;
+    const list = q ? starMarkers.filter(s=>s.user.name.toLowerCase().includes(q)) : starMarkers;
     return [...list].sort((a,b)=>a.user.name.localeCompare(b.user.name, "ko"));
-  },[stars, query]);
+  },[starMarkers, query]);
 
-  const selStar = stars.find(s=>s.user.id===selId) ?? null;
+  const selStar = starMarkers.find(s=>s.user.id===selId) ?? null;
   const locked = selId!==null && lockStage>=2;
 
   // ── free pan/zoom (선택된 별이 없을 때만) ──────────────────────────────────
@@ -268,15 +268,15 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   useEffect(()=>{
     if (selId===null) return;
     setDetailLoading(true);
-    getCard(selId)
-      .then(d=>setDetail(cardToUser(d)))
+    getStar(selId)
+      .then(d=>setDetail(starToUser(d)))
       .catch(e=>setDetailError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."))
       .finally(()=>setDetailLoading(false));
   },[selId]);
 
   if (error) return centerMessage(error);
   // 팀 정보까지 기다렸다가 그린다 — 나중에 도착하면 별이 한 번 순간이동하는 것처럼 보인다.
-  if (!cards || teams===null) return centerMessage("은하를 스캔하는 중...", true);
+  if (!stars || teams===null) return centerMessage("은하를 스캔하는 중...", true);
 
   // camera transform: 선택한 별을 화면 정중앙으로 딥줌, 아니면 자유 팬/줌 좌표 사용.
   //
@@ -348,7 +348,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
               stroke={t.line} strokeWidth={1} vectorEffect="non-scaling-stroke" strokeDasharray="3 5"/>
           )))}
         </svg>
-        {stars.map(({ user, layout })=>{
+        {starMarkers.map(({ user, layout })=>{
           const hovered = hoverId===user.id, isSel = selId===user.id;
           const emphasize = hovered || isSel;
           const haloSize = layout.size * 4.5;
@@ -426,7 +426,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       {/* 관측 패널(우측 340px)이 열리면 오른쪽 HUD가 가려지므로 패널 폭만큼 왼쪽으로 비켜준다 */}
       <div style={{ position:"absolute", top:20, right: !isMobile && showPanel ? 396 : 24, zIndex:2, pointerEvents:"none", textAlign:"right", transition:"right 1s cubic-bezier(.25,.9,.25,1)" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"2px", color:SPACE.accentSky }}>GALAXY</div>
-        <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"1.5px", color:SPACE.label, marginTop:2 }}>{cards.length} MEMBERS</div>
+        <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"1.5px", color:SPACE.label, marginTop:2 }}>{stars.length} MEMBERS</div>
         {/* 팀 별자리 색 범례 — 어떤 점선이 어느 팀인지 구분한다. */}
         {teamLines.length>0 && (
           <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>

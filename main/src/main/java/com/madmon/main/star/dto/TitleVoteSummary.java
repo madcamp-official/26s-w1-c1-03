@@ -1,4 +1,4 @@
-package com.madmon.main.card.dto;
+package com.madmon.main.star.dto;
 
 public record TitleVoteSummary(
         String name,

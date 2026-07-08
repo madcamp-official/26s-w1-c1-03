@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, CheckCircle2 } from "lucide-react";
 import {
-  getMyProfile, getCard, updateProfile as apiUpdateProfile, uploadProfileImage as apiUploadProfileImage,
+  getMyProfile, getStar, updateProfile as apiUpdateProfile, uploadProfileImage as apiUploadProfileImage,
   ApiError, type UserProfileDto,
 } from "../../api";
 import type { User } from "../../types";
-import { ZERO_STATS, dtoStatsToStats, rarityFromPower, totalPower, cardToUser, topTitles } from "../../lib/cardMapping";
+import { ZERO_STATS, dtoStatsToStats, rarityFromPower, totalPower, starToUser, topTitles } from "../../lib/starMapping";
 import { brightnessOf } from "../../lib/brightness";
 import { validateProfileImage } from "../../lib/imageValidation";
 import { FALLBACK_AVATAR } from "../../lib/avatar";
@@ -38,7 +38,7 @@ function centerMessage(text: string, spinning=false) {
 export function ProfileScreen() {
   const isMobile = useIsMobile();
   const [profile, setProfile] = useState<UserProfileDto|null>(null);
-  const [card, setCard] = useState<User|null>(null);
+  const [star, setStar] = useState<User|null>(null);
   const [bio, setBio] = useState("");
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -52,12 +52,12 @@ export function ProfileScreen() {
         const me = await getMyProfile();
         setProfile(me);
         setBio(me.biography ?? "");
-        const detail = await getCard(me.id);
-        const built = cardToUser(detail);
-        // 내 프로필은 (다른 사람 카드와 달리) 평가 완료 여부와 무관하게 항상 볼 수 있어야 하므로,
-        // 도감 잠금으로 stats가 null로 내려온 경우 /users/me가 주는 내 실제 능력치로 대체한다.
+        const detail = await getStar(me.id);
+        const built = starToUser(detail);
+        // 내 프로필은 (다른 사람의 별과 달리) 평가 완료 여부와 무관하게 항상 볼 수 있어야 하므로,
+        // 은하 잠금으로 stats가 null로 내려온 경우 /users/me가 주는 내 실제 능력치로 대체한다.
         const myStats = me.stats ? dtoStatsToStats(me.stats) : ZERO_STATS;
-        setCard(detail.isUnlocked ? built : { ...built, stats: myStats, rarity: me.stats ? rarityFromPower(totalPower(myStats)) : "common" });
+        setStar(detail.isUnlocked ? built : { ...built, stats: myStats, rarity: me.stats ? rarityFromPower(totalPower(myStats)) : "common" });
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "프로필을 불러오지 못했습니다.");
       }
@@ -83,7 +83,7 @@ export function ProfileScreen() {
     try {
       const updated = await apiUploadProfileImage(file);
       setProfile(updated);
-      setCard(c => c ? { ...c, photo: updated.profileImageUrl || FALLBACK_AVATAR } : c);
+      setStar(s => s ? { ...s, photo: updated.profileImageUrl || FALLBACK_AVATAR } : s);
     } catch (e) {
       setPhotoError(e instanceof ApiError ? e.message : "사진 업로드 중 오류가 발생했습니다.");
     } finally {
@@ -92,9 +92,9 @@ export function ProfileScreen() {
   }
 
   if (error) return centerMessage(error);
-  if (!profile || !card) return centerMessage("프로필을 불러오는 중...", true);
+  if (!profile || !star) return centerMessage("프로필을 불러오는 중...", true);
 
-  const u = card;
+  const u = star;
   const repTitle = topTitles(u.titleVotes)[0];
   const observations = profile.stats?.evaluationCount ?? 0;
   const code = `MDM-${String(profile.id).padStart(3,"0")}`;
