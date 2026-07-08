@@ -17,13 +17,13 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(
-        name = "chat_cards",
+        name = "chat_stars",
         uniqueConstraints = {
-                @UniqueConstraint(name = "uk_chat_cards_session_target", columnNames = {"session_id", "target_user_id"})
+                @UniqueConstraint(name = "uk_chat_stars_session_target", columnNames = {"session_id", "target_user_id"})
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ChatCard {
+public class ChatStar {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -37,12 +37,12 @@ public class ChatCard {
     @JoinColumn(name = "target_user_id", nullable = false)
     private User targetUser;
 
-    private ChatCard(ChatSession session, User targetUser) {
+    private ChatStar(ChatSession session, User targetUser) {
         this.session = session;
         this.targetUser = targetUser;
     }
 
-    public static ChatCard create(ChatSession session, User targetUser) {
-        return new ChatCard(session, targetUser);
+    public static ChatStar create(ChatSession session, User targetUser) {
+        return new ChatStar(session, targetUser);
     }
 }

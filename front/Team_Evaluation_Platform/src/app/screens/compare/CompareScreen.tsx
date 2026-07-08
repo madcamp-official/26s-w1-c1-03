@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, Lock, Check } from "lucide-react";
-import { listCards, ApiError } from "../../api";
+import { listStars, ApiError } from "../../api";
 import type { Stats, User } from "../../types";
 import { STATS } from "../../constants/stats";
-import { cardToUser, deriveEvaluationLocked } from "../../lib/cardMapping";
+import { starToUser, deriveEvaluationLocked } from "../../lib/starMapping";
 import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE, observatoryCode } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
@@ -40,27 +40,27 @@ function centerMessage(text: string, spinning=false) {
 // ─── Compare Screen ───────────────────────────────────────────────────────────
 export function CompareScreen() {
   const isMobile = useIsMobile();
-  const [cards, setCards] = useState<User[]|null>(null);
+  const [stars, setStars] = useState<User[]|null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
 
   useEffect(()=>{
-    listCards()
-      .then(list=>setCards(list.map(cardToUser)))
+    listStars()
+      .then(list=>setStars(list.map(starToUser)))
       .catch(e=>setError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."));
   },[]);
 
-  const locked = deriveEvaluationLocked(cards);
+  const locked = deriveEvaluationLocked(stars);
   function toggle(id:number){ if(locked) return; setSelected(p=>p.includes(id)?p.filter(x=>x!==id):p.length<3?[...p,id]:p); }
 
   // 선택 순서 = 색 배정 순서가 되도록 selected 배열 순서를 유지한다.
   const selUsers = selected
-    .map(id=>(cards??[]).find(u=>u.id===id))
+    .map(id=>(stars??[]).find(u=>u.id===id))
     .filter((u): u is User => !!u);
   const series = selUsers.map((u,i)=>({ name:u.name, color:COMPARE_COLORS[i].color, stats:u.stats }));
 
   if (error) return centerMessage(error);
-  if (!cards) return centerMessage("관측 기록을 불러오는 중...", true);
+  if (!stars) return centerMessage("관측 기록을 불러오는 중...", true);
 
   return (
     <div style={{ position:"relative", height:"100%", overflowY:"auto" }}>
@@ -76,7 +76,7 @@ export function CompareScreen() {
 
         {/* 별 선택기 */}
         <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:26, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" }}>
-          {cards.map(u=>{
+          {stars.map(u=>{
             const selIdx = selected.indexOf(u.id);
             const sel = selIdx >= 0;
             // 선택된 버튼만 배정된 비교 색을 띠고, 미선택은 중립 색 — 어떤 색이 누구인지 그대로 드러난다.

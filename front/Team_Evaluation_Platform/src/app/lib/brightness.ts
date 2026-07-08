@@ -1,5 +1,5 @@
 import type { Stats } from "../types";
-import { totalPower } from "./cardMapping";
+import { totalPower } from "./starMapping";
 
 // ─── 밝기(Magnitude) 등급 시스템 ──────────────────────────────────────────────
 // 이전 "전투력"(여섯 능력치 원점수 총합 × 2.5)의 새 이름. totalPower가 이미 같은 식

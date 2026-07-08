@@ -5,11 +5,11 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.madmon.main.chat.entity.ChatCard;
+import com.madmon.main.chat.entity.ChatStar;
 import com.madmon.main.chat.entity.ChatMessage;
 import com.madmon.main.chat.entity.ChatMessageRole;
 import com.madmon.main.chat.entity.ChatSession;
-import com.madmon.main.chat.repository.ChatCardRepository;
+import com.madmon.main.chat.repository.ChatStarRepository;
 import com.madmon.main.chat.repository.ChatMessageRepository;
 import com.madmon.main.chat.repository.ChatSessionRepository;
 import com.madmon.main.evaluation.entity.Evaluation;
@@ -68,7 +68,7 @@ class Phase3RepositoryCrudTest {
     private ChatSessionRepository chatSessionRepository;
 
     @Autowired
-    private ChatCardRepository chatCardRepository;
+    private ChatStarRepository chatStarRepository;
 
     @Autowired
     private ChatMessageRepository chatMessageRepository;
@@ -137,20 +137,20 @@ class Phase3RepositoryCrudTest {
     }
 
     @Test
-    void chat_session_card_and_message_crud() {
+    void chat_session_star_and_message_crud() {
         User host = userRepository.save(User.create("2026006", "host-password", "host", null, null, 1, 1, 1, 1, 1, 1, false));
         User target = userRepository.save(User.create("2026007", "chat-target-password", "chat-target", null, null, 1, 1, 1, 1, 1, 1, false));
         ChatSession session = chatSessionRepository.save(ChatSession.create(host, "팀 시너지 분석"));
-        ChatCard chatCard = chatCardRepository.save(ChatCard.create(session, target));
+        ChatStar chatStar = chatStarRepository.save(ChatStar.create(session, target));
         ChatMessage userMessage = chatMessageRepository.save(ChatMessage.create(session, ChatMessageRole.USER, "이 팀의 강점은?"));
         ChatMessage assistantMessage = chatMessageRepository.save(ChatMessage.create(session, ChatMessageRole.ASSISTANT, "협업 속도가 강점입니다."));
 
         assertEquals(1, chatSessionRepository.findAllByUserIdOrderByCreatedAtDesc(host.getId()).size());
-        assertEquals(1, chatCardRepository.findAllBySessionId(session.getId()).size());
+        assertEquals(1, chatStarRepository.findAllBySessionId(session.getId()).size());
         assertEquals(2, chatMessageRepository.findAllBySessionIdOrderByCreatedAtAsc(session.getId()).size());
         assertEquals(ChatMessageRole.USER, userMessage.getRole());
         assertEquals(ChatMessageRole.ASSISTANT, assistantMessage.getRole());
-        assertEquals(target.getId(), chatCard.getTargetUser().getId());
+        assertEquals(target.getId(), chatStar.getTargetUser().getId());
         assertFalse(session.getSessionTitle().isBlank());
     }
 }

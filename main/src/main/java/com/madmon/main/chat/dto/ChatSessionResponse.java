@@ -6,7 +6,7 @@ import java.util.List;
 public record ChatSessionResponse(
         Long id,
         String title,
-        List<ChatCardBrief> targets,
+        List<ChatStarBrief> targets,
         Instant createdAt
 ) {
 }

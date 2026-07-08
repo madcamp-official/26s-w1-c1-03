@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
-import { listCards, createChatSession, sendChatMessage, ApiError } from "../../api";
+import { listStars, createChatSession, sendChatMessage, ApiError } from "../../api";
 import type { User, ChatMessage } from "../../types";
-import { cardToUser, deriveEvaluationLocked } from "../../lib/cardMapping";
+import { starToUser, deriveEvaluationLocked } from "../../lib/starMapping";
 import { gradeForStats } from "../../lib/brightness";
 import { AVATAR_IMG, handleImgError } from "../../lib/avatar";
 import { useIsMobile } from "../../lib/useIsMobile";
@@ -21,7 +21,7 @@ const STAR_COLORS = [
 
 // ─── AI Analysis Screen (MADNOVA CORE) ─────────────────────────────────────────
 export function AIScreen() {
-  const [cards, setCards] = useState<User[]|null>(null);
+  const [stars, setStars] = useState<User[]|null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [sessionId, setSessionId] = useState<number|null>(null);
   const [msgs, setMsgs] = useState<ChatMessage[]>([{ role:"ai", text:"MADNOVA CORE 온라인. 선택된 별들의 관측 기록을 기반으로 분석을 시작합니다. 아래 예시 질문을 선택하거나 직접 입력하세요." }]);
@@ -35,9 +35,9 @@ export function AIScreen() {
   const isMobile = useIsMobile();
 
   useEffect(()=>{
-    listCards().then(list=>{
-      const mapped = list.map(cardToUser);
-      setCards(mapped);
+    listStars().then(list=>{
+      const mapped = list.map(starToUser);
+      setStars(mapped);
       if (mapped[0]) setSelected([mapped[0].id]);
     }).catch(e=>setError(e instanceof ApiError ? e.message : "참가자 목록을 불러오지 못했습니다."));
   },[]);
@@ -45,8 +45,8 @@ export function AIScreen() {
   // 선택된 카드 조합이 바뀌면 새 대화 세션에서 다시 시작한다.
   useEffect(()=>{ setSessionId(null); },[selected.join(",")]);
 
-  const selUsers = (cards??[]).filter(u=>selected.includes(u.id));
-  const locked = deriveEvaluationLocked(cards);
+  const selUsers = (stars??[]).filter(u=>selected.includes(u.id));
+  const locked = deriveEvaluationLocked(stars);
 
   function toggleSel(id:number){setSelected(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);}
   async function send(q:string){
@@ -96,7 +96,7 @@ export function AIScreen() {
         <div style={{ marginBottom: isMobile ? 0 : 8 }}>
           <MonoLabel size={9.5} spacing={3.5}>TARGET SELECTION <span style={{ color:OBS.faint }}>· 분석 대상</span></MonoLabel>
         </div>
-        {cards===null ? (
+        {stars===null ? (
           <div style={{ animation:"obsBlinkDim 1.1s ease-in-out infinite" }}>
             <MonoLabel size={9.5} spacing={2.5} color={OBS.teal}>⌁ SCANNING GALAXY…</MonoLabel>
           </div>
@@ -104,8 +104,8 @@ export function AIScreen() {
           <div style={ isMobile
             ? { display:"flex", gap:8, overflowX:"auto", paddingBottom:2 }
             : { display:"flex", flexDirection:"column", gap:9 } }>
-            {cards.map((u,idx)=>{
-              // 밝기 등급 색(청/백/황/적) — 잠긴 카드는 능력치를 모르므로 기존 순환 색으로 둔다.
+            {stars.map((u,idx)=>{
+              // 밝기 등급 색(청/백/황/적) — 잠긴 별은 능력치를 모르므로 기존 순환 색으로 둔다.
               const grade = u.isUnlocked ? gradeForStats(u.stats) : null;
               const star = grade ? { core:grade.color, glow:grade.glowC } : STAR_COLORS[idx%STAR_COLORS.length];
               const sel=selected.includes(u.id);

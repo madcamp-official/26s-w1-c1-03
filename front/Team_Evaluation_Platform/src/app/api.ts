@@ -179,7 +179,7 @@ export function uploadProfileImage(file: File): Promise<UserProfileDto> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 아래 Team/Card 도메인은 실제 백엔드 컨트롤러(TeamController/CardController) 기준으로
+// 아래 Team/Star 도메인은 실제 백엔드 컨트롤러(TeamController/StarController) 기준으로
 // 맞춘 것입니다. Title/Evaluation/Chat 도메인은 (2026-07-06 기준) 아직 컨트롤러가
 // 구현되어 있지 않아 실제 경로/응답 형식은 추측입니다. 백엔드가 구현되면 이 파일의
 // 경로·타입만 실제 스펙에 맞게 고치면 되고, 화면 컴포넌트는 그대로 두어도 되도록
@@ -275,15 +275,15 @@ export function submitEvaluation(input: EvaluationInput): Promise<void> {
   return request<void>("/evaluations", { method: "POST", body: JSON.stringify(input) });
 }
 
-// ─── Card 도감 도메인 ─────────────────────────────────────────────────────────
+// ─── Star(은하) 도메인 ────────────────────────────────────────────────────────
 
-export interface CardTitleVoteDto {
+export interface StarTitleVoteDto {
   name: string;
   icon: string | null;
   voteCount: number;
 }
 
-export interface CardSummaryDto {
+export interface StarSummaryDto {
   userId: number;
   name: string;
   profileImageUrl: string | null;
@@ -293,23 +293,23 @@ export interface CardSummaryDto {
   remainingCount: number;
 }
 
-export interface CardDetailDto extends CardSummaryDto {
+export interface StarDetailDto extends StarSummaryDto {
   biography: string | null;
-  titles: CardTitleVoteDto[] | null;
+  titles: StarTitleVoteDto[] | null;
 }
 
-export function listCards(): Promise<CardSummaryDto[]> {
-  return request<CardSummaryDto[]>("/cards", { method: "GET" });
+export function listStars(): Promise<StarSummaryDto[]> {
+  return request<StarSummaryDto[]>("/stars", { method: "GET" });
 }
 
-export function getCard(userId: number): Promise<CardDetailDto> {
-  return request<CardDetailDto>(`/cards/${userId}`, { method: "GET" });
+export function getStar(userId: number): Promise<StarDetailDto> {
+  return request<StarDetailDto>(`/stars/${userId}`, { method: "GET" });
 }
 
 // ─── Chat(AI 분석) 도메인 ─────────────────────────────────────────────────────
 // 실제 ChatController(/api/chat/sessions) 기준.
 
-export interface ChatCardBriefDto {
+export interface ChatStarBriefDto {
   userId: number;
   name: string;
   profileImageUrl: string | null;
@@ -325,7 +325,7 @@ export interface ChatMessageDto {
 export interface ChatSessionDto {
   id: number;
   title: string | null;
-  targets: ChatCardBriefDto[];
+  targets: ChatStarBriefDto[];
   createdAt: string;
 }
 
