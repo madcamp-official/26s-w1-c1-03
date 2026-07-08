@@ -5,7 +5,7 @@ import type { Stats, User } from "../../types";
 import { STATS } from "../../constants/stats";
 import { cardToUser, deriveEvaluationLocked } from "../../lib/cardMapping";
 import { useIsMobile } from "../../lib/useIsMobile";
-import { SPACE, starColorFor, observatoryCode } from "../../design-system/space";
+import { SPACE, observatoryCode } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
 import { HudLabel } from "../../design-system/HudLabel";
@@ -16,6 +16,14 @@ import { InfoTooltip } from "../../design-system/primitives";
 const FONT_BODY = "'Noto Sans KR'";
 const FONT_DISPLAY = "'Space Grotesk'";
 const FONT_HUD = "'IBM Plex Mono'";
+
+// 비교 대상 색: 선택 "순서"대로 배정하는 서로 다른 세 색 — id 기반 색은 세 가지가 순환이라
+// 두 사람이 같은 색을 받아 차트에서 구분이 안 되는 경우가 있었다.
+const COMPARE_COLORS = [
+  { color:"#7DD3FC", glowC:"125,211,252" },
+  { color:"#FBBF24", glowC:"251,191,36"  },
+  { color:"#A78BFA", glowC:"167,139,250" },
+];
 
 function centerMessage(text: string, spinning=false) {
   return (
@@ -45,8 +53,11 @@ export function CompareScreen() {
   const locked = deriveEvaluationLocked(cards);
   function toggle(id:number){ if(locked) return; setSelected(p=>p.includes(id)?p.filter(x=>x!==id):p.length<3?[...p,id]:p); }
 
-  const selUsers = (cards??[]).filter(u=>selected.includes(u.id));
-  const series = selUsers.map(u=>({ name:u.name, color:starColorFor(u.id).color, stats:u.stats }));
+  // 선택 순서 = 색 배정 순서가 되도록 selected 배열 순서를 유지한다.
+  const selUsers = selected
+    .map(id=>(cards??[]).find(u=>u.id===id))
+    .filter((u): u is User => !!u);
+  const series = selUsers.map((u,i)=>({ name:u.name, color:COMPARE_COLORS[i].color, stats:u.stats }));
 
   if (error) return centerMessage(error);
   if (!cards) return centerMessage("관측 기록을 불러오는 중...", true);
@@ -63,18 +74,19 @@ export function CompareScreen() {
         {/* 별 선택기 */}
         <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:26, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" }}>
           {cards.map(u=>{
-            const sel = selected.includes(u.id);
-            const { color } = starColorFor(u.id);
+            const selIdx = selected.indexOf(u.id);
+            const sel = selIdx >= 0;
+            // 선택된 버튼만 배정된 비교 색을 띠고, 미선택은 중립 색 — 어떤 색이 누구인지 그대로 드러난다.
+            const color = sel ? COMPARE_COLORS[selIdx].color : null;
             return (
               <button key={u.id} onClick={()=>toggle(u.id)} style={{
                 display:"flex", alignItems:"center", gap:7, padding:"7px 13px", borderRadius:3, cursor:"pointer",
-                background: sel ? `${color}18` : "rgba(125,180,255,0.04)",
-                border:`1px solid ${sel?color:SPACE.border}`,
+                background: color ? `${color}18` : "rgba(125,180,255,0.04)",
+                border:`1px solid ${color ?? SPACE.border}`,
                 transition:"all 0.15s",
               }}>
-                <div style={{ width:7, height:7, borderRadius:"50%", background:color, boxShadow:sel?`0 0 6px ${color}`:"none" }}/>
                 <span style={{ fontSize:12, fontFamily:FONT_BODY, color:sel?SPACE.starWhite2:SPACE.textDim }}>{u.name}</span>
-                {sel && <Check size={11} style={{ color }}/>}
+                {color && <Check size={11} style={{ color }}/>}
               </button>
             );
           })}
@@ -100,8 +112,8 @@ export function CompareScreen() {
           <div style={{ display:"flex", flexDirection:"column", gap:22 }}>
             {/* 선택된 별들 */}
             <div style={{ display:"flex", gap: isMobile ? 18 : 28, flexWrap:"wrap", justifyContent: isMobile ? "center" : "flex-start" }}>
-              {selUsers.map(u=>{
-                const { color, glowC } = starColorFor(u.id);
+              {selUsers.map((u,i)=>{
+                const { color, glowC } = COMPARE_COLORS[i];
                 return (
                   <div key={u.id} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8 }}>
                     <StarPortrait photo={u.photo} size={84} glowColor={color} glowC={glowC}/>
@@ -127,8 +139,8 @@ export function CompareScreen() {
                 <thead>
                   <tr>
                     <th style={{ textAlign:"left", padding:"7px 10px", color:SPACE.label, fontWeight:400, fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px" }}>TRAIT</th>
-                    {selUsers.map(u=>(
-                      <th key={u.id} style={{ textAlign:"center", padding:"7px 10px", color:starColorFor(u.id).color, fontWeight:600 }}>{u.name}</th>
+                    {selUsers.map((u,i)=>(
+                      <th key={u.id} style={{ textAlign:"center", padding:"7px 10px", color:COMPARE_COLORS[i].color, fontWeight:600 }}>{u.name}</th>
                     ))}
                   </tr>
                 </thead>
@@ -147,7 +159,7 @@ export function CompareScreen() {
                           </InfoTooltip>
                         </td>
                         {vals.map((v,i)=>{
-                          const uColor = starColorFor(selUsers[i].id).color;
+                          const uColor = COMPARE_COLORS[i].color;
                           return (
                             <td key={i} style={{ textAlign:"center", padding:"9px 10px", color:v===mx?uColor:SPACE.textDim, fontFamily:FONT_HUD, fontWeight:v===mx?600:400 }}>
                               {v}{v===mx?" ✦":""}

@@ -32,3 +32,12 @@ export function gradeForBrightness(b: number): BrightnessGrade {
 export function gradeForStats(s: Stats): BrightnessGrade {
   return gradeForBrightness(brightnessOf(s));
 }
+
+// 밝기 스케일(가능 범위 15~150)을 스펙트럼 바에 놓기 위한 0~100% 위치.
+export const SPEC_MIN = 15, SPEC_MAX = 150;
+export const spectrumPct = (b: number) =>
+  Math.min(100, Math.max(0, ((b - SPEC_MIN) / (SPEC_MAX - SPEC_MIN)) * 100));
+
+// 밝기를 가상의 표면온도(K)로 환산 — 실제 항성처럼 적색(~3,600K)에서 청색(~10,000K+)으로
+// 뜨거워지는 연출용 수치. 40→5,500K(황), 65→7,400K(백), 85→8,900K(청) 부근이 되도록 잡았다.
+export const surfaceTempOf = (b: number) => Math.round((2500 + b * 75) / 100) * 100;

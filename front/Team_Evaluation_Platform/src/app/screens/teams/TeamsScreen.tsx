@@ -7,7 +7,7 @@ import {
 import { AVATAR_IMG, FALLBACK_AVATAR, handleImgError } from "../../lib/avatar";
 import { copyToClipboard } from "../../lib/clipboard";
 import { useIsMobile } from "../../lib/useIsMobile";
-import { SPACE, FONT, starColorFor } from "../../design-system/space";
+import { SPACE, FONT } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
 import { HudLabel } from "../../design-system/HudLabel";
@@ -196,14 +196,13 @@ export function TeamsScreen() {
 
                 <div style={{ display:"flex", gap:14, flexWrap:"wrap" }}>
                   {members.map(m=>{
-                    // 팀원 평가 화면의 별 배경색과 같은 로직 — id 기반 고정 별 색.
-                    const star = starColorFor(m.userId);
+                    // 프로필 테두리는 팀원 평가 화면(StarPortrait 기본값)과 동일한 하늘색으로 통일.
                     return (
                       <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
                         <div style={{
                           width:40, height:40, borderRadius:"50%", overflow:"hidden",
-                          border:`1px solid ${star.color}`,
-                          boxShadow:`0 0 9px rgba(${star.glowC},.45)`,
+                          border:"1px solid rgba(125,211,252,.5)",
+                          boxShadow:"0 0 9px rgba(125,211,252,.45)",
                         }}>
                           <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={AVATAR_IMG}/>
                         </div>

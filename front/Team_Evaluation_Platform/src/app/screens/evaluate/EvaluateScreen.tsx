@@ -8,7 +8,7 @@ import type { Stats } from "../../types";
 import { STATS } from "../../constants/stats";
 import { FALLBACK_AVATAR } from "../../lib/avatar";
 import { useIsMobile } from "../../lib/useIsMobile";
-import { SPACE, FONT, starColorFor, observatoryCode } from "../../design-system/space";
+import { SPACE, FONT, observatoryCode } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
 import { HudLabel } from "../../design-system/HudLabel";
@@ -198,12 +198,12 @@ export function EvaluateScreen({ onDone }: { onDone:()=>void }) {
             const sum = statsSum(uRatings);
             const sumValid = sum>=6 && sum<=40;
             const canTransmit = !!titles[u.userId] && sumValid && submitting!==u.userId;
-            const star = starColorFor(u.userId);
             return (
               <HoloPanel key={u.userId} style={{ padding:0, animation:`fadeUp .6s ${idx*0.08}s both` }}>
                 {/* 대상 별 식별부 */}
                 <div style={{ display:"flex", alignItems:"center", gap:16, padding: isMobile ? "14px 16px" : "16px 22px", borderBottom:isDone?"none":`1px solid ${SPACE.border}` }}>
-                  <StarPortrait photo={u.profileImageUrl || FALLBACK_AVATAR} size={46} glowColor={star.color} glowC={star.glowC}/>
+                  {/* 프로필 테두리는 팀 관리 페이지와 동일하게 하늘색 하나로 통일 */}
+                  <StarPortrait photo={u.profileImageUrl || FALLBACK_AVATAR} size={46}/>
                   <div style={{ flex:1 }}>
                     <div style={{ fontFamily:FONT.hud, fontSize:9, letterSpacing:"2px", color:SPACE.label, marginBottom:3 }}>{observatoryCode(u.userId)}</div>
                     <div style={{ fontFamily:"'Space Grotesk', 'Noto Sans KR', sans-serif", fontSize:17, fontWeight:500, color:SPACE.starWhite }}>{u.name}</div>

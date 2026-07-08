@@ -187,9 +187,11 @@ export function AIScreen() {
           </div>
         )}
 
-        {/* 예시 질문 — 모바일은 화면을 덜 차지하게 한 줄 가로 스크롤로 */}
+        {/* 예시 질문 — 모바일은 화면을 덜 차지하게 한 줄 가로 스크롤로.
+            모바일에선 pointerEvents:none을 걸면 잠금 상태에서 스크롤까지 막히므로,
+            클릭 차단은 버튼 disabled에 맡기고 컨테이너는 항상 스크롤 가능하게 둔다. */}
         <div style={ isMobile
-          ? { padding:"6px 14px 0", display:"flex", flexWrap:"nowrap", overflowX:"auto", gap:7, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto", flexShrink:0 }
+          ? { padding:"6px 14px 0", display:"flex", flexWrap:"nowrap", overflowX:"auto", gap:7, opacity:locked?0.4:1, flexShrink:0, touchAction:"pan-x", WebkitOverflowScrolling:"touch" }
           : { padding:"6px 24px 0", display:"flex", flexWrap:"wrap", gap:7, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" } }>
           {AI_QUESTIONS.map(q=>(
             <button key={q} disabled={locked} onClick={()=>send(q)} className="obs-chip" style={{

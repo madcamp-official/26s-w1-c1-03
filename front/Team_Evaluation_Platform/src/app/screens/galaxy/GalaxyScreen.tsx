@@ -3,7 +3,7 @@ import { RefreshCw, Lock, Search, X } from "lucide-react";
 import { listCards, getCard, listMyTeams, getTeam, ApiError } from "../../api";
 import type { User } from "../../types";
 import { cardToUser, topTitles } from "../../lib/cardMapping";
-import { brightnessOf, gradeForStats } from "../../lib/brightness";
+import { brightnessOf, gradeForStats, gradeForBrightness, spectrumPct, surfaceTempOf } from "../../lib/brightness";
 import { starAppearanceFor, galaxyPositions, teamLineColorFor } from "../../lib/starLayout";
 import type { TeamCluster } from "../../lib/starLayout";
 import { useIsMobile } from "../../lib/useIsMobile";
@@ -42,7 +42,22 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   const [teams, setTeams] = useState<TeamCluster[]|null>(null);
 
   const [searchOpen, setSearchOpen] = useState(false);
+  // 닫을 때도 열릴 때처럼 슬라이드로 — 퇴장 애니메이션이 끝난 뒤 언마운트한다.
+  const [searchClosing, setSearchClosing] = useState(false);
+  const searchCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [query, setQuery] = useState("");
+
+  function toggleSearch() {
+    if (searchOpen && !searchClosing) {
+      setSearchClosing(true);
+      searchCloseTimer.current = setTimeout(()=>{ setSearchOpen(false); setSearchClosing(false); }, 380);
+    } else if (!searchOpen) {
+      if (searchCloseTimer.current) clearTimeout(searchCloseTimer.current);
+      setSearchClosing(false);
+      setSearchOpen(true);
+    }
+  }
+  useEffect(()=>()=>{ if (searchCloseTimer.current) clearTimeout(searchCloseTimer.current); },[]);
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -309,6 +324,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     >
       <style>{`
         @keyframes slideInPanelL { from{opacity:0;transform:translateX(-48px)} to{opacity:1;transform:translateX(0)} }
+        @keyframes slideOutPanelL { from{opacity:1;transform:translateX(0)} to{opacity:0;transform:translateX(-48px)} }
         @keyframes slideInPanelUp { from{opacity:0;transform:translateY(48px)} to{opacity:1;transform:translateY(0)} }
         .gx-search{background:rgba(125,180,255,.05);border:1px solid rgba(125,180,255,.16);border-radius:2px;color:#eef4ff;outline:none;font-family:'Noto Sans KR',sans-serif;font-weight:300;transition:border-color .25s,box-shadow .25s}
         .gx-search::placeholder{color:#3d4f70}
@@ -407,7 +423,8 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
         <div style={{ fontFamily:FONT_DISPLAY, fontSize:15, letterSpacing:"6px", color:SPACE.starWhite2 }}>MADMON</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label, marginTop:2 }}>DEEP-SKY OBSERVATORY</div>
       </div>
-      <div style={{ position:"absolute", top:20, right:24, zIndex:2, pointerEvents:"none", textAlign:"right" }}>
+      {/* 관측 패널(우측 340px)이 열리면 오른쪽 HUD가 가려지므로 패널 폭만큼 왼쪽으로 비켜준다 */}
+      <div style={{ position:"absolute", top:20, right: !isMobile && showPanel ? 396 : 24, zIndex:2, pointerEvents:"none", textAlign:"right", transition:"right 1s cubic-bezier(.25,.9,.25,1)" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"2px", color:SPACE.accentSky }}>GALAXY</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"1.5px", color:SPACE.label, marginTop:2 }}>{cards.length} MEMBERS</div>
         {/* 팀 별자리 색 범례 — 어떤 점선이 어느 팀인지 구분한다. */}
@@ -422,22 +439,24 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
           </div>
         )}
       </div>
-      <div style={{ position:"absolute", bottom:18, left:24, zIndex:2, pointerEvents:"none" }}>
-        <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px", color:SPACE.accentTeal }}>{cards.length} STARS DETECTED</div>
+      <div style={{ position:"absolute", bottom:18, left:24, zIndex:2, pointerEvents:"none",
+        opacity: isMobile && showPanel ? 0 : 1, transition:"opacity .5s ease" }}>
+        {/* 별 수는 우상단 N MEMBERS가 이미 보여주므로 여기엔 조작 안내만 둔다 */}
         <div style={{ fontFamily:FONT_BODY, fontSize:10.5, color:SPACE.label, marginTop:2 }}>
           {selId===null
             ? (isMobile ? "드래그로 이동 · 핀치로 확대 · 별을 터치해 관측" : "드래그로 이동 · 휠로 확대 · 별 클릭으로 관측")
             : (isMobile ? "빈 공간을 터치해 은하로 돌아가기" : "빈 공간 클릭 또는 Esc로 은하로 돌아가기")}
         </div>
       </div>
-      <div style={{ position:"absolute", bottom:18, right:24, zIndex:2, pointerEvents:"none", textAlign:"right" }}>
+      <div style={{ position:"absolute", bottom:18, right: !isMobile && showPanel ? 396 : 24, zIndex:2, pointerEvents:"none", textAlign:"right",
+        opacity: isMobile && showPanel ? 0 : 1, transition:"right 1s cubic-bezier(.25,.9,.25,1), opacity .5s ease" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.label }}>ZOOM ×{(locked?LOCK_SCALE:view.scale).toFixed(1)}</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, color:SPACE.faint, marginTop:2 }}>{clock} KST</div>
       </div>
 
       {/* ── 검색 버튼 (좌상단 로고 아래) ── */}
       <button
-        onClick={e=>{ e.stopPropagation(); setSearchOpen(o=>!o); }}
+        onClick={e=>{ e.stopPropagation(); toggleSearch(); }}
         onMouseDown={e=>e.stopPropagation()}
         onDoubleClick={e=>e.stopPropagation()}
         onTouchStart={e=>e.stopPropagation()}
@@ -466,13 +485,14 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
           onTouchMove={e=>e.stopPropagation()}
           style={{ position:"absolute", top:102, left:24, width: isMobile ? "min(300px, calc(100vw - 48px))" : 266, zIndex:3, maxHeight:"calc(100% - 128px)", display:"flex", touchAction:"pan-y" }}
         >
-          <HoloPanel style={{ width:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:"16px 16px 12px", animation:"slideInPanelL .7s cubic-bezier(.25,.9,.25,1) both" }}>
+          <HoloPanel style={{ width:"100%", display:"flex", flexDirection:"column", overflow:"hidden", padding:"16px 16px 12px",
+            animation: searchClosing ? "slideOutPanelL .38s cubic-bezier(.4,0,.6,1) both" : "slideInPanelL .7s cubic-bezier(.25,.9,.25,1) both" }}>
             <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
               <div style={{ display:"flex", alignItems:"baseline", gap:8 }}>
                 <span style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.accentSky }}>STAR INDEX</span>
                 <span style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label }}>관측 명단</span>
               </div>
-              <button onClick={()=>setSearchOpen(false)} style={{ background:"none", border:"none", cursor:"pointer", color:SPACE.label, padding:2, display:"flex" }}>
+              <button onClick={toggleSearch} style={{ background:"none", border:"none", cursor:"pointer", color:SPACE.label, padding:2, display:"flex" }}>
                 <X size={12}/>
               </button>
             </div>
@@ -572,28 +592,61 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
                 </div>
               ) : (
                 <>
-                  {/* 밝기(Magnitude) — 능력치 총합 × 2.5. 등급 색은 별 코어 색과 동일. */}
-                  {panelGrade && (
-                    <div style={{ display:"flex", alignItems:"baseline", gap:9 }}>
-                      <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label }}>MAGNITUDE</span>
-                      <span style={{ fontFamily:FONT_DISPLAY, fontSize:19, fontWeight:500, color:panelGrade.color, textShadow:`0 0 12px rgba(${panelGrade.glowC},.55)` }}>
-                        {brightnessOf(panelUser.stats)}
-                      </span>
-                      <span style={{ fontFamily:FONT_BODY, fontSize:11, color:panelGrade.color }}>
-                        {panelGrade.label}
-                        <span style={{ fontFamily:FONT_HUD, fontSize:8.5, letterSpacing:"1.5px", color:SPACE.faint, marginLeft:6 }}>{panelGrade.en} CLASS</span>
-                      </span>
-                    </div>
-                  )}
+                  {/* 밝기(Magnitude) — 능력치 총합 × 2.5. 등급 색은 별 코어 색과 동일.
+                      아래 스펙트럼 바로 이 별이 적→황→백→청 어디쯤인지 한눈에 보여준다. */}
+                  {panelGrade && (()=>{
+                    const b = brightnessOf(panelUser.stats);
+                    return (
+                      <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:9 }}>
+                        <div style={{ display:"flex", alignItems:"baseline", gap:9, justifyContent:"center" }}>
+                          <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label }}>MAGNITUDE</span>
+                          <span style={{ fontFamily:FONT_DISPLAY, fontSize:19, fontWeight:500, color:panelGrade.color, textShadow:`0 0 12px rgba(${panelGrade.glowC},.55)` }}>
+                            {b}
+                          </span>
+                          <span style={{ fontFamily:FONT_BODY, fontSize:11, color:panelGrade.color }}>
+                            {panelGrade.label}
+                            <span style={{ fontFamily:FONT_HUD, fontSize:8.5, letterSpacing:"1.5px", color:SPACE.faint, marginLeft:6 }}>{panelGrade.en} CLASS</span>
+                          </span>
+                        </div>
+                        {/* 색 스펙트럼 바 — 눈금은 등급 경계(40/65/85), 마커는 이 별의 밝기 위치 */}
+                        <div>
+                          <div style={{ position:"relative", height:5, borderRadius:2, opacity:.9,
+                            background:"linear-gradient(90deg,#ff8f80 0%,#ff8f80 9%,#ffd97a 28%,#f2f6ff 44%,#7cb8ff 62%,#7cb8ff 100%)" }}>
+                            {[40,65,85].map(t=>(
+                              <span key={t} style={{ position:"absolute", left:`${spectrumPct(t)}%`, top:-2, bottom:-2, width:1, background:"rgba(2,6,23,.75)" }}/>
+                            ))}
+                            <span style={{ position:"absolute", left:`${spectrumPct(b)}%`, top:"50%", transform:"translate(-50%,-50%)",
+                              width:9, height:9, borderRadius:"50%", background:panelGrade.color,
+                              border:"2px solid #020617", boxShadow:`0 0 8px rgba(${panelGrade.glowC},.9)` }}/>
+                          </div>
+                          <div style={{ position:"relative", height:12, marginTop:4 }}>
+                            {[27.5, 52.5, 75, 117.5].map(v=>{
+                              const g = gradeForBrightness(v);
+                              return (
+                                <span key={g.key} style={{ position:"absolute", left:`${spectrumPct(v)}%`, transform:"translateX(-50%)",
+                                  fontFamily:FONT_BODY, fontSize:8.5, color:g.color, opacity: g.key===panelGrade.key ? 1 : .45 }}>
+                                  {g.label}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"baseline" }}>
+                          <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label }}>SURFACE TEMP <span style={{ color:SPACE.faint, letterSpacing:"0.5px" }}>· 표면온도</span></span>
+                          <span style={{ fontFamily:FONT_HUD, fontSize:12, color:panelGrade.color }}>{surfaceTempOf(b).toLocaleString()} K</span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {panelUser.bio && <p style={{ fontSize:12, color:SPACE.textDim, fontFamily:FONT_BODY, fontStyle:"italic", textAlign:"center", margin:0 }}>"{panelUser.bio}"</p>}
                   <div style={{ width:"100%" }}>
-                    <HudLabel en="SPECTRAL ANALYSIS" kr="능력치 분석"/>
+                    <HudLabel en="SPECTRAL ANALYSIS" kr="능력치 분석" stacked/>
                     <div style={{ display:"flex", justifyContent:"center" }}>
                       <ConstellationChart stats={panelUser.stats} size={230}/>
                     </div>
                   </div>
                   <div style={{ width:"100%" }}>
-                    <HudLabel en="CONSTELLATION FRAGMENTS" kr="획득 칭호"/>
+                    <HudLabel en="CONSTELLATION FRAGMENTS" kr="획득 칭호" stacked/>
                     {panelUser.titleVotes.length===0 ? (
                       <p style={{ fontSize:12, color:SPACE.label, fontFamily:FONT_BODY }}>아직 획득한 칭호가 없습니다.</p>
                     ) : (
