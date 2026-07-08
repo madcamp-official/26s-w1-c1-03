@@ -70,7 +70,7 @@ export function CompareScreen() {
           <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · COMPARATIVE ANALYSIS</div>
           <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px", margin:0 }}>스탯 비교</h1>
           <p style={{ margin:"6px 0 0", fontSize:12.5, fontWeight:300, lineHeight:1.7, color:SPACE.textDim, fontFamily:FONT_BODY }}>
-            관측이 완료된 별들의 스펙트럼을 겹쳐 봅니다. 별을 2~3개 선택해 능력치를 나란히 비교하세요.
+            관측이 완료된 별의 스펙트럼을 봅니다. 별 하나를 선택하면 상세 스펙트럼을, 2~3개 선택하면 능력치를 나란히 비교할 수 있습니다.
           </p>
         </div>
 
@@ -104,12 +104,12 @@ export function CompareScreen() {
               아직 관측되지 않은 영역입니다.<br/>팀원 평가를 완료하면 비교 기능을 사용할 수 있습니다.
             </p>
           </HoloPanel>
-        ) : selUsers.length < 2 ? (
+        ) : selUsers.length < 1 ? (
           <HoloPanel style={{ maxWidth:480, display:"flex", flexDirection:"column", alignItems:"center", gap:10, padding:"40px 24px" }}>
             <div style={{ width:60, height:60, borderRadius:"50%", border:`1px dashed ${SPACE.border}`, display:"flex", alignItems:"center", justifyContent:"center" }}>
               <div style={{ width:8, height:8, borderRadius:"50%", background:SPACE.accentSky, boxShadow:`0 0 8px ${SPACE.accentSky}` }}/>
             </div>
-            <p style={{ fontSize:13, color:SPACE.textDim, fontFamily:FONT_BODY, textAlign:"center", margin:0 }}>비교할 별을 2~3개 선택해주세요</p>
+            <p style={{ fontSize:13, color:SPACE.textDim, fontFamily:FONT_BODY, textAlign:"center", margin:0 }}>관측할 별을 선택해주세요</p>
           </HoloPanel>
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:22 }}>
@@ -130,12 +130,15 @@ export function CompareScreen() {
             </div>
 
             <HoloPanel>
-              <HudLabel en="SPECTRAL COMPARISON" kr="능력치 비교"/>
+              <HudLabel en={selUsers.length===1 ? "SPECTRAL ANALYSIS" : "SPECTRAL COMPARISON"} kr={selUsers.length===1 ? "능력치 분석" : "능력치 비교"}/>
               <div style={{ display:"flex", justifyContent:"center" }}>
-                <ConstellationChart series={series} size={isMobile ? 236 : 300}/>
+                {selUsers.length===1
+                  ? <ConstellationChart stats={selUsers[0].stats} size={isMobile ? 236 : 300}/>
+                  : <ConstellationChart series={series} size={isMobile ? 236 : 300}/>}
               </div>
             </HoloPanel>
 
+            {selUsers.length>1 && (
             <HoloPanel style={{ overflowX:"auto" }}>
               <HudLabel en="STAT BREAKDOWN" kr="세부 수치"/>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12.5, fontFamily:FONT_BODY }}>
@@ -175,6 +178,7 @@ export function CompareScreen() {
                 </tbody>
               </table>
             </HoloPanel>
+            )}
           </div>
         )}
       </div>
