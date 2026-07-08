@@ -54,98 +54,117 @@ const CENTER_X = 50, CENTER_Y = 46;
 
 // 처음 은하에 들어왔을 때(카메라 scale 1 = 화면이 정확히 0~100% 영역을 비춘다) 별이
 // 전부 한눈에 들어오면 안 되고, 팬/줌으로 탐험해야 할 만큼은 넓어야 한다는 요구사항 —
-// 아래 배치 공식이 만드는 상대적인 모양(타원 전체 윤곽·팀 클러스터·나선)은 그대로 두고,
-// 마지막에 은하 중심(CENTER_X, CENTER_Y)에서 이 배수만큼 밀어내 화면 폭보다 넓게 펼친다.
+// 아래 배치 공식이 만드는 상대적인 모양은 그대로 두고, 마지막에 은하 중심에서 이 배수만큼
+// 밀어내 화면 폭보다 넓게 펼친다.
 const SPREAD = 1.8;
+// 팀 슬라이스/무소속 공통 반지름 상한(SPREAD 적용 전, % 기준) — 팀 소속 여부와 무관하게
+// 모든 별이 같은 반지름 범위(중심~이 값)에서 뽑히므로, "팀은 중앙에 뭉치고 무소속은 바깥
+// 테두리에 링을 이룬다"는 구역 구분이 생기지 않는다.
+const RADIUS_MAX = 42;
+// 완전한 원이 아니라 살짝 눌린 타원으로 펼치는 y축 비율(기존 화면 비율과 맞춘 값).
+const Y_SQUISH = 0.85;
 
 function clusterJitter(seed: number, amp = 1) {
   return (seededRandom(seed) - 0.5) * 2 * amp;
 }
 
+interface Slice { start: number; end: number; }
+
+// 팀끼리 멤버를 공유하면(한 사람이 여러 팀 소속) 그 두 팀을 원형 순서에서 최대한
+// 이웃하게 배치한다 — 이웃한 두 팀은 슬라이스 경계를 공유하므로, 공유 멤버를 정확히 그
+// 경계 각도에 놓으면 두 팀 모두의 별자리 선과 자연스럽게 만나면서도 어느 팀의 선도
+// 서로 교차하지 않는다(각 슬라이스는 180°보다 좁은 부채꼴이라 볼록 영역이고, 서로 다른
+// 슬라이스는 겹치지 않으므로 한 슬라이스 안의 선분이 다른 슬라이스 안의 선분과 만날 수
+// 없다). 그리디하게 "지금까지 놓은 팀과 공유 인원이 가장 많은 팀"을 계속 이어 붙인다.
+function orderTeamsForAdjacency(teams: TeamCluster[]): TeamCluster[] {
+  if (teams.length <= 2) return teams;
+  const memberSets = new Map(teams.map(t => [t.id, new Set(t.memberIds)]));
+  const byId = new Map(teams.map(t => [t.id, t]));
+  function overlap(aId: number, bId: number): number {
+    const a = memberSets.get(aId)!, b = memberSets.get(bId)!;
+    let c = 0;
+    a.forEach(m => { if (b.has(m)) c++; });
+    return c;
+  }
+  const remaining = new Set(teams.map(t => t.id));
+  const order: TeamCluster[] = [teams[0]];
+  remaining.delete(teams[0].id);
+  let cur = teams[0];
+  while (remaining.size > 0) {
+    let bestId = -1, bestScore = -1;
+    remaining.forEach(id => {
+      const score = overlap(cur.id, id);
+      if (score > bestScore || (score === bestScore && (bestId === -1 || id < bestId))) {
+        bestScore = score; bestId = id;
+      }
+    });
+    cur = byId.get(bestId)!;
+    order.push(cur);
+    remaining.delete(bestId);
+  }
+  return order;
+}
+
+// 원 전체(2π)를 팀 수만큼 부채꼴로 나눈다 — 인원이 많은 팀일수록 살짝 넓게, 폭에는 약간의
+// 지터를 줘서 파이차트처럼 딱 맞아떨어지는 느낌을 없앤다. 폭 합이 정확히 2π가 되도록
+// 정규화해 슬라이스끼리 완전히 맞닿고(경계 공유), 틈이나 겹침이 생기지 않게 한다.
+function assignSlices(orderedTeams: TeamCluster[]): Map<number, Slice> {
+  const map = new Map<number, Slice>();
+  const n = orderedTeams.length;
+  if (n === 0) return map;
+  const globalStart = -Math.PI / 2 + 0.4;
+  if (n === 1) {
+    map.set(orderedTeams[0].id, { start: globalStart, end: globalStart + Math.PI * 2 });
+    return map;
+  }
+  const rawWidths = orderedTeams.map(t => {
+    const size = new Set(t.memberIds).size;
+    return Math.max(0.4, 1 + 0.22 * Math.max(0, size - 1) + clusterJitter(t.id * 41 + 7, 0.3));
+  });
+  const total = rawWidths.reduce((a, b) => a + b, 0);
+  const scale = (Math.PI * 2) / total;
+  let cursor = globalStart;
+  orderedTeams.forEach((t, k) => {
+    const w = rawWidths[k] * scale;
+    map.set(t.id, { start: cursor, end: cursor + w });
+    cursor += w;
+  });
+  return map;
+}
+
+function sliceCenterAngle(sl: Slice): number {
+  return (sl.start + sl.end) / 2;
+}
+
+// 여러 각도의 "원형 평균"(벡터 합) — 산술평균은 0°/360° 경계에서 반대편으로 튈 수 있다.
+function circularMeanOf(angles: number[]): number {
+  let sx = 0, sy = 0;
+  angles.forEach(a => { sx += Math.cos(a); sy += Math.sin(a); });
+  return Math.atan2(sy, sx);
+}
+
+// 별 하나의 각도 제약: 무소속(free)은 전체 원 어디든, 팀 하나 소속(range)은 그 팀의
+// 슬라이스 범위 안 어디든, 여러 팀 소속(fixed)은 (가능하면) 이웃한 두 슬라이스가 만나는
+// 경계 각도에 정확히 고정한다.
+type AngleConstraint =
+  | { kind: "free" }
+  | { kind: "range"; lo: number; hi: number }
+  | { kind: "fixed"; angle: number };
+
 // 은하 배치(% 좌표, SPREAD 적용 전 기준):
-// - 진행 중인 팀마다 화면에 클러스터 중심을 하나씩 두고, 팀원은 그 중심 주위에 뭉친다.
-// - 여러 팀에 속한 사람은 소속 팀 중심들의 평균 지점에 놓여 양쪽 팀과 자연스럽게 이어진다.
-// - 어느 팀에도 없는 사람은 클러스터 바깥 띠에 흩어 놓는다(팀이 하나도 없으면 전체 나선).
-// 링 위 팀 중심 각도/반지름, 팀 안 멤버 각도/반지름 모두에 id 기반 결정론적 지터를 살짝
-// 얹어, 수학적으로 너무 규칙적인(같은 간격으로 딱딱 맞아떨어지는) 느낌을 없앤다.
+// - 진행 중인 팀마다 원 둘레의 부채꼴(슬라이스) 하나씩을 배정받고, 팀원은 그 슬라이스 안
+//   반지름 0~RADIUS_MAX 전 구간에 걸쳐 무작위로 흩어진다 — 팀 소속 여부와 무관하게 모든
+//   별이 같은 반지름 범위를 쓰므로 "팀은 중앙에, 무소속은 테두리 링에"라는 구역이 생기지
+//   않는다.
+// - 무소속 별은 슬라이스 제약이 아예 없어 원 전체 어디든 자유롭게 놓인다(선으로 연결되지
+//   않으므로 다른 선과 교차할 일도 없다).
+// - 여러 팀에 속한 사람은 그 팀들의 슬라이스가 만나는 경계 각도에 놓여 양쪽 팀과 자연스럽게
+//   이어진다(3개 이상 팀에 걸치는 드문 경우는 각 팀 슬라이스 중심의 원형 평균으로 절충한다).
 // teams는 정렬돼 들어온다고 가정하지 않고 내부에서 id로 정렬한다(색 배정과 동일한 순서).
 export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number, { x: number; y: number }> {
   const pos = new Map<number, { x: number; y: number }>();
   const sorted = [...teams].sort((a, b) => a.id - b.id);
-  const T = sorted.length;
 
-  // 팀 클러스터 중심: 팀이 하나면 중앙, 여럿이면 중앙을 둘러싼 타원 링에 흩어 놓되
-  // 완전히 균등한 링이 되지 않도록 팀마다 각도/반지름을 조금씩 어긋나게 한다.
-  const centers = sorted.map((team, k) => {
-    if (T === 1) return { x: CENTER_X, y: CENTER_Y };
-    const slot = (2 * Math.PI) / T;
-    const a = -Math.PI / 2 + 0.6 + slot * k + clusterJitter(team.id * 31 + 1, slot * 0.28);
-    const rJitter = 1 + clusterJitter(team.id * 31 + 2, 0.22);
-    return { x: CENTER_X + 27 * rJitter * Math.cos(a), y: CENTER_Y + 22 * rJitter * Math.sin(a) };
-  });
-
-  // 팀 내부 배치: 멤버마다 id로 결정되는 반지름/각도를 서로 독립적으로 뽑아 disk 안에
-  // 흩뿌린다 — 정렬 순서를 따라 나선을 그리던 이전 방식은 별들이 같은 간격으로 규칙적으로
-  // 늘어서 보이는 원인이었다. 반지름은 sqrt 분포를 써서 클러스터 중심 쪽에 조금 더 몰리는
-  // 자연스러운 밀도는 유지하되, 각도는 완전히 무작위라 실제 밤하늘처럼 흩어져 보인다.
-  // 여러 팀 소속이면 각 팀에서의 위치를 평균 내 팀 사이에 놓는다.
-  const perUser = new Map<number, { x: number; y: number }[]>();
-  sorted.forEach((team, k) => {
-    const members = [...new Set(team.memberIds)].sort((a, b) => a - b);
-    const n = members.length;
-    members.forEach(id => {
-      const frac = Math.sqrt(seededRandom(id * 13 + 20));
-      const rBase = n <= 1 ? 0 : T <= 1 ? 3 + 5 * frac : 2 + 3.5 * frac;
-      const r = rBase * (1 + clusterJitter(id * 13 + 17, 0.15));
-      const ang = seededRandom(id * 13 + 18) * Math.PI * 2 + clusterJitter(id * 13 + 19, 0.5);
-      const p = {
-        x: centers[k].x + r * Math.cos(ang),
-        y: centers[k].y + r * Math.sin(ang) * 0.85,
-      };
-      const list = perUser.get(id) ?? [];
-      list.push(p);
-      perUser.set(id, list);
-    });
-  });
-  perUser.forEach((list, id) => {
-    const x = list.reduce((s, p) => s + p.x, 0) / list.length;
-    const y = list.reduce((s, p) => s + p.y, 0) / list.length;
-    pos.set(id, { x, y });
-  });
-
-  // 무소속 별: 팀이 없으면 화면 전체에, 팀이 있으면 클러스터 바깥 띠에 흩뿌린다.
-  // 여기도 정렬 순서(j)에 기대던 소용돌이 대신 각자의 id로 독립적인 각도/반지름을 뽑아
-  // 고리처럼 가지런히 늘어서지 않고 실제 밤하늘처럼 무작위로 흩어지게 한다.
-  const rest = ids.filter(id => !pos.has(id));
-  rest.forEach(id => {
-    const ang = seededRandom(id * 13 + 21) * Math.PI * 2 + clusterJitter(id * 13 + 23, 0.4);
-    let x: number, y: number;
-    if (T === 0) {
-      const rFrac = Math.sqrt(seededRandom(id * 13 + 22));
-      x = CENTER_X + rFrac * 40 * Math.cos(ang);
-      y = CENTER_Y + rFrac * 36 * Math.sin(ang);
-    } else {
-      // 이전엔 반지름 비율(band)이 0.88~1.12로 좁아 클러스터 바깥에 얇은 고리띠처럼
-      // 몰려 보였다 — 범위를 넓혀 고리가 아니라 자연스럽게 흩어진 배경 별처럼 만든다.
-      const band = 0.72 + 0.5 * seededRandom(id * 13 + 3);
-      x = CENTER_X + 42 * band * Math.cos(ang);
-      y = CENTER_Y + 34 * band * Math.sin(ang);
-    }
-    pos.set(id, { x, y });
-  });
-
-  // 은하 중심에서 SPREAD배 밀어낸다 — 상대적 배치(팀 클러스터·나선 모양)는 그대로 유지된다.
-  ids.forEach(id => {
-    const p = pos.get(id);
-    if (!p) return;
-    p.x = CENTER_X + (p.x - CENTER_X) * SPREAD;
-    p.y = CENTER_Y + (p.y - CENTER_Y) * SPREAD;
-  });
-
-  // 같은 팀인 별끼리는 뭉쳐 보여야 하므로 거의 겹칠 때만(TEAM_MIN_DIST) 살짝 떼어놓고,
-  // 서로 다른 팀/무소속 별끼리는 더 크게(CROSS_MIN_DIST) 밀어내 클러스터 사이 여백을
-  // 지킨다 — 모든 쌍에 같은 최소 거리를 적용하면 팀이 뭉쳐 보이지 않고 격자처럼
-  // 규칙적으로 흩어져 버렸던 이전 방식의 문제를 이 구분으로 해결한다.
   const teamsOf = new Map<number, Set<number>>();
   sorted.forEach(team => {
     new Set(team.memberIds).forEach(id => {
@@ -154,6 +173,66 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
       teamsOf.set(id, s);
     });
   });
+
+  const orderedTeams = orderTeamsForAdjacency(sorted);
+  const orderIndex = new Map(orderedTeams.map((t, k) => [t.id, k]));
+  const slices = assignSlices(orderedTeams);
+
+  const constraints = new Map<number, AngleConstraint>();
+  ids.forEach(id => {
+    const myTeams = [...(teamsOf.get(id) ?? [])];
+    if (myTeams.length === 0) {
+      constraints.set(id, { kind: "free" });
+    } else if (myTeams.length === 1) {
+      const sl = slices.get(myTeams[0])!;
+      constraints.set(id, { kind: "range", lo: sl.start, hi: sl.end });
+    } else if (myTeams.length === 2) {
+      const idxs = myTeams.map(tid => orderIndex.get(tid)!).sort((a, b) => a - b);
+      let fixedAngle: number | null = null;
+      if (idxs[1] === idxs[0] + 1) {
+        fixedAngle = slices.get(orderedTeams[idxs[1]].id)!.start;
+      } else if (idxs[0] === 0 && idxs[1] === orderedTeams.length - 1 && orderedTeams.length > 1) {
+        fixedAngle = slices.get(orderedTeams[0].id)!.start;
+      }
+      constraints.set(id, {
+        kind: "fixed",
+        angle: fixedAngle ?? circularMeanOf(myTeams.map(tid => sliceCenterAngle(slices.get(tid)!))),
+      });
+    } else {
+      // 3개 이상 팀에 걸치는 아주 드문 경우 — 모든 슬라이스 경계를 동시에 만족시킬 순
+      // 없으므로 중심각들의 원형 평균으로 절충한다(최선 노력, 교차 완전 보장은 아님).
+      constraints.set(id, {
+        kind: "fixed",
+        angle: circularMeanOf(myTeams.map(tid => sliceCenterAngle(slices.get(tid)!))),
+      });
+    }
+  });
+
+  ids.forEach(id => {
+    const c = constraints.get(id)!;
+    const rFrac = Math.sqrt(seededRandom(id * 13 + 20));
+    const r = rFrac * RADIUS_MAX;
+    let ang: number;
+    if (c.kind === "free") {
+      ang = seededRandom(id * 13 + 18) * Math.PI * 2;
+    } else if (c.kind === "fixed") {
+      ang = c.angle;
+    } else {
+      ang = c.lo + seededRandom(id * 13 + 18) * (c.hi - c.lo);
+    }
+    pos.set(id, { x: CENTER_X + r * Math.cos(ang), y: CENTER_Y + r * Math.sin(ang) * Y_SQUISH });
+  });
+
+  // 은하 중심에서 SPREAD배 밀어낸다 — 상대적 배치(부채꼴 모양)는 그대로 유지된다.
+  ids.forEach(id => {
+    const p = pos.get(id);
+    if (!p) return;
+    p.x = CENTER_X + (p.x - CENTER_X) * SPREAD;
+    p.y = CENTER_Y + (p.y - CENTER_Y) * SPREAD;
+  });
+
+  // 같은 팀인 별끼리는 거의 겹칠 때만(TEAM_MIN_DIST) 살짝 떼어놓고, 서로 다른 팀/무소속
+  // 별끼리는 더 크게(CROSS_MIN_DIST) 밀어내 너무 다닥다닥 붙어 보이지 않게 한다.
   const shareTeam = (a: number, b: number) => {
     const sa = teamsOf.get(a), sb = teamsOf.get(b);
     if (!sa || !sb) return false;
@@ -161,15 +240,13 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
     return false;
   };
 
-  relaxMinDistance(pos, ids, shareTeam);
+  relaxMinDistance(pos, ids, shareTeam, constraints);
   return pos;
 }
 
-// 소용돌이/나선 배치는 곡선을 따라 별을 촘촘히 늘어놓다 보니 서로 다른 클러스터/무소속
-// 별들끼리 거의 겹칠 만큼 붙는 경우가 있었다. 완성된 배치 위에 "이 거리보다 가까우면
-// 서로 밀어낸다"는 단순한 반발 이완(relaxation)을 몇 차례 더 돌려 클러스터 사이 여백을
-// 보장한다. 입력이 같으면 항상 같은 결과가 나오도록 무작위성은 쓰지 않는다(완전히 겹친
-// 두 별만 id 기반 결정론적 각도로 떼어놓는다).
+// 반발 이완(relaxation): "이 거리보다 가까우면 서로 밀어낸다"를 몇 차례 반복해 너무
+// 다닥다닥 붙은 별들 사이에 여백을 보장한다. 입력이 같으면 항상 같은 결과가 나오도록
+// 무작위성은 쓰지 않는다(완전히 겹친 두 별만 id 기반 결정론적 각도로 떼어놓는다).
 const TEAM_MIN_DIST = 4.5;
 const CROSS_MIN_DIST = 20;
 const RELAX_ITERATIONS = 80;
@@ -177,11 +254,44 @@ const RELAX_ITERATIONS = 80;
 // 거리, % 기준). 화면 밖으로 넘치는 탐험 범위 자체는 의도된 동작이라 값은 넉넉히 둔다.
 const MAX_RADIUS_FROM_CENTER = 130;
 
+// 각도 제약(자기 팀 슬라이스 범위 안 / 경계 고정)을 강제한다 — 반지름(중심에서의 거리)은
+// 그대로 둔 채 각도만 유효 범위로 되돌린다.
+function reprojectAngles(
+  pos: Map<number, { x: number; y: number }>,
+  ids: number[],
+  constraints: Map<number, AngleConstraint>
+) {
+  const twoPi = Math.PI * 2;
+  ids.forEach(id => {
+    const p = pos.get(id);
+    const c = constraints.get(id);
+    if (!p || !c || c.kind === "free") return;
+    const ux = p.x - CENTER_X, uy = (p.y - CENTER_Y) / Y_SQUISH;
+    const r = Math.hypot(ux, uy);
+    if (r < 0.0001) return;
+    let ang = Math.atan2(uy, ux);
+    if (c.kind === "fixed") {
+      ang = c.angle;
+    } else {
+      while (ang < c.lo) ang += twoPi;
+      while (ang >= c.lo + twoPi) ang -= twoPi;
+      ang = Math.min(c.hi, Math.max(c.lo, ang));
+    }
+    p.x = CENTER_X + r * Math.cos(ang);
+    p.y = CENTER_Y + r * Math.sin(ang) * Y_SQUISH;
+  });
+}
+
 function relaxMinDistance(
   pos: Map<number, { x: number; y: number }>,
   ids: number[],
-  shareTeam: (a: number, b: number) => boolean
+  shareTeam: (a: number, b: number) => boolean,
+  constraints: Map<number, AngleConstraint>
 ) {
+  // 각도 제약이 있는 별은 반지름 방향으로만 실제로 자유롭다 — 매 반복마다 밀어낸 직후
+  // 바로 각도를 되돌려야, 다른(다른 각도의) 별에 떠밀려 슬라이스를 벗어났다가 마지막에야
+  // 한 번에 스냅되면서 그동안 벌어놓은 간격이 도로 사라지는 일이 없다(경계 각도에 고정된
+  // 두 별처럼, 서로를 밀어낼 수 있는 방향이 반지름뿐인 경우 특히 중요).
   for (let iter = 0; iter < RELAX_ITERATIONS; iter++) {
     let moved = false;
     for (let i = 0; i < ids.length; i++) {
@@ -205,11 +315,12 @@ function relaxMinDistance(
         moved = true;
       }
     }
+    reprojectAngles(pos, ids, constraints);
     if (!moved) break;
   }
-  // 화면(0~100%) 안에 가두는 클램프가 아니라, 서로를 계속 밀어내다 은하 중심에서 너무
-  // 멀리(찾아가기 힘들 만큼) 발산하는 것만 막는 안전망이다 — 그래서 x/y 각각이 아니라
-  // "중심에서의 거리"로 잡아준다. 화면 밖으로 넘치는 정도의 탐험 범위는 의도된 동작이다.
+
+  // 화면(0~100%) 안에 가두는 클램프가 아니라, 은하 중심에서 너무 멀리(찾아가기 힘들 만큼)
+  // 발산하는 것만 막는 안전망이다 — 화면 밖으로 넘치는 정도의 탐험 범위는 의도된 동작이다.
   ids.forEach(id => {
     const p = pos.get(id);
     if (!p) return;

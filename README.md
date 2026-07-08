@@ -134,9 +134,9 @@
 <!-- Figma 링크 또는 이미지 첨부 -->
 ![Wireframe Overview](./Wireframe.png)
 
-자세한 와이어프레임은 아래 Figma 링크에서 확인할 수 있습니다.
+자세한 와이어프레임은 아래 Penpot 링크에서 확인할 수 있습니다.
 
-[Figma Wireframe 보기](https://www.figma.com/design/WMpfUenDYD9xxfdElZkIfv/%EB%A7%A4%EB%93%9C%EB%AA%AC-%EB%8F%84%EA%B0%90-%EC%99%80%EC%9D%B4%EC%96%B4%ED%94%84%EB%A0%88%EC%9E%84?node-id=0-1&t=XtlvI7OwAqt8XBG2-1)
+[Penpot Wireframe 보기](https://design.penpot.app/#/view?file-id=3f9e4ef6-5769-81db-8008-4a51e2769722&page-id=3f9e4ef6-5769-81db-8008-4a51e2769723&section=interactions&index=0&share-id=c6001e88-639f-8114-8008-4b6ab33a4d1d)
 
 ---
 
