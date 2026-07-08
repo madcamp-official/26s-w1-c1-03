@@ -153,7 +153,6 @@ export function CompareScreen() {
               </div>
             </HoloPanel>
 
-            {selUsers.length>1 && (
             <HoloPanel style={{ overflowX:"auto" }}>
               <HudLabel en="STAT BREAKDOWN" kr="세부 수치"/>
               <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12.5, fontFamily:FONT_BODY }}>
@@ -181,9 +180,10 @@ export function CompareScreen() {
                         </td>
                         {vals.map((v,i)=>{
                           const uColor = COMPARE_COLORS[i].color;
+                          const isTop = selUsers.length>1 && v===mx;
                           return (
-                            <td key={i} style={{ textAlign:"center", padding:"9px 10px", color:v===mx?uColor:SPACE.textDim, fontFamily:FONT_HUD, fontWeight:v===mx?600:400 }}>
-                              {v}{v===mx?" ✦":""}
+                            <td key={i} style={{ textAlign:"center", padding:"9px 10px", color:isTop?uColor:SPACE.textDim, fontFamily:FONT_HUD, fontWeight:isTop?600:400 }}>
+                              {v}{isTop?" ✦":""}
                             </td>
                           );
                         })}
@@ -193,7 +193,6 @@ export function CompareScreen() {
                 </tbody>
               </table>
             </HoloPanel>
-            )}
           </div>
         )}
       </div>

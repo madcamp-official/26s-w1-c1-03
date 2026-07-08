@@ -5,12 +5,19 @@ import { TooltipBubble, type TooltipRect } from "./primitives";
 
 interface Series { name: string; color: string; stats: Stats; }
 
+const DEFAULT_COLOR = "#8fd0ff";
+const DEFAULT_VERTEX_COLOR = "#eef4ff";
+// 사람이 여러 명일 때, 다음 사람의 별자리가 그려지기 시작하는 시점을 이만큼 늦춘다
+// (완전히 순차적이지 않고 살짝 겹치게 해서 전체 애니메이션이 너무 늘어지지 않게 한다).
+const ENTRY_STAGGER = 0.5;
+
 // design.md §80: 육각 레이더를 별자리로 재해석 — 흐린 그리드 3겹 + 꼭짓점은 빛나는 별,
 // 데이터 선은 하나씩 순차적으로 그려지는 애니메이션(stroke-dashoffset), 내부 채움은 은은하게.
 //
-// series가 주어지면(별 비교 화면) 여러 사람의 다각형을 겹쳐 그리는 비교 모드로 동작한다 —
-// 이땐 한 사람 값이 아니라 여러 값을 동시에 보여줘야 해서 변 하나씩 순차로 그리는 애니메이션
-// 대신 다각형/꼭짓점이 함께 페이드·팝인하는 애니메이션을 쓰고, 값 라벨 대신 하단에 이름 범례를 붙인다.
+// series가 주어지면(별 비교 화면) 여러 사람의 다각형을 겹쳐 그리는 비교 모드로 동작한다.
+// 단일(stats)/비교(series) 모두 내부적으로 "entries" 배열 하나로 합쳐서 완전히 같은 방식
+// (변 6개가 하나씩 그려지고 꼭짓점이 하나씩 팝인)으로 그리며, 사람이 여러 명이면 사람마다
+// ENTRY_STAGGER만큼 시작 시점만 밀려서 한 명씩 순서대로 나타나는 것처럼 보인다.
 // animate=false면(호출부에서 "이미 있던 별을 뺐을 때" 등) 애니메이션 없이 즉시 그려진다.
 export function ConstellationChart({ stats, series, size=280, animate=true }: { stats?:Stats; series?:Series[]; size?:number; animate?:boolean }) {
   const cx = size/2, cy = size/2, r = size/2 - 34;
@@ -35,13 +42,10 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
   }
 
   const singleStats = stats ?? STATS.reduce((acc,s)=>({ ...acc, [s.key]:0 }), {} as Stats);
-  const vals = STATS.map(s => singleStats[s.key as keyof Stats]/100);
-  const dataPts = vals.map((v,i)=>pt(i,v));
 
-  const seriesPts = (series ?? []).map(s => ({
-    ...s,
-    pts: STATS.map((st,i)=>pt(i, s.stats[st.key as keyof Stats]/100)),
-  }));
+  // 단일/비교 모드를 하나의 배열로 합친다 — 렌더링 코드는 이 entries만 보고 그린다.
+  const entries = series ?? [{ name:"", color:DEFAULT_COLOR, stats:singleStats }];
+  const entryPts = entries.map(en => STATS.map((st,i)=>pt(i, en.stats[st.key as keyof Stats]/100)));
 
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
@@ -56,48 +60,42 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
           return <line key={"a"+i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(125,180,255,.08)" strokeWidth={1}/>;
         })}
 
-        {compareMode ? (
-          <>
-            {seriesPts.map((s,si)=>(
-              <polygon key={"fill-"+s.name} points={s.pts.map(p=>p.join(",")).join(" ")} fill={`${s.color}22`} stroke={s.color} strokeWidth={1.4}
-                style={animate ? { animation:`fadeIn .5s ease ${si*0.12}s both` } : undefined}/>
-            ))}
-            {seriesPts.map((s,si)=>s.pts.map(([x,y],i)=>(
-              <circle key={`v-${s.name}-${i}`} cx={x} cy={y} r={2.4} fill={s.color} style={{
-                filter:`drop-shadow(0 0 3px ${s.color})`,
-                animation: animate ? `popIn .35s ease ${si*0.12+0.3}s both` : undefined,
-              }}/>
-            )))}
-          </>
-        ) : (
-          <>
-            {/* data fill */}
-            <polygon
-              points={dataPts.map(p=>p.join(",")).join(" ")}
-              fill="rgba(125,211,252,.09)"
-              style={animate ? { animation:"fadeIn .8s 1.6s both" } : undefined}
-            />
-            {/* edges, drawn one by one */}
-            {[0,1,2,3,4,5].map(i=>{
-              const [x1,y1] = dataPts[i], [x2,y2] = dataPts[(i+1)%6];
-              return (
-                <line key={"e"+i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#8fd0ff" strokeWidth={1.5}
-                  pathLength={1} strokeDasharray={1} strokeDashoffset={animate?1:0}
-                  style={{
-                    animation: animate ? `chartDraw .45s ease forwards ${0.35+i*0.22}s` : undefined,
-                    filter: `drop-shadow(0 0 3px rgba(125,211,252,${animate?0.8:0.6}))`,
-                  }}/>
-              );
-            })}
-            {/* vertex stars */}
-            {dataPts.map(([x,y],i)=>(
-              <circle key={"v"+i} cx={x} cy={y} r={2.6} fill="#eef4ff"
-                style={{ filter:"drop-shadow(0 0 4px rgba(190,220,255,1))", animation: animate ? `popIn .4s ease both ${0.3+i*0.22}s` : undefined }}/>
-            ))}
-          </>
-        )}
+        {entries.map((en, e) => {
+          const dataPts = entryPts[e];
+          const entryDelay = e * ENTRY_STAGGER;
+          const vertexColor = compareMode ? en.color : DEFAULT_VERTEX_COLOR;
+          const edgeColor = compareMode ? en.color : DEFAULT_COLOR;
+          const fillColor = compareMode ? `${en.color}22` : "rgba(125,211,252,.09)";
+          return (
+            <g key={"entry"+e}>
+              {/* data fill */}
+              <polygon
+                points={dataPts.map(p=>p.join(",")).join(" ")}
+                fill={fillColor}
+                style={animate ? { animation:`fadeIn .8s ${entryDelay+1.6}s both` } : undefined}
+              />
+              {/* edges, drawn one by one */}
+              {[0,1,2,3,4,5].map(i=>{
+                const [x1,y1] = dataPts[i], [x2,y2] = dataPts[(i+1)%6];
+                return (
+                  <line key={`e${e}-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={edgeColor} strokeWidth={1.5}
+                    pathLength={1} strokeDasharray={1} strokeDashoffset={animate?1:0}
+                    style={{
+                      animation: animate ? `chartDraw .45s ease forwards ${entryDelay+0.35+i*0.22}s` : undefined,
+                      filter: `drop-shadow(0 0 3px ${compareMode ? en.color : `rgba(125,211,252,${animate?0.8:0.6})`})`,
+                    }}/>
+                );
+              })}
+              {/* vertex stars */}
+              {dataPts.map(([x,y],i)=>(
+                <circle key={`v${e}-${i}`} cx={x} cy={y} r={2.6} fill={vertexColor}
+                  style={{ filter:`drop-shadow(0 0 4px ${vertexColor})`, animation: animate ? `popIn .4s ease both ${entryDelay+0.3+i*0.22}s` : undefined }}/>
+              ))}
+            </g>
+          );
+        })}
 
-        {/* labels: EN mono + (단일 모드일 때만) 값. 호버/탭으로 스탯 설명 툴팁. */}
+        {/* labels: EN mono + (한 명일 때만) 값. 호버/탭으로 스탯 설명 툴팁. */}
         {STATS.map((s,i)=>{
           const [x,y] = pt(i,1.28);
           return (
@@ -110,7 +108,7 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
               {/* 글자만으론 터치 표적이 너무 작아 투명 히트 영역을 깐다 */}
               <circle cx={x} cy={y+2} r={20} fill="transparent"/>
               <text x={x} y={y-3} textAnchor="middle" fill="#7DD3FC" style={{ font:"8.5px 'IBM Plex Mono',monospace", letterSpacing:"1.5px" }}>{s.en}</text>
-              {!compareMode && (
+              {entries.length===1 && (
                 <text x={x} y={y+9} textAnchor="middle" fill="#64789c" style={{ font:"9px 'Noto Sans KR',sans-serif" }}>{s.label} {singleStats[s.key as keyof Stats]}</text>
               )}
             </g>
