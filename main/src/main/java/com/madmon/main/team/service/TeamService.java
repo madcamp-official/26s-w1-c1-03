@@ -103,6 +103,14 @@ public class TeamService {
                 .filter(m -> m.getLeftAt() == null)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_TEAM_MEMBER));
         member.leave();
+
+        // 팀에 활성 멤버가 한 명도 남지 않으면 팀 자체를 삭제한다. 이 팀이 남긴 evaluations는
+        // team_id 컬럼의 ON DELETE SET NULL 제약(evaluations FK)에 의해 DB가 알아서 team_id만
+        // null로 바꿔주므로, 평가 점수/이력 자체는 팀 삭제와 무관하게 그대로 보존된다.
+        if (teamMemberRepository.countByTeamIdAndLeftAtIsNull(teamId) == 0) {
+            teamMemberRepository.deleteAll(teamMemberRepository.findAllByTeamId(teamId));
+            teamRepository.deleteById(teamId);
+        }
     }
 
     private void validateActiveMembership(Long teamId, Long userId) {
