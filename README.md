@@ -356,7 +356,6 @@ GET /api/titles
 https://madnova.madcamp-kaist.org
 
 - **실행 방법:**
-
 KCLOUD VPN에 연결한 후 도메인에 접속.
 최초 로그인 시 ID/PW 모두 노션에 기록한 본인의 인스타 아이디로 되어있음.
 인스타 계정이 없는 경우 이름을 영어로 그대로 타이핑한 것으로 ID/PW를 최초 설정함.
