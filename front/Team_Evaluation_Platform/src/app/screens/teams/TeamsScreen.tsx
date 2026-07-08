@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { Check, Copy, RefreshCw } from "lucide-react";
+import { Check, Copy, RefreshCw, LogOut } from "lucide-react";
 import {
-  listMyTeams, createTeam, joinTeam, getTeam, listEvaluationTargets, ApiError,
+  listMyTeams, createTeam, joinTeam, getTeam, leaveTeam, listEvaluationTargets, ApiError,
   type TeamDetailDto, type TeamSummaryDto, type EvaluationTargetDto,
 } from "../../api";
 import { AVATAR_IMG, FALLBACK_AVATAR, handleImgError } from "../../lib/avatar";
@@ -19,6 +19,9 @@ const INPUT_STYLE: React.CSSProperties = {
   background:"rgba(125,180,255,0.05)", border:`1px solid ${SPACE.border}`, borderRadius:3,
   color:SPACE.starWhite, fontFamily:FONT.body, fontSize:13, outline:"none",
 };
+
+// 팀 나가기 등 파괴적 동작에만 쓰는 경고색 — CompareScreen 에러 텍스트와 동일한 톤으로 통일.
+const DANGER = "#f87171";
 
 // design.md §84 언어 규칙: 시스템 라벨은 영어 mono, 본문은 한국어 — 탭도 같은 문법을 쓴다.
 const TABS = [
@@ -55,6 +58,10 @@ export function TeamsScreen() {
   const [copiedKey, setCopiedKey] = useState<string|null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // 팀 나가기 확인 2단계 상태: 먼저 armedLeaveId로 "정말요?" 상태를 켜고, 확정되면
+  // leavingId로 요청 진행 중임을 표시한다. 실수로 즉시 팀을 나가버리는 걸 막기 위함.
+  const [armedLeaveId, setArmedLeaveId] = useState<number|null>(null);
+  const [leavingId, setLeavingId] = useState<number|null>(null);
   const isMobile = useIsMobile();
 
   async function loadTeams() {
@@ -107,6 +114,18 @@ export function TeamsScreen() {
       setError(e instanceof ApiError ? e.message : "팀 참여 중 오류가 발생했습니다.");
     } finally {
       setBusy(false);
+    }
+  }
+  async function leave(teamId: number) {
+    setError(""); setLeavingId(teamId);
+    try {
+      await leaveTeam(teamId);
+      setArmedLeaveId(null);
+      await loadTeams();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "팀 나가기 중 오류가 발생했습니다.");
+    } finally {
+      setLeavingId(null);
     }
   }
   async function copy(key:string, text:string) {
@@ -182,6 +201,41 @@ export function TeamsScreen() {
                         {copiedKey===teamKey ? <Check size={11}/> : <Copy size={11}/>}
                       </button>
                     </span>
+
+                    {armedLeaveId===team.id ? (
+                      <div style={{ display:"flex", alignItems:"center", gap:8, animation:"fadeUp .2s both" }}>
+                        <span style={{ fontFamily:FONT.body, fontSize:10.5, color:DANGER }}>
+                          {done ? "정말 나가시겠어요?" : "탈퇴하면 재평가 기회를 잃어요."}
+                        </span>
+                        <button onClick={()=>leave(team.id)} disabled={leavingId===team.id} style={{
+                          background:"rgba(248,113,113,.12)", border:`1px solid ${DANGER}`, borderRadius:2,
+                          color:DANGER, fontFamily:FONT.hud, fontSize:9.5, letterSpacing:"1.5px",
+                          padding:"4px 9px", cursor:leavingId===team.id?"not-allowed":"pointer",
+                        }}>
+                          {leavingId===team.id ? "···" : "확인"}
+                        </button>
+                        <button onClick={()=>setArmedLeaveId(null)} style={{
+                          background:"none", border:"none", color:SPACE.label, fontFamily:FONT.hud,
+                          fontSize:9.5, letterSpacing:"1.5px", cursor:"pointer", padding:"4px 2px",
+                        }}>
+                          취소
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={()=>setArmedLeaveId(team.id)}
+                        onMouseEnter={e=>{ e.currentTarget.style.color = DANGER; e.currentTarget.style.borderColor = "rgba(248,113,113,.4)"; }}
+                        onMouseLeave={e=>{ e.currentTarget.style.color = SPACE.label; e.currentTarget.style.borderColor = "transparent"; }}
+                        style={{
+                          display:"inline-flex", alignItems:"center", gap:5,
+                          background:"none", border:"1px solid transparent", borderRadius:2,
+                          padding:"3px 6px", margin:"-3px -6px 0 0", cursor:"pointer", transition:"all .2s",
+                          color:SPACE.label, fontFamily:FONT.hud, fontSize:9.5, letterSpacing:"1.8px",
+                        }}
+                      >
+                        <LogOut size={10.5}/> EXIT <span style={{ fontFamily:FONT.body, fontSize:10, letterSpacing:0, color:"inherit" }}>· 나가기</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
