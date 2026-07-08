@@ -58,7 +58,14 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
 }
 
-// 은하 배치(% 좌표):
+// 처음 은하에 들어왔을 때(카메라 scale 1 = 화면이 정확히 0~100% 영역을 비춘다) 별이
+// 전부 한눈에 들어오면 안 되고, 팬/줌으로 탐험해야 할 만큼 넓어야 한다는 요구사항 —
+// 아래 배치 공식이 만드는 상대적인 모양(타원 전체 윤곽·팀 클러스터·나선)은 그대로 두고,
+// 마지막에 은하 중심(CENTER_X, CENTER_Y)에서 이 배수만큼 밀어내 화면 폭보다 훨씬 넓게
+// 펼친다. 그 결과 0~100% 밖으로 넘치는 별은 자연히 초기 화면 밖에 위치하게 된다.
+const SPREAD = 2.6;
+
+// 은하 배치(% 좌표, SPREAD 적용 전 기준):
 // - 진행 중인 팀마다 화면에 클러스터 중심을 하나씩 두고, 팀원은 그 중심 주위에 소용돌이로 뭉친다.
 // - 여러 팀에 속한 사람은 소속 팀 중심들의 평균 지점에 놓여 양쪽 팀과 자연스럽게 이어진다.
 // - 어느 팀에도 없는 사람은 클러스터 바깥 띠에 흩어 놓는다(팀이 하나도 없으면 전체 나선).
@@ -97,7 +104,7 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
   perUser.forEach((list, id) => {
     const x = list.reduce((s, p) => s + p.x, 0) / list.length;
     const y = list.reduce((s, p) => s + p.y, 0) / list.length;
-    pos.set(id, { x: clamp(x, 5, 95), y: clamp(y, 8, 88) });
+    pos.set(id, { x, y });
   });
 
   // 무소속 별: 팀이 없으면 화면 전체 나선, 팀이 있으면 클러스터 바깥 띠에 흩뿌린다.
@@ -115,20 +122,29 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
       x = CENTER_X + 42 * band * Math.cos(ang);
       y = CENTER_Y + 34 * band * Math.sin(ang);
     }
-    pos.set(id, { x: clamp(x, 5, 95), y: clamp(y, 8, 88) });
+    pos.set(id, { x, y });
+  });
+
+  // 은하 중심에서 SPREAD배 밀어낸다 — 상대적 배치(팀 클러스터·나선 모양)는 그대로 유지된다.
+  ids.forEach(id => {
+    const p = pos.get(id);
+    if (!p) return;
+    p.x = CENTER_X + (p.x - CENTER_X) * SPREAD;
+    p.y = CENTER_Y + (p.y - CENTER_Y) * SPREAD;
   });
 
   relaxMinDistance(pos, ids);
   return pos;
 }
 
-// 소용돌이/나선 배치는 곡선을 따라 별을 촘촘히 늘어놓다 보니 인접한 두 별이 거의 겹칠 만큼
-// 붙는 경우가 있었다. 완성된 배치 위에 "이 거리보다 가까우면 서로 밀어낸다"는 단순한 반발
-// 이완(relaxation)을 몇 차례 더 돌려, 팀 클러스터의 전체적인 모양은 유지하면서 별 사이
-// 간격만 자연스럽게 벌린다. 입력이 같으면 항상 같은 결과가 나오도록 무작위성은 쓰지 않는다
+// 소용돌이/나선 배치는 곡선을 따라 별을 촘촘히 늘어놓다 보니 서로 다른 클러스터/무소속
+// 별들끼리 거의 겹칠 만큼 붙는 경우가 있었다. 완성된 배치 위에 "이 거리보다 가까우면
+// 서로 밀어낸다"는 단순한 반발 이완(relaxation)을 몇 차례 더 돌려, 팀 클러스터의 전체적인
+// 모양은 유지하면서 모든 별(팀원이든 아니든)이 최소한 "연결된 팀원끼리의 간격" 정도는
+// 떨어지도록 한다. 입력이 같으면 항상 같은 결과가 나오도록 무작위성은 쓰지 않는다
 // (완전히 겹친 두 별만 id 기반 결정론적 각도로 떼어놓는다).
-const MIN_STAR_DIST = 5.5;
-const RELAX_ITERATIONS = 40;
+const MIN_STAR_DIST = 40;
+const RELAX_ITERATIONS = 80;
 
 function relaxMinDistance(pos: Map<number, { x: number; y: number }>, ids: number[]) {
   for (let iter = 0; iter < RELAX_ITERATIONS; iter++) {
@@ -155,10 +171,12 @@ function relaxMinDistance(pos: Map<number, { x: number; y: number }>, ids: numbe
     }
     if (!moved) break;
   }
+  // 화면(0~100%) 안에 가두는 클램프가 아니라, 서로를 계속 밀어내다 좌표가 터무니없이
+  // 발산하는 것만 막는 아주 느슨한 안전망이다 — 은하가 화면 밖으로 넘치는 건 의도된 동작.
   ids.forEach(id => {
     const p = pos.get(id);
     if (!p) return;
-    p.x = clamp(p.x, 5, 95);
-    p.y = clamp(p.y, 8, 88);
+    p.x = clamp(p.x, -600, 700);
+    p.y = clamp(p.y, -600, 692);
   });
 }
