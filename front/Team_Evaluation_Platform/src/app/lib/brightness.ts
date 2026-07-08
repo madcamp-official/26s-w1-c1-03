@@ -34,19 +34,26 @@ export function gradeForStats(s: Stats): BrightnessGrade {
 }
 
 // 밝기 스케일(가능 범위 15~150)을 스펙트럼 바에 놓기 위한 0~100% 위치.
+// 실제 점수 폭(적 25점/황 25점/백 20점/청 65점)을 그대로 비율로 쓰면 청색 구간이 화면의
+// 절반 가까이 차지해 나머지 세 등급이 비좁아 보인다. 그래서 값을 등급 경계(40/65/85)로
+// 나눈 뒤 등급마다 정확히 25%씩 배정하고, 그 안에서만 실제 값 위치로 보간한다 — 네 등급이
+// 시각적으로 비슷한 비중을 갖게 된다.
 export const SPEC_MIN = 15, SPEC_MAX = 150;
-export const spectrumPct = (b: number) =>
-  Math.min(100, Math.max(0, ((b - SPEC_MIN) / (SPEC_MAX - SPEC_MIN)) * 100));
+export function spectrumPct(b: number): number {
+  const clamp = (t: number) => Math.min(1, Math.max(0, t));
+  if (b < 40) return clamp((b - SPEC_MIN) / (40 - SPEC_MIN)) * 25;
+  if (b < 65) return 25 + clamp((b - 40) / (65 - 40)) * 25;
+  if (b < 85) return 50 + clamp((b - 65) / (85 - 65)) * 25;
+  return 75 + clamp((b - 85) / (SPEC_MAX - 85)) * 25;
+}
 
-// 스펙트럼 바 CSS 그라데이션 — 색 구간의 폭이 실제 등급 경계(40/65/85) 비율과 일치하도록
-// spectrumPct로 직접 계산한다(하드코딩된 %는 적/황/백 구간이 실제보다 좁고 청색만 넓어 보였다).
-const BOUND_40 = spectrumPct(40), BOUND_65 = spectrumPct(65), BOUND_85 = spectrumPct(85);
+// 스펙트럼 바 CSS 그라데이션 — 위 spectrumPct와 같은 25%씩 등분 경계를 그대로 쓴다.
 const BLEND = 2.5; // 경계마다 좌우로 이 폭만큼만 부드럽게 섞는다.
 export const SPECTRUM_GRADIENT = `linear-gradient(90deg,
-  ${RED.color} 0%, ${RED.color} ${BOUND_40 - BLEND}%,
-  ${YELLOW.color} ${BOUND_40 + BLEND}%, ${YELLOW.color} ${BOUND_65 - BLEND}%,
-  ${WHITE.color} ${BOUND_65 + BLEND}%, ${WHITE.color} ${BOUND_85 - BLEND}%,
-  ${BLUE.color} ${BOUND_85 + BLEND}%, ${BLUE.color} 100%)`;
+  ${RED.color} 0%, ${RED.color} ${25 - BLEND}%,
+  ${YELLOW.color} ${25 + BLEND}%, ${YELLOW.color} ${50 - BLEND}%,
+  ${WHITE.color} ${50 + BLEND}%, ${WHITE.color} ${75 - BLEND}%,
+  ${BLUE.color} ${75 + BLEND}%, ${BLUE.color} 100%)`;
 
 // 밝기를 가상의 표면온도(K)로 환산 — 실제 항성처럼 적색(~3,600K)에서 청색(~10,000K+)으로
 // 뜨거워지는 연출용 수치. 40→5,500K(황), 65→7,400K(백), 85→8,900K(청) 부근이 되도록 잡았다.

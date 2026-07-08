@@ -38,14 +38,15 @@ export interface TeamCluster {
   memberIds: number[];
 }
 
-// 팀별 별자리 선/범례 색. 별 코어 색(청백/순백/보라)과 겹치지 않게 알파를 낮춘 변주.
+// 팀별 별자리 선/범례 색. 여러 팀에 속한 사람은 선 여러 개가 한 별에서 만나므로,
+// 색끼리 헷갈리지 않도록 색상환에서 고르게 떨어진 6색을 진한 알파로 쓴다.
 const TEAM_LINE_COLORS = [
-  { line: "rgba(125,211,252,.38)", solid: "#7DD3FC" },
-  { line: "rgba(94,234,212,.38)",  solid: "#5EEAD4" },
-  { line: "rgba(167,139,250,.42)", solid: "#A78BFA" },
-  { line: "rgba(251,191,36,.34)",  solid: "#FBBF24" },
-  { line: "rgba(244,114,182,.36)", solid: "#F472B6" },
-  { line: "rgba(147,197,253,.38)", solid: "#93C5FD" },
+  { line: "rgba(56,189,248,.6)",   solid: "#38BDF8" }, // 하늘
+  { line: "rgba(251,113,133,.58)", solid: "#FB7185" }, // 장미
+  { line: "rgba(163,230,53,.58)",  solid: "#A3E635" }, // 라임
+  { line: "rgba(192,132,252,.6)",  solid: "#C084FC" }, // 보라
+  { line: "rgba(251,191,36,.6)",   solid: "#FBBF24" }, // 호박
+  { line: "rgba(251,146,60,.58)",  solid: "#FB923C" }, // 주황
 ];
 export function teamLineColorFor(index: number) {
   return TEAM_LINE_COLORS[index % TEAM_LINE_COLORS.length];
@@ -117,5 +118,47 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
     pos.set(id, { x: clamp(x, 5, 95), y: clamp(y, 8, 88) });
   });
 
+  relaxMinDistance(pos, ids);
   return pos;
+}
+
+// 소용돌이/나선 배치는 곡선을 따라 별을 촘촘히 늘어놓다 보니 인접한 두 별이 거의 겹칠 만큼
+// 붙는 경우가 있었다. 완성된 배치 위에 "이 거리보다 가까우면 서로 밀어낸다"는 단순한 반발
+// 이완(relaxation)을 몇 차례 더 돌려, 팀 클러스터의 전체적인 모양은 유지하면서 별 사이
+// 간격만 자연스럽게 벌린다. 입력이 같으면 항상 같은 결과가 나오도록 무작위성은 쓰지 않는다
+// (완전히 겹친 두 별만 id 기반 결정론적 각도로 떼어놓는다).
+const MIN_STAR_DIST = 5.5;
+const RELAX_ITERATIONS = 40;
+
+function relaxMinDistance(pos: Map<number, { x: number; y: number }>, ids: number[]) {
+  for (let iter = 0; iter < RELAX_ITERATIONS; iter++) {
+    let moved = false;
+    for (let i = 0; i < ids.length; i++) {
+      const a = pos.get(ids[i]);
+      if (!a) continue;
+      for (let j = i + 1; j < ids.length; j++) {
+        const b = pos.get(ids[j]);
+        if (!b) continue;
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let d = Math.hypot(dx, dy);
+        if (d >= MIN_STAR_DIST) continue;
+        if (d < 0.0001) {
+          const ang = seededRandom(ids[i] * 97 + ids[j] * 131) * Math.PI * 2;
+          dx = Math.cos(ang); dy = Math.sin(ang); d = 1;
+        }
+        const push = (MIN_STAR_DIST - d) / 2;
+        const ux = dx / d, uy = dy / d;
+        a.x -= ux * push; a.y -= uy * push;
+        b.x += ux * push; b.y += uy * push;
+        moved = true;
+      }
+    }
+    if (!moved) break;
+  }
+  ids.forEach(id => {
+    const p = pos.get(id);
+    if (!p) return;
+    p.x = clamp(p.x, 5, 95);
+    p.y = clamp(p.y, 8, 88);
+  });
 }
