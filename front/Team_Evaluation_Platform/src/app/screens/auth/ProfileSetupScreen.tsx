@@ -5,7 +5,8 @@ import {
 } from "../../api";
 import { STATS } from "../../constants/stats";
 import { validateProfileImage } from "../../lib/imageValidation";
-import { handleImgError } from "../../lib/avatar";
+import { AVATAR_IMG, handleImgError } from "../../lib/avatar";
+import { useIsMobile } from "../../lib/useIsMobile";
 import { InfoTooltip } from "../../design-system/primitives";
 import {
   OBS, ObservatoryStyle, SpaceBackground, ObsPanel, ObsButton, ObsError, ObsGauge,
@@ -27,6 +28,7 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isMobile = useIsMobile();
   const steps = ["photo","bio","stats"];
   const stepIdx = steps.indexOf(step);
   const statSum = STATS.reduce((sum,s)=>sum+stats[s.key as keyof typeof stats],0);
@@ -78,7 +80,7 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
   }
 
   return (
-    <div style={{ minHeight:"100vh", position:"relative", overflow:"hidden", background:OBS.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <div style={{ minHeight:"100dvh", position:"relative", overflow:"hidden", background:OBS.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:"16px", boxSizing:"border-box" }}>
       <ObservatoryStyle/>
       <SpaceBackground/>
 
@@ -86,12 +88,12 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
         <span style={{ fontFamily:OBS.display, fontWeight:600, fontSize:14, letterSpacing:5, color:OBS.starWhite }}>MADNOVA</span>
         <MonoLabel size={10} spacing={3}>DEEP-SKY OBSERVATORY</MonoLabel>
       </div>
-      <div style={{ position:"absolute", bottom:26, left:32, animation:"obsFadeIn 1.2s both", pointerEvents:"none" }}>
+      <div className="hide-mobile" style={{ position:"absolute", bottom:26, left:32, animation:"obsFadeIn 1.2s both", pointerEvents:"none" }}>
         <MonoLabel size={10} spacing={2.5}><span style={{ color:OBS.teal }}>◉</span> NEW STAR REGISTRATION IN PROGRESS</MonoLabel>
       </div>
 
       <div style={{ position:"relative", zIndex:1, animation:"obsFadeUp 1s both" }}>
-        <ObsPanel width={480} style={{ padding:"24px 30px 28px", maxHeight:"88vh", overflowY:"auto" }}>
+        <ObsPanel width="min(480px, calc(100vw - 32px))" style={{ padding: isMobile ? "20px 18px 22px" : "24px 30px 28px", maxHeight:"88dvh", overflowY:"auto" }}>
           <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
             <MonoLabel size={9.5} spacing={3.5} color={OBS.teal}>STAR REGISTRATION</MonoLabel>
             <MonoLabel size={9.5} spacing={2}>AUTH-03</MonoLabel>
@@ -137,8 +139,9 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
               {/* 궤도 링이 도는 원형 업로드 슬롯 */}
               <div style={{ position:"relative", width:152, height:152, display:"flex", alignItems:"center", justifyContent:"center" }}>
                 <div style={{ position:"absolute", left:"50%", top:"50%", width:148, height:148, transform:"translate(-50%,-50%)", border:"1px dashed rgba(125,180,255,.35)", borderRadius:"50%", animation:"obsSpinC 22s linear infinite" }}>
-                  <div style={{ position:"absolute", top:-3, left:"50%", width:6, height:6, borderRadius:"50%", background:OBS.teal, boxShadow:"0 0 8px 2px rgba(94,234,212,.7)" }}/>
-                  <div style={{ position:"absolute", bottom:8, right:4, width:4, height:4, borderRadius:"50%", background:OBS.violet, boxShadow:"0 0 6px 2px rgba(167,139,250,.7)" }}/>
+                  {/* 위성 점의 중심이 궤도 반지름 이내여야 회전 중에도 링 밖으로 나가지 않는다. */}
+                  <div style={{ position:"absolute", top:0, left:"50%", width:6, height:6, marginLeft:-3, borderRadius:"50%", background:OBS.teal, boxShadow:"0 0 8px 2px rgba(94,234,212,.7)" }}/>
+                  <div style={{ position:"absolute", top:"50%", right:8, width:4, height:4, marginTop:-2, borderRadius:"50%", background:OBS.violet, boxShadow:"0 0 6px 2px rgba(167,139,250,.7)" }}/>
                 </div>
                 <div
                   onClick={()=>!photoUploading&&fileInputRef.current?.click()}
@@ -154,7 +157,7 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
                   {photoUploading
                     ? <div style={{ animation:"obsBlinkDim 1.1s ease-in-out infinite" }}><MonoLabel size={9} spacing={2} color={OBS.teal}>⌁ UPLOADING…</MonoLabel></div>
                     : photoUrl
-                    ? <img src={photoUrl} alt="" onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                    ? <img src={photoUrl} alt="" onError={handleImgError} style={AVATAR_IMG}/>
                     : <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:6 }}>
                         <span style={{ color:OBS.sky, fontSize:15 }}>◉</span>
                         <span style={{ fontSize:11, fontWeight:300, color:OBS.dim, fontFamily:OBS.kr }}>클릭하여 업로드</span>
@@ -208,18 +211,33 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
                   각 특성의 세기를 기록하세요 (1–10). 기록은 별의 스펙트럼에 반영됩니다.
                 </p>
               </div>
-              <div style={{ display:"flex", flexDirection:"column", gap:11 }}>
+              <div style={{ display:"flex", flexDirection:"column", gap: isMobile ? 14 : 11 }}>
                 {STATS.map(s=>{
                   const v = stats[s.key as keyof typeof stats];
-                  const labelNode = (
+                  // 모바일은 폭이 좁아 [라벨+수치] 위, 게이지 아래의 2단으로 쌓는다.
+                  const labelNode = isMobile ? (
+                    <div style={{ display:"flex", alignItems:"baseline", gap:8, userSelect:"none" }}>
+                      <MonoLabel size={9} spacing={2} color={OBS.sky}>{s.en}</MonoLabel>
+                      <span style={{ fontSize:12, fontWeight:300, color:OBS.body, fontFamily:OBS.kr }}>{s.label}</span>
+                    </div>
+                  ) : (
                     <div style={{ width:96, flexShrink:0, userSelect:"none" }}>
                       <div><MonoLabel size={9} spacing={2} color={OBS.sky}>{s.en}</MonoLabel></div>
                       <div style={{ fontSize:12, fontWeight:300, color:OBS.body, fontFamily:OBS.kr }}>{s.label}</div>
                     </div>
                   );
-                  return (
+                  const labeled = s.desc ? <InfoTooltip text={s.desc}>{labelNode}</InfoTooltip> : labelNode;
+                  return isMobile ? (
+                    <div key={s.key} style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                        {labeled}
+                        <MonoLabel size={11} spacing={0} color={OBS.teal}>{v}</MonoLabel>
+                      </div>
+                      <ObsGauge value={v} onChange={nv=>setStats(p=>({...p,[s.key]:nv}))}/>
+                    </div>
+                  ) : (
                     <div key={s.key} style={{ display:"flex", alignItems:"center", gap:12 }}>
-                      {s.desc ? <InfoTooltip text={s.desc}>{labelNode}</InfoTooltip> : labelNode}
+                      {labeled}
                       <ObsGauge value={v} onChange={nv=>setStats(p=>({...p,[s.key]:nv}))}/>
                       <div style={{ width:24, textAlign:"right" }}>
                         <MonoLabel size={11} spacing={0} color={OBS.teal}>{v}</MonoLabel>
@@ -231,7 +249,7 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
               {/* 실시간 별자리 프리뷰 + 총합 */}
               <div style={{ display:"flex", justifyContent:"center", margin:"2px 0" }}>
                 <ConstellationChart
-                  size={216}
+                  size={isMobile ? 176 : 216}
                   frac={STATS.map(s=>stats[s.key as keyof typeof stats]/10)}
                   labels={STATS.map(s=>({ en:s.en, kr:`${s.label} ${stats[s.key as keyof typeof stats]}` }))}
                 />

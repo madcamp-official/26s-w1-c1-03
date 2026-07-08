@@ -6,8 +6,10 @@ import {
 } from "../../api";
 import type { User } from "../../types";
 import { ZERO_STATS, dtoStatsToStats, rarityFromPower, totalPower, cardToUser, topTitles } from "../../lib/cardMapping";
+import { brightnessOf } from "../../lib/brightness";
 import { validateProfileImage } from "../../lib/imageValidation";
 import { FALLBACK_AVATAR } from "../../lib/avatar";
+import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
@@ -34,6 +36,7 @@ function centerMessage(text: string, spinning=false) {
 
 // ─── Profile Screen ───────────────────────────────────────────────────────────
 export function ProfileScreen() {
+  const isMobile = useIsMobile();
   const [profile, setProfile] = useState<UserProfileDto|null>(null);
   const [card, setCard] = useState<User|null>(null);
   const [bio, setBio] = useState("");
@@ -99,15 +102,18 @@ export function ProfileScreen() {
   return (
     <div style={{ position:"relative", height:"100%", overflowY:"auto" }}>
       <SpaceBackground/>
-      <div style={{ position:"relative", zIndex:1, padding:"36px 40px 48px", minHeight:"100%", boxSizing:"border-box" }}>
+      <div style={{ position:"relative", zIndex:1, padding: isMobile ? "22px 16px 34px" : "36px 40px 48px", minHeight:"100%", boxSizing:"border-box" }}>
         <div style={{ marginBottom:30 }}>
           <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · SELF-LOG</div>
-          <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px" }}>내 관측 기록</h1>
+          <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px", margin:0 }}>내 프로필</h1>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, fontWeight:300, lineHeight:1.7, color:SPACE.textDim, fontFamily:FONT_BODY }}>
+            나의 별을 관리합니다. 프로필 사진과 한 줄 소개를 수정하고, 동료들의 관측이 반영된 내 스펙트럼을 확인하세요.
+          </p>
         </div>
 
         <div style={{ display:"flex", gap:26, flexWrap:"wrap", alignItems:"flex-start" }}>
-          {/* Left: star identity panel */}
-          <HoloPanel style={{ width:296, display:"flex", flexDirection:"column", alignItems:"center", gap:18 }}>
+          {/* Left: star identity panel — 모바일은 한 열로 쌓이도록 전체 폭을 쓴다 */}
+          <HoloPanel style={{ width: isMobile ? "100%" : 296, boxSizing:"border-box", display:"flex", flexDirection:"column", alignItems:"center", gap:18 }}>
             <StarPortrait
               photo={u.photo}
               editable
@@ -123,10 +129,19 @@ export function ProfileScreen() {
               {repTitle && <RepresentativeTitle label={repTitle}/>}
             </div>
 
-            <div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:8, padding:"8px 0", borderTop:`1px solid ${SPACE.border}`, borderBottom:`1px solid ${SPACE.border}` }}>
-              <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label, textTransform:"uppercase" }}>OBSERVATIONS</span>
-              <span style={{ fontFamily:FONT_HUD, fontSize:15, color:SPACE.accentTeal, fontWeight:500 }}>{observations}</span>
-              <span style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label }}>회 관측됨</span>
+            <div style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"center", gap:10, flexWrap:"wrap", padding:"8px 0", borderTop:`1px solid ${SPACE.border}`, borderBottom:`1px solid ${SPACE.border}` }}>
+              <span style={{ display:"inline-flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label, textTransform:"uppercase" }}>OBSERVATIONS</span>
+                <span style={{ fontFamily:FONT_HUD, fontSize:15, color:SPACE.accentTeal, fontWeight:500 }}>{observations}</span>
+                <span style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label }}>회 관측됨</span>
+              </span>
+              <span style={{ color:SPACE.faint }}>·</span>
+              {/* 밝기(Magnitude) = 능력치 총합 × 2.5. 등급 색은 은하/AI 화면 전용이라 여긴 수치만. */}
+              <span style={{ display:"inline-flex", alignItems:"center", gap:7 }}>
+                <span style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label, textTransform:"uppercase" }}>MAGNITUDE</span>
+                <span style={{ fontFamily:FONT_HUD, fontSize:15, color:SPACE.accentSky, fontWeight:500 }}>{brightnessOf(u.stats)}</span>
+                <span style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.label }}>밝기</span>
+              </span>
             </div>
 
             <div style={{ width:"100%", display:"flex", flexDirection:"column", gap:8 }}>
@@ -165,11 +180,11 @@ export function ProfileScreen() {
           </HoloPanel>
 
           {/* Right: spectral analysis + fragments */}
-          <div style={{ flex:1, minWidth:340, display:"flex", flexDirection:"column", gap:22 }}>
+          <div style={{ flex:1, minWidth: isMobile ? 0 : 340, width: isMobile ? "100%" : undefined, display:"flex", flexDirection:"column", gap:22 }}>
             <HoloPanel>
               <HudLabel en="SPECTRAL ANALYSIS" kr="능력치 분석"/>
               <div style={{ display:"flex", justifyContent:"center" }}>
-                <ConstellationChart stats={u.stats} size={300}/>
+                <ConstellationChart stats={u.stats} size={isMobile ? 236 : 300}/>
               </div>
             </HoloPanel>
 

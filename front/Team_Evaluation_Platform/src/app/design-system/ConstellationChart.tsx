@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { STATS } from "../constants/stats";
 import type { Stats } from "../types";
+import { TooltipBubble, type TooltipRect } from "./primitives";
 
 interface Series { name: string; color: string; stats: Stats; }
 
@@ -16,6 +18,21 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
   const pt = (i:number, frac:number) => [cx + Math.cos(angleOf(i))*r*frac, cy + Math.sin(angleOf(i))*r*frac] as const;
 
   const compareMode = !!series;
+
+  // 스탯 라벨 호버/탭 시 설명 툴팁 — 이 차트가 스탯이 보이는 유일한 자리인 화면
+  // (은하 관측 패널/내 프로필/카드 비교)에서도 스탯 의미를 확인할 수 있게 한다.
+  const [tip, setTip] = useState<{ i:number; rect:TooltipRect }|null>(null);
+  useEffect(()=>{
+    if (!tip) return;
+    function onDown() { setTip(null); }
+    document.addEventListener("pointerdown", onDown);
+    return ()=>document.removeEventListener("pointerdown", onDown);
+  },[tip]);
+  function showTip(i: number, e: React.MouseEvent<SVGGElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    setTip({ i, rect:{ top:r.top, bottom:r.bottom, left:r.left, right:r.right } });
+  }
+
   const singleStats = stats ?? STATS.reduce((acc,s)=>({ ...acc, [s.key]:0 }), {} as Stats);
   const vals = STATS.map(s => singleStats[s.key as keyof Stats]/100);
   const dataPts = vals.map((v,i)=>pt(i,v));
@@ -75,11 +92,18 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
           </>
         )}
 
-        {/* labels: EN mono + (단일 모드일 때만) 값 */}
+        {/* labels: EN mono + (단일 모드일 때만) 값. 호버/탭으로 스탯 설명 툴팁. */}
         {STATS.map((s,i)=>{
           const [x,y] = pt(i,1.28);
           return (
-            <g key={"l"+i}>
+            <g key={"l"+i}
+              onMouseEnter={e=>showTip(i,e)}
+              onMouseLeave={()=>setTip(null)}
+              onClick={e=>{ e.stopPropagation(); showTip(i,e); }}
+              style={{ cursor:"help" }}
+            >
+              {/* 글자만으론 터치 표적이 너무 작아 투명 히트 영역을 깐다 */}
+              <circle cx={x} cy={y+2} r={20} fill="transparent"/>
               <text x={x} y={y-3} textAnchor="middle" fill="#7DD3FC" style={{ font:"8.5px 'IBM Plex Mono',monospace", letterSpacing:"1.5px" }}>{s.en}</text>
               {!compareMode && (
                 <text x={x} y={y+9} textAnchor="middle" fill="#64789c" style={{ font:"9px 'Noto Sans KR',sans-serif" }}>{s.label} {singleStats[s.key as keyof Stats]}</text>
@@ -88,6 +112,12 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
           );
         })}
       </svg>
+      {tip && (
+        <TooltipBubble
+          rect={tip.rect}
+          text={`${STATS[tip.i].label} · ${STATS[tip.i].en}\n${STATS[tip.i].desc}`}
+        />
+      )}
       {compareMode && (
         <div style={{ display:"flex", gap:14, flexWrap:"wrap", justifyContent:"center" }}>
           {series!.map(s=>(

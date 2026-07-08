@@ -3,7 +3,7 @@ import { Telescope, Users, Star, Sparkles, BarChart2, User, LogOut } from "lucid
 import { getMyProfile, type UserProfileDto } from "../api";
 import type { MainScreen } from "../types";
 import { SPACE, FONT, starColorFor } from "../design-system/space";
-import { FALLBACK_AVATAR, handleImgError } from "../lib/avatar";
+import { AVATAR_IMG, FALLBACK_AVATAR, handleImgError } from "../lib/avatar";
 
 // ─── Sidebar (design.md: 화면 밖 네 모서리 HUD 언어를 내비게이션에도 그대로 적용) ──────
 // EN mono 라벨 + KR 보조 라벨의 이중 언어 문법은 TeamsScreen 탭과 동일하게 맞춘다.
@@ -12,14 +12,51 @@ const NAV = [
   { id:"teams" as MainScreen,       en:"TEAMS",    kr:"팀 관리",    Icon:Users     },
   { id:"evaluate" as MainScreen,    en:"OBSERVE",  kr:"팀원 평가",  Icon:Star      },
   { id:"ai-analysis" as MainScreen, en:"CORE",     kr:"AI 분석",    Icon:Sparkles  },
-  { id:"compare" as MainScreen,     en:"COMPARE",  kr:"별자리 비교", Icon:BarChart2 },
+  { id:"compare" as MainScreen,     en:"COMPARE",  kr:"스탯 비교",  Icon:BarChart2 },
   { id:"profile" as MainScreen,     en:"SELF-LOG", kr:"내 프로필",  Icon:User      },
 ];
 
-export function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; setScreen:(s:MainScreen)=>void; onLogout:()=>void }) {
+export function Sidebar({ screen, setScreen, onLogout, mobile = false }: {
+  screen:MainScreen; setScreen:(s:MainScreen)=>void; onLogout:()=>void; mobile?:boolean;
+}) {
   const [me, setMe] = useState<UserProfileDto|null>(null);
   useEffect(()=>{ getMyProfile().then(setMe).catch(()=>{}); },[]);
   const myColor = me ? starColorFor(me.id).color : SPACE.accentTeal;
+
+  // 모바일: 화면 하단에 고정되는 내비게이션 바. 여섯 파트 + 로그아웃을 아이콘 중심으로 압축한다.
+  if (mobile) {
+    return (
+      <nav style={{
+        flexShrink:0, display:"flex", alignItems:"stretch",
+        background:"linear-gradient(180deg, rgba(4,9,24,0.96), rgba(8,17,38,0.94))",
+        backdropFilter:"blur(14px)", borderTop:`1px solid ${SPACE.border}`,
+        padding:"5px 2px calc(5px + env(safe-area-inset-bottom))",
+      }}>
+        {NAV.map(item=>{
+          const active = screen===item.id;
+          return (
+            <button key={item.id} onClick={()=>setScreen(item.id)} style={{
+              flex:1, minWidth:0, display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+              padding:"7px 0 5px", borderRadius:2, cursor:"pointer",
+              background: active ? "rgba(94,234,212,0.08)" : "transparent",
+              border:`1px solid ${active ? "rgba(94,234,212,0.4)" : "transparent"}`,
+              transition:"all 0.15s",
+            }}>
+              <item.Icon size={16} style={{ color: active ? SPACE.accentTeal : SPACE.textDim }}/>
+              <span style={{ fontFamily:FONT.body, fontSize:9.5, color: active ? SPACE.starWhite2 : SPACE.label, whiteSpace:"nowrap" }}>{item.kr}</span>
+            </button>
+          );
+        })}
+        <button onClick={onLogout} title="로그아웃" style={{
+          flex:"0 0 44px", display:"flex", flexDirection:"column", alignItems:"center", gap:3,
+          padding:"7px 0 5px", background:"none", border:"none", cursor:"pointer",
+        }}>
+          <LogOut size={16} style={{ color:SPACE.label }}/>
+          <span style={{ fontFamily:FONT.body, fontSize:9.5, color:SPACE.faint }}>로그아웃</span>
+        </button>
+      </nav>
+    );
+  }
 
   return (
     <aside style={{
@@ -72,7 +109,7 @@ export function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; se
       <div style={{ padding:"14px 10px", borderTop:`1px solid ${SPACE.border}` }}>
         <div style={{ display:"flex", alignItems:"center", gap:9, padding:"8px 9px", borderRadius:2, background:"rgba(125,180,255,0.04)" }}>
           <div style={{ width:28, height:28, borderRadius:"50%", overflow:"hidden", border:`1.5px solid ${myColor}`, flexShrink:0, boxShadow:`0 0 8px ${myColor}55` }}>
-            <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+            <img src={me?.profileImageUrl || FALLBACK_AVATAR} alt="" onError={handleImgError} style={AVATAR_IMG}/>
           </div>
           <div style={{ flex:1, minWidth:0 }}>
             <div style={{ fontSize:12, fontWeight:500, fontFamily:FONT.body, color:SPACE.starWhite2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{me?.name ?? "..."}</div>

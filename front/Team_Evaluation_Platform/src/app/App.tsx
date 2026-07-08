@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { RefreshCw } from "lucide-react";
 import { getAccessToken, getMyProfile, clearTokens, ApiError } from "./api";
 import type { AuthPhase, MainScreen } from "./types";
+import { useIsMobile } from "./lib/useIsMobile";
 import { GlobalStyle } from "./design-system/GlobalStyle";
 import { Sidebar } from "./components/Sidebar";
 import { ScreenErrorBoundary } from "./components/ScreenErrorBoundary";
@@ -21,6 +22,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [screen, setScreen] = useState<MainScreen>("pokedex");
   const [checkingSession, setCheckingSession] = useState(true);
+  const isMobile = useIsMobile();
 
   // 저장된 토큰이 있으면 새로고침해도 로그인 상태/온보딩 단계를 복원한다.
   useEffect(() => {
@@ -54,7 +56,7 @@ export default function App() {
     return (
       <>
         <GlobalStyle/>
-        <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#070b12" }}>
+        <div style={{ minHeight:"100dvh", display:"flex", alignItems:"center", justifyContent:"center", background:"#070b12" }}>
           <RefreshCw size={24} style={{color:"#00c8ff", animation:"spin 1s linear infinite"}}/>
         </div>
       </>
@@ -75,9 +77,10 @@ export default function App() {
   return (
     <>
       <GlobalStyle/>
-      <div style={{ display:"flex", height:"100vh", background:"#070b12", overflow:"hidden" }}>
-        <Sidebar screen={screen} setScreen={s=>{setScreen(s);}} onLogout={handleLogout}/>
-        <main style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
+      {/* 모바일에선 사이드바 대신 하단 내비게이션 바 — 세로 스택으로 본문이 위, 내비가 아래. */}
+      <div style={{ display:"flex", flexDirection: isMobile ? "column" : "row", height:"100dvh", background:"#070b12", overflow:"hidden" }}>
+        {!isMobile && <Sidebar screen={screen} setScreen={s=>{setScreen(s);}} onLogout={handleLogout}/>}
+        <main style={{ flex:1, minHeight:0, overflow:"hidden", display:"flex", flexDirection:"column" }}>
           <ScreenErrorBoundary key={screen}>
             {screen==="pokedex"     && <GalaxyScreen onEval={()=>setScreen("evaluate")}/>}
             {screen==="teams"       && <TeamsScreen/>}
@@ -87,6 +90,7 @@ export default function App() {
             {screen==="profile"     && <ProfileScreen/>}
           </ScreenErrorBoundary>
         </main>
+        {isMobile && <Sidebar mobile screen={screen} setScreen={s=>{setScreen(s);}} onLogout={handleLogout}/>}
       </div>
     </>
   );

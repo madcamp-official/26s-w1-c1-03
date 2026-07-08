@@ -7,7 +7,8 @@ import {
 import type { Stats } from "../../types";
 import { STATS } from "../../constants/stats";
 import { FALLBACK_AVATAR } from "../../lib/avatar";
-import { SPACE, FONT, starColorFor, observatoryCode } from "../../design-system/space";
+import { useIsMobile } from "../../lib/useIsMobile";
+import { SPACE, FONT, observatoryCode } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
 import { HudLabel } from "../../design-system/HudLabel";
@@ -32,28 +33,50 @@ function centerMessage(text: string, spinning = false) {
 function SegmentGauge({ en, kr, desc, value, onChange }: {
   en:string; kr:string; desc?:string; value:number; onChange:(v:number)=>void;
 }) {
-  const labelNode = (
+  // 모바일은 폭이 좁아 [라벨+수치] 위, 게이지 아래의 2단으로 쌓는다.
+  const isMobile = useIsMobile();
+  const labelNode = isMobile ? (
+    <div style={{ display:"flex", alignItems:"baseline", gap:8, userSelect:"none" }}>
+      <span style={{ fontFamily:FONT.hud, fontSize:9, letterSpacing:"2px", color:SPACE.accentSky }}>{en}</span>
+      <span style={{ fontSize:12.5, color:SPACE.text, fontFamily:FONT.body }}>{kr}</span>
+    </div>
+  ) : (
     <div style={{ width:104, flex:"none", userSelect:"none" }}>
       <div style={{ fontFamily:FONT.hud, fontSize:9, letterSpacing:"2px", color:SPACE.accentSky }}>{en}</div>
       <div style={{ fontSize:12.5, color:SPACE.text, fontFamily:FONT.body }}>{kr}</div>
     </div>
   );
+  const labeled = desc ? <InfoTooltip text={desc}>{labelNode}</InfoTooltip> : labelNode;
+  const gauge = (
+    <div style={{ display:"flex", gap:4, flex:1 }}>
+      {Array.from({ length:10 }, (_, i) => {
+        const filled = i < value;
+        return (
+          <div key={i} onClick={()=>onChange(i+1)} style={{
+            flex:1, maxWidth: isMobile ? undefined : 20, height:10, cursor:"pointer", borderRadius:1,
+            background: filled ? SPACE.buttonGradient : "rgba(125,180,255,.1)",
+            boxShadow: filled ? "0 0 7px rgba(94,234,212,.4)" : "none",
+            transition:"background .25s, box-shadow .25s",
+          }}/>
+        );
+      })}
+    </div>
+  );
+  if (isMobile) {
+    return (
+      <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          {labeled}
+          <span style={{ fontFamily:FONT.hud, fontSize:11, color:SPACE.accentSky }}>{value}</span>
+        </div>
+        {gauge}
+      </div>
+    );
+  }
   return (
     <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-      {desc ? <InfoTooltip text={desc}>{labelNode}</InfoTooltip> : labelNode}
-      <div style={{ display:"flex", gap:4, flex:1 }}>
-        {Array.from({ length:10 }, (_, i) => {
-          const filled = i < value;
-          return (
-            <div key={i} onClick={()=>onChange(i+1)} style={{
-              flex:1, maxWidth:20, height:10, cursor:"pointer", borderRadius:1,
-              background: filled ? SPACE.buttonGradient : "rgba(125,180,255,.1)",
-              boxShadow: filled ? "0 0 7px rgba(94,234,212,.4)" : "none",
-              transition:"background .25s, box-shadow .25s",
-            }}/>
-          );
-        })}
-      </div>
+      {labeled}
+      {gauge}
       <div style={{ width:26, textAlign:"right", fontFamily:FONT.hud, fontSize:11, color:SPACE.accentSky }}>{value}</div>
     </div>
   );
@@ -61,6 +84,7 @@ function SegmentGauge({ en, kr, desc, value, onChange }: {
 
 // ─── Evaluate Screen (design.md §84: 평가 = 관측) ─────────────────────────────
 export function EvaluateScreen({ onDone }: { onDone:()=>void }) {
+  const isMobile = useIsMobile();
   const [teammates, setTeammates] = useState<EvaluationTargetDto[]|null>(null);
   const [titleOptions, setTitleOptions] = useState<TitleDto[]|null>(null);
   const [error, setError] = useState("");
@@ -132,7 +156,7 @@ export function EvaluateScreen({ onDone }: { onDone:()=>void }) {
   return (
     <div style={{ position:"relative", height:"100%", overflow:"hidden" }}>
       <SpaceBackground/>
-      <div style={{ position:"absolute", inset:0, zIndex:1, overflowY:"auto", padding:"36px 40px 48px", boxSizing:"border-box" }}>
+      <div style={{ position:"absolute", inset:0, zIndex:1, overflowY:"auto", padding: isMobile ? "22px 16px 34px" : "36px 40px 48px", boxSizing:"border-box" }}>
         {/* 헤더: HUD 라벨 + 진행 게이지 */}
         <div style={{ maxWidth:760, marginBottom:26 }}>
           <div style={{ fontFamily:FONT.hud, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>
@@ -174,12 +198,12 @@ export function EvaluateScreen({ onDone }: { onDone:()=>void }) {
             const sum = statsSum(uRatings);
             const sumValid = sum>=6 && sum<=40;
             const canTransmit = !!titles[u.userId] && sumValid && submitting!==u.userId;
-            const star = starColorFor(u.userId);
             return (
               <HoloPanel key={u.userId} style={{ padding:0, animation:`fadeUp .6s ${idx*0.08}s both` }}>
                 {/* 대상 별 식별부 */}
-                <div style={{ display:"flex", alignItems:"center", gap:16, padding:"16px 22px", borderBottom:isDone?"none":`1px solid ${SPACE.border}` }}>
-                  <StarPortrait photo={u.profileImageUrl || FALLBACK_AVATAR} size={46} glowColor={star.color} glowC={star.glowC}/>
+                <div style={{ display:"flex", alignItems:"center", gap:16, padding: isMobile ? "14px 16px" : "16px 22px", borderBottom:isDone?"none":`1px solid ${SPACE.border}` }}>
+                  {/* 프로필 테두리는 팀 관리 페이지와 동일하게 하늘색 하나로 통일 */}
+                  <StarPortrait photo={u.profileImageUrl || FALLBACK_AVATAR} size={46}/>
                   <div style={{ flex:1 }}>
                     <div style={{ fontFamily:FONT.hud, fontSize:9, letterSpacing:"2px", color:SPACE.label, marginBottom:3 }}>{observatoryCode(u.userId)}</div>
                     <div style={{ fontFamily:"'Space Grotesk', 'Noto Sans KR', sans-serif", fontSize:17, fontWeight:500, color:SPACE.starWhite }}>{u.name}</div>
@@ -194,7 +218,7 @@ export function EvaluateScreen({ onDone }: { onDone:()=>void }) {
                     <span style={{ fontSize:12, fontWeight:300, color:SPACE.label, fontFamily:FONT.body }}>관측 기록이 저장되었습니다.</span>
                   </div>
                 ) : (
-                  <div style={{ padding:"20px 22px 22px", display:"flex", flexDirection:"column", gap:20 }}>
+                  <div style={{ padding: isMobile ? "18px 16px 18px" : "20px 22px 22px", display:"flex", flexDirection:"column", gap:20 }}>
                     {/* 칭호 = 별자리 조각 선택 */}
                     <div>
                       <HudLabel en="CONSTELLATION FRAGMENT" kr="칭호 선택 (1개)"/>

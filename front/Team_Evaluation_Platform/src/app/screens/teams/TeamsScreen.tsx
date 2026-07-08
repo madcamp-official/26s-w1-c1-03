@@ -1,14 +1,12 @@
 import { useState, useEffect } from "react";
 import { Check, Copy, RefreshCw } from "lucide-react";
 import {
-  listMyTeams, createTeam, joinTeam, getTeam, listCards, listEvaluationTargets, ApiError,
+  listMyTeams, createTeam, joinTeam, getTeam, listEvaluationTargets, ApiError,
   type TeamDetailDto, type TeamSummaryDto, type EvaluationTargetDto,
 } from "../../api";
-import type { Rarity } from "../../types";
-import { RARITY } from "../../constants/rarity";
-import { rarityFromCardStats } from "../../lib/cardMapping";
-import { FALLBACK_AVATAR, handleImgError } from "../../lib/avatar";
+import { AVATAR_IMG, FALLBACK_AVATAR, handleImgError } from "../../lib/avatar";
 import { copyToClipboard } from "../../lib/clipboard";
+import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE, FONT } from "../../design-system/space";
 import { SpaceBackground } from "../../design-system/SpaceBackground";
 import { HoloPanel } from "../../design-system/HoloPanel";
@@ -47,7 +45,6 @@ function transmitButtonStyle(enabled: boolean): React.CSSProperties {
 export function TeamsScreen() {
   const [tab, setTab] = useState<"list"|"create"|"join">("list");
   const [myTeams, setMyTeams] = useState<TeamDetailDto[]|null>(null);
-  const [rarityMap, setRarityMap] = useState<Record<number, Rarity|null>>({});
   const [evalTargets, setEvalTargets] = useState<EvaluationTargetDto[]>([]);
   const [tname, setTname] = useState("");
   const [deadline, setDeadline] = useState("");
@@ -58,15 +55,16 @@ export function TeamsScreen() {
   const [copiedKey, setCopiedKey] = useState<string|null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const isMobile = useIsMobile();
 
   async function loadTeams() {
     try {
-      const [summaries, cards, targets] = await Promise.all([
-        listMyTeams(), listCards(), listEvaluationTargets().catch(()=>[] as EvaluationTargetDto[]),
+      const [summaries, targets] = await Promise.all([
+        listMyTeams(), listEvaluationTargets().catch(()=>[] as EvaluationTargetDto[]),
       ]);
       const details = await Promise.all(summaries.map(t=>getTeam(t.id)));
-      setMyTeams(details);
-      setRarityMap(Object.fromEntries(cards.map(c=>[c.userId, rarityFromCardStats(c.stats)])));
+      // API가 주는 순서(생성/기한 순)를 그대로 뒤집어 최근 팀이 위로 오게 한다.
+      setMyTeams([...details].reverse());
       setEvalTargets(targets);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "팀 목록을 불러오지 못했습니다.");
@@ -121,11 +119,11 @@ export function TeamsScreen() {
   return (
     <div style={{ position:"relative", height:"100%", overflow:"hidden" }}>
       <SpaceBackground/>
-      <div style={{ position:"absolute", inset:0, zIndex:1, overflowY:"auto", padding:"36px 40px 48px", boxSizing:"border-box" }}>
+      <div style={{ position:"absolute", inset:0, zIndex:1, overflowY:"auto", padding: isMobile ? "22px 16px 34px" : "36px 40px 48px", boxSizing:"border-box" }}>
         {/* 헤더 */}
         <div style={{ marginBottom:24 }}>
           <div style={{ fontFamily:FONT.hud, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · GALAXY REGISTRY</div>
-          <h1 style={{ fontFamily:"'Space Grotesk', 'Noto Sans KR', sans-serif", fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px", margin:0 }}>은하 관리</h1>
+          <h1 style={{ fontFamily:"'Space Grotesk', 'Noto Sans KR', sans-serif", fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px", margin:0 }}>팀 관리</h1>
           <p style={{ margin:"6px 0 0", fontSize:12.5, fontWeight:300, lineHeight:1.7, color:SPACE.textDim, fontFamily:FONT.body }}>
             팀은 하나의 은하입니다. 새 은하를 형성하거나, 접근 코드로 다른 은하에 도킹하세요.
           </p>
@@ -134,7 +132,7 @@ export function TeamsScreen() {
         {error && <p style={{ fontSize:12, color:"#f87171", fontFamily:FONT.body, marginBottom:14 }}>{error}</p>}
 
         {/* 탭 */}
-        <div style={{ display:"flex", gap:8, marginBottom:26 }}>
+        <div style={{ display:"flex", gap:8, marginBottom:26, flexWrap:"wrap" }}>
           {TABS.map(({k,en,kr})=>{
             const active = tab===k;
             return (
@@ -167,8 +165,8 @@ export function TeamsScreen() {
               const teamKey = String(team.id);
               const done = status==="done";
               return (
-              <HoloPanel key={team.id} style={{ padding:"20px 24px", animation:`fadeUp .6s ${idx*0.08}s both` }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14 }}>
+              <HoloPanel key={team.id} style={{ padding: isMobile ? "18px 16px" : "20px 24px", animation:`fadeUp .6s ${idx*0.08}s both` }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:14, flexWrap:"wrap", gap:10 }}>
                   <div>
                     <div style={{ fontFamily:FONT.hud, fontSize:9, letterSpacing:"2px", color:SPACE.label, marginBottom:4 }}>GALAXY</div>
                     <div style={{ fontFamily:"'Space Grotesk', 'Noto Sans KR', sans-serif", fontSize:18, fontWeight:500, color:SPACE.starWhite }}>{team.name}</div>
@@ -187,7 +185,7 @@ export function TeamsScreen() {
                   </div>
                 </div>
 
-                <div style={{ display:"flex", gap:22, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${SPACE.border}` }}>
+                <div style={{ display:"flex", gap:22, rowGap:8, marginBottom:16, paddingBottom:14, borderBottom:`1px solid ${SPACE.border}`, flexWrap:"wrap" }}>
                   <span style={{ fontFamily:FONT.hud, fontSize:9.5, letterSpacing:"2px", color:SPACE.label }}>
                     STARS <span style={{ color:SPACE.accentSky }}>{team.memberCount}</span>
                   </span>
@@ -198,16 +196,15 @@ export function TeamsScreen() {
 
                 <div style={{ display:"flex", gap:14, flexWrap:"wrap" }}>
                   {members.map(m=>{
-                    const rarity = rarityMap[m.userId];
-                    const glow = rarity ? RARITY[rarity].color : null;
+                    // 프로필 테두리는 팀원 평가 화면(StarPortrait 기본값)과 동일한 하늘색으로 통일.
                     return (
                       <div key={m.userId} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:5 }}>
                         <div style={{
                           width:40, height:40, borderRadius:"50%", overflow:"hidden",
-                          border:`1px solid ${glow ?? "rgba(125,180,255,.3)"}`,
-                          boxShadow: glow ? `0 0 9px ${glow}66` : "none",
+                          border:"1px solid rgba(125,211,252,.5)",
+                          boxShadow:"0 0 9px rgba(125,211,252,.45)",
                         }}>
-                          <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+                          <img src={m.profileImageUrl || FALLBACK_AVATAR} alt={m.name} onError={handleImgError} style={AVATAR_IMG}/>
                         </div>
                         <span style={{ fontSize:10.5, fontWeight:300, color:SPACE.textDim, fontFamily:FONT.body }}>{m.name}</span>
                       </div>
