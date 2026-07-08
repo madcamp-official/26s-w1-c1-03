@@ -344,9 +344,14 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
 
       {/* world: 별들이 놓이는 좌표계. transform-origin은 항상 0 0(위 camTransform 계산과 짝). */}
       <div style={{ position:"absolute", inset:0, transformOrigin:"0 0", transform:camTransform, transition:camTransition }}>
-        {/* 팀 별자리 선 — 별과 같은 % 좌표계의 SVG. 별을 선택하면 별들처럼 어두워진다. */}
+        {/* 팀 별자리 선 — 별과 같은 % 좌표계의 SVG. 별을 선택하면 별들처럼 어두워진다.
+            별 배치가 이제 0~100 범위를 훌쩍 넘어서게 흩어지는데(넓게 펼치는 배치라 별
+            자체는 % 좌표라 클리핑 없이 잘 보이지만), viewBox가 0 0 100 100인 SVG는 기본
+            overflow:hidden이라 그 범위를 벗어난 선분이 SVG 자기 경계에서 잘려 "선이
+            끊기거나 아예 안 보이는" 버그가 있었다 — overflow:visible로 그 클리핑을 없앤다. */}
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{
           position:"absolute", inset:0, width:"100%", height:"100%", pointerEvents:"none",
+          overflow:"visible",
           opacity: selId!==null ? 0.15 : 1, transition:"opacity .6s ease",
         }}>
           {teamLines.map(t=>t.segs.map((s,i)=>(
