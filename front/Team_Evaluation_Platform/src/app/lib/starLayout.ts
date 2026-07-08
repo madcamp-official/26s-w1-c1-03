@@ -51,14 +51,17 @@ export function teamLineColorFor(index: number) {
 }
 
 const CENTER_X = 50, CENTER_Y = 46;
-const Y_SQUISH = 0.85;
+// 전체 은하 윤곽이 원이 아니라 뚜렷한 타원(가로로 넓적한 모양)이 되도록 세로를 크게 누른다.
+const Y_SQUISH = 0.6;
 // 팀(별자리)/무소속 별 공통 반지름 상한(SPREAD 적용 전, % 기준) — 팀 소속 여부와 무관하게
 // 모두 같은 범위에서 뽑히므로 "팀은 중앙에, 무소속은 테두리에" 같은 구역이 생기지 않는다.
-const RADIUS_MAX = 42;
+// 별 사이 간격을 넉넉히 벌리기 위해 도메인 자체도 예전보다 크게 잡는다 — 1배율 화면에
+// 전체가 다 들어오지 않아도 되므로(팬/줌으로 탐험) 굳이 좁게 욱여넣을 필요가 없다.
+const RADIUS_MAX = 60;
 // 은하 중심에서 이 배수만큼 밀어내 화면 폭보다 넓게 펼친다(팬/줌 탐험 여지 확보).
 const SPREAD = 1.8;
 // 서로 밀어내다 은하 중심에서 너무 멀리 발산해 찾아가기 힘들어지는 걸 막는 상한.
-const MAX_RADIUS_FROM_CENTER = 130;
+const MAX_RADIUS_FROM_CENTER = 190;
 
 // ─── 실제 별자리를 본뜬 모양 라이브러리 ──────────────────────────────────────
 // 각 모양은 "국자/북두칠성(그릇+손잡이)", "카시오페아 W자 지그재그", "백조자리(중심별에서
@@ -214,7 +217,7 @@ function teamAdjacencyWithin(group: TeamCluster[]): Map<number, TeamAdjacency[]>
   return adj;
 }
 
-const BASE_SCALE = 8;
+const BASE_SCALE = 12;
 
 // 후보 위치를 매번 독립적인(각도·반지름 모두 무작위) 위치로 찍어보다가, 링 하나를 다
 // 써버리면 다음 링(반지름 한 단계 더 바깥)으로 넘어가 계속 찾는다 — 골든 앵글 나선처럼
@@ -430,7 +433,7 @@ export function galaxyLayout(
   // 그룹끼리(별자리 뭉치끼리) 서로 겹치지 않도록 — 큰 그룹부터 배치해 자리를 먼저 잡게 한다.
   // 자리가 좁아지면(팀이 많거나 큰 경우) 나선을 따라 바깥쪽으로 계속 찾아 결국 겹치지 않는
   // 자리를 반드시 찾아낸다 — 고정된 반경 안에서 몇 번 찍어보고 포기하지 않는다.
-  const GROUP_CLEARANCE = 6;
+  const GROUP_CLEARANCE = 12;
   const placedCircles: { x: number; y: number; r: number }[] = [];
   [...worldGroups].sort((a, b) => b.boundRadius - a.boundRadius).forEach(g => {
     const scoreFn = (x: number, y: number) => {
@@ -438,7 +441,7 @@ export function galaxyLayout(
       return Math.min(...placedCircles.map(c =>
         Math.hypot(x - c.x, y - c.y) - (c.r + g.boundRadius + GROUP_CLEARANCE)));
     };
-    const chosen = searchSpot(g.key * 211, scoreFn, 400, g.boundRadius + 8, 7);
+    const chosen = searchSpot(g.key * 211, scoreFn, 400, g.boundRadius + 12, 10);
     placedCircles.push({ x: chosen.x, y: chosen.y, r: g.boundRadius });
     const dx = chosen.x - g.centroid.x, dy = chosen.y - g.centroid.y;
     g.localPos.forEach((p, uid) => finalPos.set(uid, { x: p.x + dx, y: p.y + dy }));
@@ -457,8 +460,8 @@ export function galaxyLayout(
     if (pa && pb) allEdgeSegs.push({ x1: pa.x, y1: pa.y, x2: pb.x, y2: pb.y });
   }));
   const teamPts = [...finalPos.values()];
-  const MIN_STAR_DIST = 5;
-  const LINE_CLEARANCE = 3;
+  const MIN_STAR_DIST = 9;
+  const LINE_CLEARANCE = 5;
   const bgIds = ids.filter(id => !finalPos.has(id));
 
   function isValidBackgroundSpot(x: number, y: number): boolean {
@@ -480,7 +483,7 @@ export function galaxyLayout(
         : Math.min(...allEdgeSegs.map(e => pointSegDist(x, y, e.x1, e.y1, e.x2, e.y2) - LINE_CLEARANCE));
       return Math.min(starSlack, lineSlack);
     };
-    finalPos.set(id, searchSpot(id * 13 + 18, scoreFn, 200, RADIUS_MAX * 0.15, 4));
+    finalPos.set(id, searchSpot(id * 13 + 18, scoreFn, 200, RADIUS_MAX * 0.15, 6));
   });
 
   // 은하 중심에서 SPREAD배 밀어낸다 — 상대적 배치는 그대로 유지된다.
