@@ -12,7 +12,7 @@ const NAV = [
   { id:"teams" as MainScreen,       en:"TEAMS",    kr:"팀 관리",    Icon:Users     },
   { id:"evaluate" as MainScreen,    en:"OBSERVE",  kr:"팀원 평가",  Icon:Star      },
   { id:"ai-analysis" as MainScreen, en:"CORE",     kr:"AI 분석",    Icon:Sparkles  },
-  { id:"compare" as MainScreen,     en:"COMPARE",  kr:"별자리 비교", Icon:BarChart2 },
+  { id:"compare" as MainScreen,     en:"COMPARE",  kr:"스탯 비교",  Icon:BarChart2 },
   { id:"profile" as MainScreen,     en:"SELF-LOG", kr:"내 프로필",  Icon:User      },
 ];
 

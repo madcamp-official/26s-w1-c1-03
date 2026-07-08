@@ -558,9 +558,12 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
             ? { position:"absolute", left:0, right:0, bottom:0, maxHeight:"64%", padding:12, zIndex:3, display:"flex", boxSizing:"border-box", touchAction:"pan-y" }
             : { position:"absolute", top:0, right:0, bottom:0, width:340, padding:20, zIndex:3, display:"flex", alignItems:"center" } }
         >
+          {/* 패널 자체가 아니라 내부 래퍼가 스크롤한다 — 모서리 브래킷(HoloPanel의 absolute
+              자식)이 스크롤을 따라 밀려 올라가지 않고 항상 패널 프레임 네 귀퉁이에 붙어 있게. */}
           <HoloPanel style={ isMobile
-            ? { width:"100%", overflowY:"auto", animation:"slideInPanelUp .6s cubic-bezier(.25,.9,.25,1) .35s both" }
-            : { width:"100%", maxHeight:"calc(100% - 40px)", overflowY:"auto", animation:"slideInPanel .85s cubic-bezier(.25,.9,.25,1) .7s both" } }>
+            ? { width:"100%", padding:0, display:"flex", animation:"slideInPanelUp .6s cubic-bezier(.25,.9,.25,1) .35s both" }
+            : { width:"100%", maxHeight:"calc(100% - 40px)", padding:0, display:"flex", animation:"slideInPanel .85s cubic-bezier(.25,.9,.25,1) .7s both" } }>
+            <div style={{ flex:1, minWidth:0, overflowY:"auto", padding:"22px 24px" }}>
             <button
               onClick={backToGalaxy}
               style={{ background:"none", border:"none", cursor:"pointer", padding:0, marginBottom:16, display:"flex", alignItems:"center", gap:6, fontFamily:FONT_HUD, fontSize:10, letterSpacing:"1.5px", color:SPACE.accentSky }}
@@ -659,6 +662,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
                   </div>
                 </>
               )}
+            </div>
             </div>
           </HoloPanel>
         </div>

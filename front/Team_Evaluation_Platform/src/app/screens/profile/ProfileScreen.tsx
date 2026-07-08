@@ -105,7 +105,10 @@ export function ProfileScreen() {
       <div style={{ position:"relative", zIndex:1, padding: isMobile ? "22px 16px 34px" : "36px 40px 48px", minHeight:"100%", boxSizing:"border-box" }}>
         <div style={{ marginBottom:30 }}>
           <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · SELF-LOG</div>
-          <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px" }}>내 관측 기록</h1>
+          <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px", margin:0 }}>내 프로필</h1>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, fontWeight:300, lineHeight:1.7, color:SPACE.textDim, fontFamily:FONT_BODY }}>
+            나의 별을 관리합니다. 프로필 사진과 한 줄 소개를 수정하고, 동료들의 관측이 반영된 내 스펙트럼을 확인하세요.
+          </p>
         </div>
 
         <div style={{ display:"flex", gap:26, flexWrap:"wrap", alignItems:"flex-start" }}>

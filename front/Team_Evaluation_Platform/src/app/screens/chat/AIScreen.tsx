@@ -31,6 +31,7 @@ export function AIScreen() {
   const [displayIdx, setDisplayIdx] = useState<number>(-1);
   const [displayText, setDisplayText] = useState("");
   const msgEnd = useRef<HTMLDivElement>(null);
+  const chipsRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
 
   useEffect(()=>{
@@ -189,10 +190,17 @@ export function AIScreen() {
 
         {/* 예시 질문 — 모바일은 화면을 덜 차지하게 한 줄 가로 스크롤로.
             모바일에선 pointerEvents:none을 걸면 잠금 상태에서 스크롤까지 막히므로,
-            클릭 차단은 버튼 disabled에 맡기고 컨테이너는 항상 스크롤 가능하게 둔다. */}
-        <div style={ isMobile
-          ? { padding:"6px 14px 0", display:"flex", flexWrap:"nowrap", overflowX:"auto", gap:7, opacity:locked?0.4:1, flexShrink:0, touchAction:"pan-x", WebkitOverflowScrolling:"touch" }
-          : { padding:"6px 24px 0", display:"flex", flexWrap:"wrap", gap:7, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" } }>
+            클릭 차단은 버튼 disabled에 맡기고 컨테이너는 항상 스크롤 가능하게 둔다.
+            휠은 기본적으로 가로 스크롤 컨테이너를 움직이지 못하므로 세로 휠도 가로로 흘려준다. */}
+        <div
+          ref={chipsRef}
+          onWheel={e=>{
+            const el = chipsRef.current;
+            if (el && el.scrollWidth > el.clientWidth) el.scrollLeft += e.deltaY + e.deltaX;
+          }}
+          style={ isMobile
+            ? { padding:"6px 14px 0", display:"flex", flexWrap:"nowrap", overflowX:"auto", gap:7, opacity:locked?0.4:1, flexShrink:0, minWidth:0, touchAction:"pan-x", WebkitOverflowScrolling:"touch", overscrollBehaviorX:"contain" }
+            : { padding:"6px 24px 0", display:"flex", flexWrap:"wrap", gap:7, opacity:locked?0.4:1, pointerEvents:locked?"none":"auto" } }>
           {AI_QUESTIONS.map(q=>(
             <button key={q} disabled={locked} onClick={()=>send(q)} className="obs-chip" style={{
               padding:"5px 11px", borderRadius:2, fontSize:11.5, fontWeight:300, fontFamily:OBS.kr, cursor:"pointer",
@@ -202,6 +210,8 @@ export function AIScreen() {
               <span style={{ color:OBS.violet, fontSize:8, marginRight:6, fontFamily:OBS.mono }}>✦</span>{q}
             </button>
           ))}
+          {/* 가로 스크롤 끝에서 마지막 칩이 오른쪽 패딩 없이 잘려 보이지 않게 하는 여백 */}
+          {isMobile && <span style={{ flex:"0 0 8px" }}/>}
         </div>
 
         {/* 입력 콘솔 */}

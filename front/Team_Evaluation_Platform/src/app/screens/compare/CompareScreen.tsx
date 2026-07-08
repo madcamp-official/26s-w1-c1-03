@@ -68,7 +68,10 @@ export function CompareScreen() {
       <div style={{ position:"relative", zIndex:1, padding: isMobile ? "22px 16px 34px" : "36px 40px 48px", minHeight:"100%", boxSizing:"border-box" }}>
         <div style={{ marginBottom:26 }}>
           <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"3px", color:SPACE.label, textTransform:"uppercase", marginBottom:6 }}>OBSERVATORY · COMPARATIVE ANALYSIS</div>
-          <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px" }}>별자리 비교</h1>
+          <h1 style={{ fontFamily:FONT_DISPLAY, fontSize:26, fontWeight:500, color:SPACE.starWhite2, letterSpacing:"0.5px", margin:0 }}>스탯 비교</h1>
+          <p style={{ margin:"6px 0 0", fontSize:12.5, fontWeight:300, lineHeight:1.7, color:SPACE.textDim, fontFamily:FONT_BODY }}>
+            관측이 완료된 별들의 스펙트럼을 겹쳐 봅니다. 별을 2~3개 선택해 능력치를 나란히 비교하세요.
+          </p>
         </div>
 
         {/* 별 선택기 */}
