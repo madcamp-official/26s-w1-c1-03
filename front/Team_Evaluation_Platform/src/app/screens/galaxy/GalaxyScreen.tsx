@@ -3,7 +3,7 @@ import { RefreshCw, Lock, Search, X } from "lucide-react";
 import { listCards, getCard, listMyTeams, getTeam, ApiError } from "../../api";
 import type { User } from "../../types";
 import { cardToUser, topTitles } from "../../lib/cardMapping";
-import { brightnessOf, gradeForStats, gradeForBrightness, spectrumPct, surfaceTempOf } from "../../lib/brightness";
+import { brightnessOf, gradeForStats, gradeForBrightness, spectrumPct, surfaceTempOf, SPECTRUM_GRADIENT } from "../../lib/brightness";
 import { starAppearanceFor, galaxyPositions, teamLineColorFor } from "../../lib/starLayout";
 import type { TeamCluster } from "../../lib/starLayout";
 import { useIsMobile } from "../../lib/useIsMobile";
@@ -129,8 +129,9 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     });
   },[cards, sortedTeams]);
 
-  // 팀 별자리 선: 같은 팀 멤버의 모든 쌍을 그 팀 색의 연한 점선으로 잇는다.
-  // 여러 팀에 속한 사람은 팀마다 선이 그려지므로 자연히 모든 소속 팀과 연결된다.
+  // 팀 별자리 선: 모든 쌍을 잇는 완전 그래프가 아니라, 가장 가까운 별끼리만 이어
+  // 트리 하나로 묶는다(최소 신장 트리) — 내부에 선이 겹치지 않는 실제 별자리처럼 보인다.
+  // 여러 팀에 속한 사람은 팀마다 트리가 따로 그려지므로 자연히 모든 소속 팀과 연결된다.
   const teamLines = useMemo(()=>{
     const byId = new Map(stars.map(s=>[s.user.id, s]));
     return sortedTeams.map((t,k)=>{
@@ -138,9 +139,23 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
         .map(id=>byId.get(id))
         .filter((s): s is NonNullable<typeof s> => !!s);
       const segs: { x1:number; y1:number; x2:number; y2:number }[] = [];
-      for (let i=0;i<pts.length;i++)
-        for (let j=i+1;j<pts.length;j++)
-          segs.push({ x1:pts[i].x, y1:pts[i].y, x2:pts[j].x, y2:pts[j].y });
+      if (pts.length > 1) {
+        // Prim's MST: 트리에 이미 속한 별들 중 아직 안 속한 별과 가장 가까운 쌍을 매번 추가.
+        const inTree = new Set<number>([0]);
+        while (inTree.size < pts.length) {
+          let bestFrom = -1, bestTo = -1, bestD = Infinity;
+          inTree.forEach(i=>{
+            pts.forEach((p,j)=>{
+              if (inTree.has(j)) return;
+              const d = Math.hypot(pts[i].x-p.x, pts[i].y-p.y);
+              if (d < bestD) { bestD = d; bestFrom = i; bestTo = j; }
+            });
+          });
+          if (bestTo===-1) break;
+          segs.push({ x1:pts[bestFrom].x, y1:pts[bestFrom].y, x2:pts[bestTo].x, y2:pts[bestTo].y });
+          inTree.add(bestTo);
+        }
+      }
       return { id:t.id, name:t.name, ...teamLineColorFor(k), segs };
     });
   },[sortedTeams, stars]);
@@ -614,7 +629,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
                         {/* 색 스펙트럼 바 — 눈금은 등급 경계(40/65/85), 마커는 이 별의 밝기 위치 */}
                         <div>
                           <div style={{ position:"relative", height:5, borderRadius:2, opacity:.9,
-                            background:"linear-gradient(90deg,#ff8f80 0%,#ff8f80 9%,#ffd97a 28%,#f2f6ff 44%,#7cb8ff 62%,#7cb8ff 100%)" }}>
+                            background:SPECTRUM_GRADIENT }}>
                             {[40,65,85].map(t=>(
                               <span key={t} style={{ position:"absolute", left:`${spectrumPct(t)}%`, top:-2, bottom:-2, width:1, background:"rgba(2,6,23,.75)" }}/>
                             ))}
