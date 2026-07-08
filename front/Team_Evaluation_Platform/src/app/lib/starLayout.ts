@@ -59,39 +59,52 @@ function clamp(v: number, lo: number, hi: number) {
 }
 
 // 처음 은하에 들어왔을 때(카메라 scale 1 = 화면이 정확히 0~100% 영역을 비춘다) 별이
-// 전부 한눈에 들어오면 안 되고, 팬/줌으로 탐험해야 할 만큼 넓어야 한다는 요구사항 —
+// 전부 한눈에 들어오면 안 되고, 팬/줌으로 탐험해야 할 만큼은 넓어야 한다는 요구사항 —
 // 아래 배치 공식이 만드는 상대적인 모양(타원 전체 윤곽·팀 클러스터·나선)은 그대로 두고,
-// 마지막에 은하 중심(CENTER_X, CENTER_Y)에서 이 배수만큼 밀어내 화면 폭보다 훨씬 넓게
-// 펼친다. 그 결과 0~100% 밖으로 넘치는 별은 자연히 초기 화면 밖에 위치하게 된다.
-const SPREAD = 2.6;
+// 마지막에 은하 중심(CENTER_X, CENTER_Y)에서 이 배수만큼 밀어내 화면 폭보다 넓게 펼친다.
+const SPREAD = 1.8;
+
+function clusterJitter(seed: number, amp = 1) {
+  return (seededRandom(seed) - 0.5) * 2 * amp;
+}
 
 // 은하 배치(% 좌표, SPREAD 적용 전 기준):
-// - 진행 중인 팀마다 화면에 클러스터 중심을 하나씩 두고, 팀원은 그 중심 주위에 소용돌이로 뭉친다.
+// - 진행 중인 팀마다 화면에 클러스터 중심을 하나씩 두고, 팀원은 그 중심 주위에 뭉친다.
 // - 여러 팀에 속한 사람은 소속 팀 중심들의 평균 지점에 놓여 양쪽 팀과 자연스럽게 이어진다.
 // - 어느 팀에도 없는 사람은 클러스터 바깥 띠에 흩어 놓는다(팀이 하나도 없으면 전체 나선).
+// 링 위 팀 중심 각도/반지름, 팀 안 멤버 각도/반지름 모두에 id 기반 결정론적 지터를 살짝
+// 얹어, 수학적으로 너무 규칙적인(같은 간격으로 딱딱 맞아떨어지는) 느낌을 없앤다.
 // teams는 정렬돼 들어온다고 가정하지 않고 내부에서 id로 정렬한다(색 배정과 동일한 순서).
 export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number, { x: number; y: number }> {
   const pos = new Map<number, { x: number; y: number }>();
   const sorted = [...teams].sort((a, b) => a.id - b.id);
   const T = sorted.length;
 
-  // 팀 클러스터 중심: 팀이 하나면 중앙, 여럿이면 중앙을 둘러싼 타원 링에 고르게.
-  const centers = sorted.map((_, k) => {
+  // 팀 클러스터 중심: 팀이 하나면 중앙, 여럿이면 중앙을 둘러싼 타원 링에 흩어 놓되
+  // 완전히 균등한 링이 되지 않도록 팀마다 각도/반지름을 조금씩 어긋나게 한다.
+  const centers = sorted.map((team, k) => {
     if (T === 1) return { x: CENTER_X, y: CENTER_Y };
-    const a = -Math.PI / 2 + 0.6 + (2 * Math.PI * k) / T;
-    return { x: CENTER_X + 27 * Math.cos(a), y: CENTER_Y + 22 * Math.sin(a) };
+    const slot = (2 * Math.PI) / T;
+    const a = -Math.PI / 2 + 0.6 + slot * k + clusterJitter(team.id * 31 + 1, slot * 0.28);
+    const rJitter = 1 + clusterJitter(team.id * 31 + 2, 0.22);
+    return { x: CENTER_X + 27 * rJitter * Math.cos(a), y: CENTER_Y + 22 * rJitter * Math.sin(a) };
   });
 
-  // 팀 내부 배치: 팀마다 멤버를 id 순으로 골든 앵글 소용돌이에 태운다.
+  // 팀 내부 배치: 멤버를 id 순으로 골든 앵글 소용돌이에 태우되, 반지름/각도에 각자의
+  // id로 정해지는 작은 지터를 더해 나선이 너무 또렷하게 보이지 않게 한다.
   // 여러 팀 소속이면 각 팀에서의 위치를 평균 내 팀 사이에 놓는다.
   const perUser = new Map<number, { x: number; y: number }[]>();
   sorted.forEach((team, k) => {
     const members = [...new Set(team.memberIds)].sort((a, b) => a - b);
     const n = members.length;
     members.forEach((id, i) => {
+      // 골든 앵글 나선은 원래 점을 disk 전체에 고르게 "펼치는" 용도라 반지름을 크게 두면
+      // 같은 팀 멤버끼리도 서로 반대편까지 벌어져 뭉쳐 보이지 않는다. 팀은 뭉쳐 보여야
+      // 하므로 반지름을 작게 눌러 좁은 덩어리 안에서만 나선을 그리게 한다.
       const frac = Math.sqrt((i + 0.5) / Math.max(n, 1));
-      const r = n <= 1 ? 0 : T <= 1 ? 8 + 16 * frac : 5 + 8 * frac;
-      const ang = i * GOLDEN_ANGLE + team.id;
+      const rBase = n <= 1 ? 0 : T <= 1 ? 3 + 5 * frac : 2 + 3.5 * frac;
+      const r = rBase * (1 + clusterJitter(id * 13 + 17, 0.15));
+      const ang = i * GOLDEN_ANGLE + team.id + clusterJitter(id * 13 + 19, 0.5);
       const p = {
         x: centers[k].x + r * Math.cos(ang),
         y: centers[k].y + r * Math.sin(ang) * 0.85,
@@ -111,7 +124,7 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
   const rest = ids.filter(id => !pos.has(id));
   const m = Math.max(rest.length, 1);
   rest.forEach((id, j) => {
-    const ang = j * GOLDEN_ANGLE + 2.1;
+    const ang = j * GOLDEN_ANGLE + 2.1 + clusterJitter(id * 13 + 23, 0.4);
     let x: number, y: number;
     if (T === 0) {
       const rFrac = Math.sqrt((j + 0.5) / m);
@@ -133,20 +146,43 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
     p.y = CENTER_Y + (p.y - CENTER_Y) * SPREAD;
   });
 
-  relaxMinDistance(pos, ids);
+  // 같은 팀인 별끼리는 뭉쳐 보여야 하므로 거의 겹칠 때만(TEAM_MIN_DIST) 살짝 떼어놓고,
+  // 서로 다른 팀/무소속 별끼리는 더 크게(CROSS_MIN_DIST) 밀어내 클러스터 사이 여백을
+  // 지킨다 — 모든 쌍에 같은 최소 거리를 적용하면 팀이 뭉쳐 보이지 않고 격자처럼
+  // 규칙적으로 흩어져 버렸던 이전 방식의 문제를 이 구분으로 해결한다.
+  const teamsOf = new Map<number, Set<number>>();
+  sorted.forEach(team => {
+    new Set(team.memberIds).forEach(id => {
+      const s = teamsOf.get(id) ?? new Set<number>();
+      s.add(team.id);
+      teamsOf.set(id, s);
+    });
+  });
+  const shareTeam = (a: number, b: number) => {
+    const sa = teamsOf.get(a), sb = teamsOf.get(b);
+    if (!sa || !sb) return false;
+    for (const t of sa) if (sb.has(t)) return true;
+    return false;
+  };
+
+  relaxMinDistance(pos, ids, shareTeam);
   return pos;
 }
 
 // 소용돌이/나선 배치는 곡선을 따라 별을 촘촘히 늘어놓다 보니 서로 다른 클러스터/무소속
 // 별들끼리 거의 겹칠 만큼 붙는 경우가 있었다. 완성된 배치 위에 "이 거리보다 가까우면
-// 서로 밀어낸다"는 단순한 반발 이완(relaxation)을 몇 차례 더 돌려, 팀 클러스터의 전체적인
-// 모양은 유지하면서 모든 별(팀원이든 아니든)이 최소한 "연결된 팀원끼리의 간격" 정도는
-// 떨어지도록 한다. 입력이 같으면 항상 같은 결과가 나오도록 무작위성은 쓰지 않는다
-// (완전히 겹친 두 별만 id 기반 결정론적 각도로 떼어놓는다).
-const MIN_STAR_DIST = 40;
+// 서로 밀어낸다"는 단순한 반발 이완(relaxation)을 몇 차례 더 돌려 클러스터 사이 여백을
+// 보장한다. 입력이 같으면 항상 같은 결과가 나오도록 무작위성은 쓰지 않는다(완전히 겹친
+// 두 별만 id 기반 결정론적 각도로 떼어놓는다).
+const TEAM_MIN_DIST = 4.5;
+const CROSS_MIN_DIST = 20;
 const RELAX_ITERATIONS = 80;
 
-function relaxMinDistance(pos: Map<number, { x: number; y: number }>, ids: number[]) {
+function relaxMinDistance(
+  pos: Map<number, { x: number; y: number }>,
+  ids: number[],
+  shareTeam: (a: number, b: number) => boolean
+) {
   for (let iter = 0; iter < RELAX_ITERATIONS; iter++) {
     let moved = false;
     for (let i = 0; i < ids.length; i++) {
@@ -155,14 +191,15 @@ function relaxMinDistance(pos: Map<number, { x: number; y: number }>, ids: numbe
       for (let j = i + 1; j < ids.length; j++) {
         const b = pos.get(ids[j]);
         if (!b) continue;
+        const minDist = shareTeam(ids[i], ids[j]) ? TEAM_MIN_DIST : CROSS_MIN_DIST;
         let dx = b.x - a.x, dy = b.y - a.y;
         let d = Math.hypot(dx, dy);
-        if (d >= MIN_STAR_DIST) continue;
+        if (d >= minDist) continue;
         if (d < 0.0001) {
           const ang = seededRandom(ids[i] * 97 + ids[j] * 131) * Math.PI * 2;
           dx = Math.cos(ang); dy = Math.sin(ang); d = 1;
         }
-        const push = (MIN_STAR_DIST - d) / 2;
+        const push = (minDist - d) / 2;
         const ux = dx / d, uy = dy / d;
         a.x -= ux * push; a.y -= uy * push;
         b.x += ux * push; b.y += uy * push;
