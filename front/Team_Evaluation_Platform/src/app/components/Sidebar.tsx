@@ -27,6 +27,7 @@ export function Sidebar({ screen, setScreen, onLogout, mobile = false }: {
   if (mobile) {
     return (
       <nav style={{
+        position:"relative", zIndex:2,
         flexShrink:0, display:"flex", alignItems:"stretch",
         background:"linear-gradient(180deg, rgba(4,9,24,0.96), rgba(8,17,38,0.94))",
         backdropFilter:"blur(14px)", borderTop:`1px solid ${SPACE.border}`,
@@ -60,6 +61,7 @@ export function Sidebar({ screen, setScreen, onLogout, mobile = false }: {
 
   return (
     <aside style={{
+      position:"relative", zIndex:2,
       width:224, minHeight:"100vh", flexShrink:0, display:"flex", flexDirection:"column",
       background:"linear-gradient(180deg, rgba(4,9,24,0.94), rgba(8,17,38,0.9))",
       backdropFilter:"blur(14px)", borderRight:`1px solid ${SPACE.border}`,
