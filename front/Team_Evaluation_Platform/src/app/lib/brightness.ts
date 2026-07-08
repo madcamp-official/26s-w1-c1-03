@@ -38,6 +38,16 @@ export const SPEC_MIN = 15, SPEC_MAX = 150;
 export const spectrumPct = (b: number) =>
   Math.min(100, Math.max(0, ((b - SPEC_MIN) / (SPEC_MAX - SPEC_MIN)) * 100));
 
+// 스펙트럼 바 CSS 그라데이션 — 색 구간의 폭이 실제 등급 경계(40/65/85) 비율과 일치하도록
+// spectrumPct로 직접 계산한다(하드코딩된 %는 적/황/백 구간이 실제보다 좁고 청색만 넓어 보였다).
+const BOUND_40 = spectrumPct(40), BOUND_65 = spectrumPct(65), BOUND_85 = spectrumPct(85);
+const BLEND = 2.5; // 경계마다 좌우로 이 폭만큼만 부드럽게 섞는다.
+export const SPECTRUM_GRADIENT = `linear-gradient(90deg,
+  ${RED.color} 0%, ${RED.color} ${BOUND_40 - BLEND}%,
+  ${YELLOW.color} ${BOUND_40 + BLEND}%, ${YELLOW.color} ${BOUND_65 - BLEND}%,
+  ${WHITE.color} ${BOUND_65 + BLEND}%, ${WHITE.color} ${BOUND_85 - BLEND}%,
+  ${BLUE.color} ${BOUND_85 + BLEND}%, ${BLUE.color} 100%)`;
+
 // 밝기를 가상의 표면온도(K)로 환산 — 실제 항성처럼 적색(~3,600K)에서 청색(~10,000K+)으로
 // 뜨거워지는 연출용 수치. 40→5,500K(황), 65→7,400K(백), 85→8,900K(청) 부근이 되도록 잡았다.
 export const surfaceTempOf = (b: number) => Math.round((2500 + b * 75) / 100) * 100;
