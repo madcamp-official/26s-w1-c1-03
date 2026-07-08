@@ -43,6 +43,11 @@ export function CompareScreen() {
   const [stars, setStars] = useState<User[]|null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<number[]>([]);
+  // 별을 추가로 선택했을 때만 차트 애니메이션을 재생한다. 새로 추가된 별의 다각형/꼭짓점은
+  // React가 새 DOM 노드로 마운트하므로 자연스럽게 애니메이션이 재생되고, 기존에 있던 별들은
+  // 그대로 유지되어 다시 애니메이션되지 않는다. 뺄 때는(1명만 남아 단일 모드로 바뀌는 경우
+  // 포함) animate=false를 넘겨 애니메이션 없이 즉시 정적으로 반영되게 한다.
+  const [justAdded, setJustAdded] = useState(true);
 
   useEffect(()=>{
     listStars()
@@ -51,7 +56,17 @@ export function CompareScreen() {
   },[]);
 
   const locked = deriveEvaluationLocked(stars);
-  function toggle(id:number){ if(locked) return; setSelected(p=>p.includes(id)?p.filter(x=>x!==id):p.length<3?[...p,id]:p); }
+  function toggle(id:number){
+    if(locked) return;
+    const isRemoving = selected.includes(id);
+    if (isRemoving) {
+      setJustAdded(false);
+      setSelected(p=>p.filter(x=>x!==id));
+    } else if (selected.length<3) {
+      setJustAdded(true);
+      setSelected(p=>[...p, id]);
+    }
+  }
 
   // 선택 순서 = 색 배정 순서가 되도록 selected 배열 순서를 유지한다.
   const selUsers = selected
@@ -133,8 +148,8 @@ export function CompareScreen() {
               <HudLabel en={selUsers.length===1 ? "SPECTRAL ANALYSIS" : "SPECTRAL COMPARISON"} kr={selUsers.length===1 ? "능력치 분석" : "능력치 비교"}/>
               <div style={{ display:"flex", justifyContent:"center" }}>
                 {selUsers.length===1
-                  ? <ConstellationChart stats={selUsers[0].stats} size={isMobile ? 236 : 300}/>
-                  : <ConstellationChart series={series} size={isMobile ? 236 : 300}/>}
+                  ? <ConstellationChart stats={selUsers[0].stats} size={isMobile ? 236 : 300} animate={justAdded}/>
+                  : <ConstellationChart series={series} size={isMobile ? 236 : 300} animate={justAdded}/>}
               </div>
             </HoloPanel>
 
