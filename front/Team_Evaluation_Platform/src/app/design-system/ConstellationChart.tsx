@@ -9,8 +9,9 @@ interface Series { name: string; color: string; stats: Stats; }
 // 데이터 선은 하나씩 순차적으로 그려지는 애니메이션(stroke-dashoffset), 내부 채움은 은은하게.
 //
 // series가 주어지면(별 비교 화면) 여러 사람의 다각형을 겹쳐 그리는 비교 모드로 동작한다 —
-// 이땐 한 사람 값이 아니라 여러 값을 동시에 보여줘야 하므로 순차 드로잉 애니메이션 없이
-// 정적으로 그리고, 값 라벨 대신 하단에 이름 범례를 붙인다.
+// 이땐 한 사람 값이 아니라 여러 값을 동시에 보여줘야 해서 변 하나씩 순차로 그리는 애니메이션
+// 대신 다각형/꼭짓점이 함께 페이드·팝인하는 애니메이션을 쓰고, 값 라벨 대신 하단에 이름 범례를 붙인다.
+// animate=false면(호출부에서 "이미 있던 별을 뺐을 때" 등) 애니메이션 없이 즉시 그려진다.
 export function ConstellationChart({ stats, series, size=280, animate=true }: { stats?:Stats; series?:Series[]; size?:number; animate?:boolean }) {
   const cx = size/2, cy = size/2, r = size/2 - 34;
   const n = STATS.length;
@@ -57,11 +58,15 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
 
         {compareMode ? (
           <>
-            {seriesPts.map(s=>(
-              <polygon key={"fill-"+s.name} points={s.pts.map(p=>p.join(",")).join(" ")} fill={`${s.color}22`} stroke={s.color} strokeWidth={1.4}/>
+            {seriesPts.map((s,si)=>(
+              <polygon key={"fill-"+s.name} points={s.pts.map(p=>p.join(",")).join(" ")} fill={`${s.color}22`} stroke={s.color} strokeWidth={1.4}
+                style={animate ? { animation:`fadeIn .5s ease ${si*0.12}s both` } : undefined}/>
             ))}
-            {seriesPts.map(s=>s.pts.map(([x,y],i)=>(
-              <circle key={`v-${s.name}-${i}`} cx={x} cy={y} r={2.4} fill={s.color} style={{ filter:`drop-shadow(0 0 3px ${s.color})` }}/>
+            {seriesPts.map((s,si)=>s.pts.map(([x,y],i)=>(
+              <circle key={`v-${s.name}-${i}`} cx={x} cy={y} r={2.4} fill={s.color} style={{
+                filter:`drop-shadow(0 0 3px ${s.color})`,
+                animation: animate ? `popIn .35s ease ${si*0.12+0.3}s both` : undefined,
+              }}/>
             )))}
           </>
         ) : (
