@@ -4,7 +4,7 @@ import { listStars, getStar, listActiveTeams, ApiError } from "../../api";
 import type { User } from "../../types";
 import { starToUser, topTitles } from "../../lib/starMapping";
 import { brightnessOf, gradeForStats, gradeForBrightness, spectrumPct, surfaceTempOf, SPECTRUM_GRADIENT } from "../../lib/brightness";
-import { starAppearanceFor, galaxyPositions, teamLineColorFor, UNREGISTERED_TINT } from "../../lib/starLayout";
+import { starAppearanceFor, galaxyLayout, teamLineColorFor, UNREGISTERED_TINT } from "../../lib/starLayout";
 import type { TeamCluster } from "../../lib/starLayout";
 import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE } from "../../design-system/space";
@@ -107,14 +107,19 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     return ()=>clearInterval(iv);
   },[]);
 
-  // 색 배정(teamLineColorFor)과 배치(galaxyPositions)가 같은 순서를 보게 id로 정렬해 공유한다.
+  // 색 배정(teamLineColorFor)과 배치(galaxyLayout)가 같은 순서를 보게 id로 정렬해 공유한다.
   const sortedTeams = useMemo(()=> teams ? [...teams].sort((a,b)=>a.id-b.id) : [], [teams]);
 
+  // 별 위치 + 팀별 별자리 선(실제 별자리 모양을 본떠 미리 정해둔 선분)을 한 번에 계산한다.
+  const layout = useMemo(()=>{
+    if (!stars) return null;
+    return galaxyLayout(stars.map(u=>u.id), sortedTeams);
+  },[stars, sortedTeams]);
+
   const starMarkers = useMemo(()=>{
-    if (!stars) return [];
-    const pos = galaxyPositions(stars.map(u=>u.id), sortedTeams);
+    if (!stars || !layout) return [];
     return stars.map(u=>{
-      const p = pos.get(u.id)!;
+      const p = layout.positions.get(u.id)!;
       // 밝기 등급 색(청/백/황/적) — 잠긴 별은 능력치를 모르므로 기존 id 기반 색으로 둔다.
       // 가입(로그인 후 비밀번호 변경)을 마치지 않은 계정은 등급과 무관하게 탁한 회색으로 그린다.
       const grade = u.isUnlocked ? gradeForStats(u.stats) : null;
@@ -124,38 +129,25 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
         layout: { ...starAppearanceFor(u.id, tint), left:`${p.x.toFixed(2)}%`, top:`${p.y.toFixed(2)}%` },
       };
     });
-  },[stars, sortedTeams]);
+  },[stars, layout]);
 
-  // 팀 별자리 선: 모든 쌍을 잇는 완전 그래프가 아니라, 가장 가까운 별끼리만 이어
-  // 트리 하나로 묶는다(최소 신장 트리) — 내부에 선이 겹치지 않는 실제 별자리처럼 보인다.
-  // 여러 팀에 속한 사람은 팀마다 트리가 따로 그려지므로 자연히 모든 소속 팀과 연결된다.
+  // 팀 별자리 선: galaxyLayout이 미리 정해둔 실제 별자리 모양의 선분(유저 id 쌍)을 좌표로
+  // 바꿔서 그린다 — 최단거리로 즉석에서 잇는 게 아니라 정해진 모양이라 엉뚱한 별이 선 위에
+  // 걸치거나 다른 팀의 선과 교차하는 일이 없다.
   const teamLines = useMemo(()=>{
+    if (!layout) return [];
     const byId = new Map(starMarkers.map(s=>[s.user.id, s]));
     return sortedTeams.map((t,k)=>{
-      const pts = [...new Set(t.memberIds)]
-        .map(id=>byId.get(id))
-        .filter((s): s is NonNullable<typeof s> => !!s);
-      const segs: { x1:number; y1:number; x2:number; y2:number }[] = [];
-      if (pts.length > 1) {
-        // Prim's MST: 트리에 이미 속한 별들 중 아직 안 속한 별과 가장 가까운 쌍을 매번 추가.
-        const inTree = new Set<number>([0]);
-        while (inTree.size < pts.length) {
-          let bestFrom = -1, bestTo = -1, bestD = Infinity;
-          inTree.forEach(i=>{
-            pts.forEach((p,j)=>{
-              if (inTree.has(j)) return;
-              const d = Math.hypot(pts[i].x-p.x, pts[i].y-p.y);
-              if (d < bestD) { bestD = d; bestFrom = i; bestTo = j; }
-            });
-          });
-          if (bestTo===-1) break;
-          segs.push({ x1:pts[bestFrom].x, y1:pts[bestFrom].y, x2:pts[bestTo].x, y2:pts[bestTo].y });
-          inTree.add(bestTo);
-        }
-      }
+      const edges = layout.teamEdges.get(t.id) ?? [];
+      const segs = edges
+        .map(([a,b])=>{
+          const pa = byId.get(a), pb = byId.get(b);
+          return pa && pb ? { x1:pa.x, y1:pa.y, x2:pb.x, y2:pb.y } : null;
+        })
+        .filter((s): s is { x1:number; y1:number; x2:number; y2:number } => !!s);
       return { id:t.id, name:t.name, ...teamLineColorFor(k), segs };
     });
-  },[sortedTeams, starMarkers]);
+  },[sortedTeams, starMarkers, layout]);
 
   // userId → 소속 팀 인덱스 목록(명단에서 팀 색 표시용).
   const teamsByUser = useMemo(()=>{
