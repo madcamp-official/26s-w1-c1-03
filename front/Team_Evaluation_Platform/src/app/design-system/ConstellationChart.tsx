@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { STATS } from "../constants/stats";
 import type { Stats } from "../types";
 import { TooltipBubble, type TooltipRect } from "./primitives";
 
-interface Series { name: string; color: string; stats: Stats; }
+interface Series { id: number|string; name: string; color: string; stats: Stats; }
 
 const DEFAULT_COLOR = "#8fd0ff";
 const DEFAULT_VERTEX_COLOR = "#eef4ff";
@@ -19,7 +19,11 @@ const ENTRY_STAGGER = 0.5;
 // (변 6개가 하나씩 그려지고 꼭짓점이 하나씩 팝인)으로 그리며, 사람이 여러 명이면 사람마다
 // ENTRY_STAGGER만큼 시작 시점만 밀려서 한 명씩 순서대로 나타나는 것처럼 보인다.
 // animate=false면(호출부에서 "이미 있던 별을 뺐을 때" 등) 애니메이션 없이 즉시 그려진다.
-export function ConstellationChart({ stats, series, size=280, animate=true }: { stats?:Stats; series?:Series[]; size?:number; animate?:boolean }) {
+//
+// entry의 식별자(id)를 이전 렌더와 비교해서, "새로 추가된" entry만 애니메이션을 재생한다.
+// (예전엔 animate 하나가 전체 entries에 그대로 적용돼서, 이미 떠 있던 사람도 다른 사람이
+// 추가/제거될 때마다 style의 animation 값이 다시 붙어 함께 재생되는 버그가 있었다.)
+export function ConstellationChart({ stats, series, size=280, animate=true, id }: { stats?:Stats; series?:Series[]; size?:number; animate?:boolean; id?:number|string }) {
   const cx = size/2, cy = size/2, r = size/2 - 34;
   const n = STATS.length;
   const angleOf = (i:number) => -Math.PI/2 + i * (2*Math.PI/n);
@@ -44,8 +48,15 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
   const singleStats = stats ?? STATS.reduce((acc,s)=>({ ...acc, [s.key]:0 }), {} as Stats);
 
   // 단일/비교 모드를 하나의 배열로 합친다 — 렌더링 코드는 이 entries만 보고 그린다.
-  const entries = series ?? [{ name:"", color:DEFAULT_COLOR, stats:singleStats }];
+  const entries = series ?? [{ id: id ?? "single", name:"", color:DEFAULT_COLOR, stats:singleStats }];
   const entryPts = entries.map(en => STATS.map((st,i)=>pt(i, en.stats[st.key as keyof Stats]/100)));
+
+  // 직전 렌더에 있던 entry id들을 기억해뒀다가, 이번 렌더에서 "새로 생긴" id만 골라낸다.
+  // ref는 커밋 이후에만 갱신되므로 렌더 시점에는 항상 "이전" 값을 그대로 참조한다.
+  const prevIdsRef = useRef<Set<number|string>>(new Set());
+  useEffect(()=>{
+    prevIdsRef.current = new Set(entries.map(en=>en.id));
+  });
 
   return (
     <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
@@ -66,30 +77,33 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
           const vertexColor = compareMode ? en.color : DEFAULT_VERTEX_COLOR;
           const edgeColor = compareMode ? en.color : DEFAULT_COLOR;
           const fillColor = compareMode ? `${en.color}22` : "rgba(125,211,252,.09)";
+          // 이번에 새로 나타난 entry일 때만 애니메이션 style을 붙인다 — 이미 떠 있던 entry는
+          // (id가 바뀌지 않았다면) 여기서 animation 값을 다시 부여하지 않으므로 재생되지 않는다.
+          const isNew = animate && !prevIdsRef.current.has(en.id);
           return (
-            <g key={"entry"+e}>
+            <g key={"entry"+en.id}>
               {/* data fill */}
               <polygon
                 points={dataPts.map(p=>p.join(",")).join(" ")}
                 fill={fillColor}
-                style={animate ? { animation:`fadeIn .8s ${entryDelay+1.6}s both` } : undefined}
+                style={isNew ? { animation:`fadeIn .8s ${entryDelay+1.6}s both` } : undefined}
               />
               {/* edges, drawn one by one */}
               {[0,1,2,3,4,5].map(i=>{
                 const [x1,y1] = dataPts[i], [x2,y2] = dataPts[(i+1)%6];
                 return (
-                  <line key={`e${e}-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={edgeColor} strokeWidth={1.5}
-                    pathLength={1} strokeDasharray={1} strokeDashoffset={animate?1:0}
+                  <line key={`e${en.id}-${i}`} x1={x1} y1={y1} x2={x2} y2={y2} stroke={edgeColor} strokeWidth={1.5}
+                    pathLength={1} strokeDasharray={1} strokeDashoffset={isNew?1:0}
                     style={{
-                      animation: animate ? `chartDraw .45s ease forwards ${entryDelay+0.35+i*0.22}s` : undefined,
-                      filter: `drop-shadow(0 0 3px ${compareMode ? en.color : `rgba(125,211,252,${animate?0.8:0.6})`})`,
+                      animation: isNew ? `chartDraw .45s ease forwards ${entryDelay+0.35+i*0.22}s` : undefined,
+                      filter: `drop-shadow(0 0 3px ${compareMode ? en.color : `rgba(125,211,252,${isNew?0.8:0.6})`})`,
                     }}/>
                 );
               })}
               {/* vertex stars */}
               {dataPts.map(([x,y],i)=>(
-                <circle key={`v${e}-${i}`} cx={x} cy={y} r={2.6} fill={vertexColor}
-                  style={{ filter:`drop-shadow(0 0 4px ${vertexColor})`, animation: animate ? `popIn .4s ease both ${entryDelay+0.3+i*0.22}s` : undefined }}/>
+                <circle key={`v${en.id}-${i}`} cx={x} cy={y} r={2.6} fill={vertexColor}
+                  style={{ filter:`drop-shadow(0 0 4px ${vertexColor})`, animation: isNew ? `popIn .4s ease both ${entryDelay+0.3+i*0.22}s` : undefined }}/>
               ))}
             </g>
           );

@@ -72,7 +72,7 @@ export function CompareScreen() {
   const selUsers = selected
     .map(id=>(stars??[]).find(u=>u.id===id))
     .filter((u): u is User => !!u);
-  const series = selUsers.map((u,i)=>({ name:u.name, color:COMPARE_COLORS[i].color, stats:u.stats }));
+  const series = selUsers.map((u,i)=>({ id:u.id, name:u.name, color:COMPARE_COLORS[i].color, stats:u.stats }));
 
   if (error) return centerMessage(error);
   if (!stars) return centerMessage("관측 기록을 불러오는 중...", true);
@@ -148,7 +148,7 @@ export function CompareScreen() {
               <HudLabel en={selUsers.length===1 ? "SPECTRAL ANALYSIS" : "SPECTRAL COMPARISON"} kr={selUsers.length===1 ? "능력치 분석" : "능력치 비교"}/>
               <div style={{ display:"flex", justifyContent:"center" }}>
                 {selUsers.length===1
-                  ? <ConstellationChart stats={selUsers[0].stats} size={isMobile ? 236 : 300} animate={justAdded}/>
+                  ? <ConstellationChart stats={selUsers[0].stats} id={selUsers[0].id} size={isMobile ? 236 : 300} animate={justAdded}/>
                   : <ConstellationChart series={series} size={isMobile ? 236 : 300} animate={justAdded}/>}
               </div>
             </HoloPanel>
