@@ -18,6 +18,8 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Check;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 @Getter
 @Entity
@@ -44,8 +46,11 @@ public class Evaluation extends BaseCreatedAtEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "team_id", nullable = false)
+    // 팀이 삭제되면(팀원 전원 나가기) DB가 ON DELETE SET NULL로 이 값을 null로 만든다 —
+    // 평가 점수/이력 자체는 팀이 사라진 뒤에도 그대로 남겨두기 위함.
+    @ManyToOne(fetch = FetchType.LAZY, optional = true)
+    @JoinColumn(name = "team_id", nullable = true)
+    @OnDelete(action = OnDeleteAction.SET_NULL)
     private Team team;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
