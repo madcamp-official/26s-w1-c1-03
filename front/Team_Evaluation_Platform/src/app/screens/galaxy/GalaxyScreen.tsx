@@ -261,7 +261,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
 
       {/* ── HUD 네 모서리 ── */}
       <div style={{ position:"absolute", top:20, left:24, zIndex:2, pointerEvents:"none" }}>
-        <div style={{ fontFamily:FONT_DISPLAY, fontSize:15, letterSpacing:"6px", color:SPACE.starWhite2 }}>MADMON</div>
+        <div style={{ fontFamily:FONT_DISPLAY, fontSize:15, letterSpacing:"6px", color:SPACE.starWhite2 }}>MADNOVA</div>
         <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"2px", color:SPACE.label, marginTop:2 }}>DEEP-SKY OBSERVATORY</div>
       </div>
       <div style={{ position:"absolute", top:20, right:24, zIndex:2, pointerEvents:"none", textAlign:"right" }}>

@@ -63,7 +63,7 @@ MadMon은 팀원 상호 평가 서비스지만, 절대 "평가 툴"처럼 보이
 ## 6. 핵심 화면 & 인터랙션
 
 ### 인트로 (첫 진입, 스킵 가능)
-검은 우주 중앙에 맥동하는 별 하나 → "MADMON / DEEP-SKY OBSERVATORY" → 얇은 진행바 → "INITIALIZING OBSERVATION SYSTEMS…" 깜빡임 → 1초 페이드아웃. 총 ~3초, 클릭 시 즉시 스킵.
+검은 우주 중앙에 맥동하는 별 하나 → "MADNOVA / DEEP-SKY OBSERVATORY" → 얇은 진행바 → "INITIALIZING OBSERVATION SYSTEMS…" 깜빡임 → 1초 페이드아웃. 총 ~3초, 클릭 시 즉시 스킵.
 
 ### 메인 은하 화면
 - 풀블리드 우주. UI는 네 모서리의 HUD 텍스트뿐 (좌상: 로고, 우상: GALAXY TEAM-XX, 좌하: "N STARS DETECTED · 조작 힌트", 우하: RA/DEC 좌표 · ZOOM 배율 · 실시간 시계).
@@ -89,8 +89,8 @@ MadMon은 팀원 상호 평가 서비스지만, 절대 "평가 툴"처럼 보이
 ### 칭호
 배지 금지. 대표 칭호는 이름 옆 ✦와 글로우 텍스트로 가장 크게. 획득 칭호는 "✦—" 별자리 조각 모양의 얇은 보더 칩. 프로필 이미지 궤도를 도는 위성 점으로도 암시.
 
-### AI 채팅 (MADMON CORE)
-우주선 관제 컴퓨터 콘솔 스타일. 좌측 패널, 헤더 "◈ MADMON CORE / OBSERVATORY AI · ONLINE". 메시지는 말풍선이 아니라 로그: "CORE ⌁"(청록) / "YOU ▸"(하늘색) 라벨 + 본문. 응답 대기 시 "⌁ TRANSMITTING…" 깜빡임. AI 말투: 차분한 관제 시스템 톤 한국어, 별·스펙트럼·궤도 은유, 2–4문장.
+### AI 채팅 (MADNOVA CORE)
+우주선 관제 컴퓨터 콘솔 스타일. 좌측 패널, 헤더 "◈ MADNOVA CORE / OBSERVATORY AI · ONLINE". 메시지는 말풍선이 아니라 로그: "CORE ⌁"(청록) / "YOU ▸"(하늘색) 라벨 + 본문. 응답 대기 시 "⌁ TRANSMITTING…" 깜빡임. AI 말투: 차분한 관제 시스템 톤 한국어, 별·스펙트럼·궤도 은유, 2–4문장.
 
 ## 7. 모션 원칙
 

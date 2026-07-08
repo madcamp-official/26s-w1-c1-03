@@ -17,12 +17,12 @@ const STAR_COLORS = [
   { core: "#c4b0ff", glow: "167,139,250" },
 ];
 
-// ─── AI Analysis Screen (MADMON CORE) ─────────────────────────────────────────
+// ─── AI Analysis Screen (MADNOVA CORE) ─────────────────────────────────────────
 export function AIScreen() {
   const [cards, setCards] = useState<User[]|null>(null);
   const [selected, setSelected] = useState<number[]>([]);
   const [sessionId, setSessionId] = useState<number|null>(null);
-  const [msgs, setMsgs] = useState<ChatMessage[]>([{ role:"ai", text:"MADMON CORE 온라인. 선택된 별들의 관측 기록을 기반으로 분석을 시작합니다. 아래 예시 질문을 선택하거나 직접 입력하세요." }]);
+  const [msgs, setMsgs] = useState<ChatMessage[]>([{ role:"ai", text:"MADNOVA CORE 온라인. 선택된 별들의 관측 기록을 기반으로 분석을 시작합니다. 아래 예시 질문을 선택하거나 직접 입력하세요." }]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [error, setError] = useState("");
@@ -127,13 +127,13 @@ export function AIScreen() {
         )}
       </div>
 
-      {/* 우측: MADMON CORE 콘솔 */}
+      {/* 우측: MADNOVA CORE 콘솔 */}
       <div style={{ position:"relative", zIndex:1, flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
         {/* 헤더 */}
         <div style={{ padding:"17px 24px", borderBottom:OBS.borderSoft, display:"flex", alignItems:"center", gap:11 }}>
           <span style={{ color:OBS.teal, fontSize:13 }}>◈</span>
           <div style={{ flex:1 }}>
-            <MonoLabel size={10.5} spacing={3} color={OBS.starWhite}>MADMON CORE</MonoLabel>
+            <MonoLabel size={10.5} spacing={3} color={OBS.starWhite}>MADNOVA CORE</MonoLabel>
             <div style={{ marginTop:3 }}>
               <MonoLabel size={8.5} spacing={2}>OBSERVATORY AI · <span style={{ color:OBS.teal }}>ONLINE</span></MonoLabel>
             </div>

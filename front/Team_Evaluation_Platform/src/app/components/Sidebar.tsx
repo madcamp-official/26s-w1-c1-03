@@ -37,7 +37,7 @@ export function Sidebar({ screen, setScreen, onLogout }: { screen:MainScreen; se
             <Telescope size={16} style={{ color:SPACE.accentSky }}/>
           </div>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontFamily:FONT.display, fontSize:13, fontWeight:600, letterSpacing:"3px", color:SPACE.starWhite2 }}>MADMON</div>
+            <div style={{ fontFamily:FONT.display, fontSize:13, fontWeight:600, letterSpacing:"3px", color:SPACE.starWhite2 }}>MADNOVA</div>
             <div style={{ fontFamily:FONT.hud, fontSize:8.5, letterSpacing:"1.5px", color:SPACE.label, marginTop:2, whiteSpace:"nowrap" }}>DEEP-SKY OBSERVATORY</div>
           </div>
         </div>

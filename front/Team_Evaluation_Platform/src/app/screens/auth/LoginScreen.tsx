@@ -27,7 +27,7 @@ function Intro({ onDone }: { onDone: () => void }) {
     }}>
       <div style={{ width: 10, height: 10, borderRadius: "50%", background: OBS.starWhite, boxShadow: "0 0 30px 8px rgba(160,200,255,.7)", animation: "obsStarBreathe 2.4s ease-in-out infinite" }} />
       <div style={{ textAlign: "center" }}>
-        <div style={{ fontFamily: OBS.display, fontSize: 20, fontWeight: 600, letterSpacing: 10, color: OBS.starWhite, animation: "obsFadeUp 1.4s both" }}>MADMON</div>
+        <div style={{ fontFamily: OBS.display, fontSize: 20, fontWeight: 600, letterSpacing: 10, color: OBS.starWhite, animation: "obsFadeUp 1.4s both" }}>MADNOVA</div>
         <div style={{ marginTop: 8, animation: "obsFadeUp 1.4s .3s both" }}>
           <MonoLabel size={10} spacing={4}>DEEP-SKY OBSERVATORY</MonoLabel>
         </div>
@@ -75,7 +75,7 @@ export function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChange
 
       {/* HUD 모서리 텍스트 */}
       <div style={{ position: "absolute", top: 26, left: 32, display: "flex", alignItems: "baseline", gap: 14, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
-        <span style={{ fontFamily: OBS.display, fontWeight: 600, fontSize: 14, letterSpacing: 5, color: OBS.starWhite }}>MADMON</span>
+        <span style={{ fontFamily: OBS.display, fontWeight: 600, fontSize: 14, letterSpacing: 5, color: OBS.starWhite }}>MADNOVA</span>
         <MonoLabel size={10} spacing={3}>DEEP-SKY OBSERVATORY</MonoLabel>
       </div>
       <div style={{ position: "absolute", bottom: 26, left: 32, animation: "obsFadeIn 1.2s both", pointerEvents: "none" }}>
@@ -95,7 +95,7 @@ export function LoginScreen({ onLoginSuccess }: { onLoginSuccess:(passwordChange
             <div style={{ width: 11, height: 11, borderRadius: "50%", background: OBS.starWhite, boxShadow: "0 0 26px 7px rgba(160,200,255,.65)", animation: "obsStarBreathe 3.2s ease-in-out infinite" }} />
           </div>
           <div style={{ textAlign: "center" }}>
-            <div style={{ fontFamily: OBS.display, fontSize: 22, fontWeight: 600, letterSpacing: 9, color: OBS.starWhite }}>MADMON</div>
+            <div style={{ fontFamily: OBS.display, fontSize: 22, fontWeight: 600, letterSpacing: 9, color: OBS.starWhite }}>MADNOVA</div>
             <div style={{ marginTop: 6 }}><MonoLabel size={9.5} spacing={4}>DEEP-SKY OBSERVATORY</MonoLabel></div>
           </div>
         </div>

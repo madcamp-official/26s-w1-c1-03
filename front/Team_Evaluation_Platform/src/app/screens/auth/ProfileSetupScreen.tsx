@@ -83,7 +83,7 @@ export function ProfileSetupScreen({ onDone }: { onDone:()=>void }) {
       <SpaceBackground/>
 
       <div style={{ position:"absolute", top:26, left:32, display:"flex", alignItems:"baseline", gap:14, animation:"obsFadeIn 1.2s both", pointerEvents:"none" }}>
-        <span style={{ fontFamily:OBS.display, fontWeight:600, fontSize:14, letterSpacing:5, color:OBS.starWhite }}>MADMON</span>
+        <span style={{ fontFamily:OBS.display, fontWeight:600, fontSize:14, letterSpacing:5, color:OBS.starWhite }}>MADNOVA</span>
         <MonoLabel size={10} spacing={3}>DEEP-SKY OBSERVATORY</MonoLabel>
       </div>
       <div style={{ position:"absolute", bottom:26, left:32, animation:"obsFadeIn 1.2s both", pointerEvents:"none" }}>

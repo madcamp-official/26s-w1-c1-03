@@ -1,9 +1,9 @@
 // 백엔드(main/) API 클라이언트. BACKEND_DEVELOPMENT_PLAN.md §7, 실제 auth/user 컨트롤러 기준.
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://api.madmon.madcamp-kaist.org/api";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "https://api.madnova.madcamp-kaist.org/api";
 
-const ACCESS_TOKEN_KEY = "madmon_access_token";
-const REFRESH_TOKEN_KEY = "madmon_refresh_token";
+const ACCESS_TOKEN_KEY = "madnova_access_token";
+const REFRESH_TOKEN_KEY = "madnova_refresh_token";
 
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
