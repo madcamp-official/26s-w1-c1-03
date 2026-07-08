@@ -6,8 +6,6 @@ function seededRandom(seed: number) {
   return s / 233280;
 }
 
-const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
-
 export interface StarAppearance {
   size: number;
   color: string; glowC: string;
@@ -54,10 +52,6 @@ export function teamLineColorFor(index: number) {
 
 const CENTER_X = 50, CENTER_Y = 46;
 
-function clamp(v: number, lo: number, hi: number) {
-  return Math.min(hi, Math.max(lo, v));
-}
-
 // 처음 은하에 들어왔을 때(카메라 scale 1 = 화면이 정확히 0~100% 영역을 비춘다) 별이
 // 전부 한눈에 들어오면 안 되고, 팬/줌으로 탐험해야 할 만큼은 넓어야 한다는 요구사항 —
 // 아래 배치 공식이 만드는 상대적인 모양(타원 전체 윤곽·팀 클러스터·나선)은 그대로 두고,
@@ -90,21 +84,20 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
     return { x: CENTER_X + 27 * rJitter * Math.cos(a), y: CENTER_Y + 22 * rJitter * Math.sin(a) };
   });
 
-  // 팀 내부 배치: 멤버를 id 순으로 골든 앵글 소용돌이에 태우되, 반지름/각도에 각자의
-  // id로 정해지는 작은 지터를 더해 나선이 너무 또렷하게 보이지 않게 한다.
+  // 팀 내부 배치: 멤버마다 id로 결정되는 반지름/각도를 서로 독립적으로 뽑아 disk 안에
+  // 흩뿌린다 — 정렬 순서를 따라 나선을 그리던 이전 방식은 별들이 같은 간격으로 규칙적으로
+  // 늘어서 보이는 원인이었다. 반지름은 sqrt 분포를 써서 클러스터 중심 쪽에 조금 더 몰리는
+  // 자연스러운 밀도는 유지하되, 각도는 완전히 무작위라 실제 밤하늘처럼 흩어져 보인다.
   // 여러 팀 소속이면 각 팀에서의 위치를 평균 내 팀 사이에 놓는다.
   const perUser = new Map<number, { x: number; y: number }[]>();
   sorted.forEach((team, k) => {
     const members = [...new Set(team.memberIds)].sort((a, b) => a - b);
     const n = members.length;
-    members.forEach((id, i) => {
-      // 골든 앵글 나선은 원래 점을 disk 전체에 고르게 "펼치는" 용도라 반지름을 크게 두면
-      // 같은 팀 멤버끼리도 서로 반대편까지 벌어져 뭉쳐 보이지 않는다. 팀은 뭉쳐 보여야
-      // 하므로 반지름을 작게 눌러 좁은 덩어리 안에서만 나선을 그리게 한다.
-      const frac = Math.sqrt((i + 0.5) / Math.max(n, 1));
+    members.forEach(id => {
+      const frac = Math.sqrt(seededRandom(id * 13 + 20));
       const rBase = n <= 1 ? 0 : T <= 1 ? 3 + 5 * frac : 2 + 3.5 * frac;
       const r = rBase * (1 + clusterJitter(id * 13 + 17, 0.15));
-      const ang = i * GOLDEN_ANGLE + team.id + clusterJitter(id * 13 + 19, 0.5);
+      const ang = seededRandom(id * 13 + 18) * Math.PI * 2 + clusterJitter(id * 13 + 19, 0.5);
       const p = {
         x: centers[k].x + r * Math.cos(ang),
         y: centers[k].y + r * Math.sin(ang) * 0.85,
@@ -120,18 +113,21 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
     pos.set(id, { x, y });
   });
 
-  // 무소속 별: 팀이 없으면 화면 전체 나선, 팀이 있으면 클러스터 바깥 띠에 흩뿌린다.
+  // 무소속 별: 팀이 없으면 화면 전체에, 팀이 있으면 클러스터 바깥 띠에 흩뿌린다.
+  // 여기도 정렬 순서(j)에 기대던 소용돌이 대신 각자의 id로 독립적인 각도/반지름을 뽑아
+  // 고리처럼 가지런히 늘어서지 않고 실제 밤하늘처럼 무작위로 흩어지게 한다.
   const rest = ids.filter(id => !pos.has(id));
-  const m = Math.max(rest.length, 1);
-  rest.forEach((id, j) => {
-    const ang = j * GOLDEN_ANGLE + 2.1 + clusterJitter(id * 13 + 23, 0.4);
+  rest.forEach(id => {
+    const ang = seededRandom(id * 13 + 21) * Math.PI * 2 + clusterJitter(id * 13 + 23, 0.4);
     let x: number, y: number;
     if (T === 0) {
-      const rFrac = Math.sqrt((j + 0.5) / m);
+      const rFrac = Math.sqrt(seededRandom(id * 13 + 22));
       x = CENTER_X + rFrac * 40 * Math.cos(ang);
       y = CENTER_Y + rFrac * 36 * Math.sin(ang);
     } else {
-      const band = 0.88 + 0.24 * seededRandom(id * 13 + 3);
+      // 이전엔 반지름 비율(band)이 0.88~1.12로 좁아 클러스터 바깥에 얇은 고리띠처럼
+      // 몰려 보였다 — 범위를 넓혀 고리가 아니라 자연스럽게 흩어진 배경 별처럼 만든다.
+      const band = 0.72 + 0.5 * seededRandom(id * 13 + 3);
       x = CENTER_X + 42 * band * Math.cos(ang);
       y = CENTER_Y + 34 * band * Math.sin(ang);
     }
@@ -177,6 +173,9 @@ export function galaxyPositions(ids: number[], teams: TeamCluster[]): Map<number
 const TEAM_MIN_DIST = 4.5;
 const CROSS_MIN_DIST = 20;
 const RELAX_ITERATIONS = 80;
+// 서로 밀어내다 은하 중심에서 너무 멀리 발산해 찾아가기 힘들어지는 걸 막는 상한(중심에서의
+// 거리, % 기준). 화면 밖으로 넘치는 탐험 범위 자체는 의도된 동작이라 값은 넉넉히 둔다.
+const MAX_RADIUS_FROM_CENTER = 130;
 
 function relaxMinDistance(
   pos: Map<number, { x: number; y: number }>,
@@ -208,12 +207,18 @@ function relaxMinDistance(
     }
     if (!moved) break;
   }
-  // 화면(0~100%) 안에 가두는 클램프가 아니라, 서로를 계속 밀어내다 좌표가 터무니없이
-  // 발산하는 것만 막는 아주 느슨한 안전망이다 — 은하가 화면 밖으로 넘치는 건 의도된 동작.
+  // 화면(0~100%) 안에 가두는 클램프가 아니라, 서로를 계속 밀어내다 은하 중심에서 너무
+  // 멀리(찾아가기 힘들 만큼) 발산하는 것만 막는 안전망이다 — 그래서 x/y 각각이 아니라
+  // "중심에서의 거리"로 잡아준다. 화면 밖으로 넘치는 정도의 탐험 범위는 의도된 동작이다.
   ids.forEach(id => {
     const p = pos.get(id);
     if (!p) return;
-    p.x = clamp(p.x, -600, 700);
-    p.y = clamp(p.y, -600, 692);
+    const dx = p.x - CENTER_X, dy = p.y - CENTER_Y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > MAX_RADIUS_FROM_CENTER) {
+      const k = MAX_RADIUS_FROM_CENTER / dist;
+      p.x = CENTER_X + dx * k;
+      p.y = CENTER_Y + dy * k;
+    }
   });
 }

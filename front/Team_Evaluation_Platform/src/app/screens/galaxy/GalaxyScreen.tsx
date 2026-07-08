@@ -21,6 +21,14 @@ const FONT_HUD = "'IBM Plex Mono'";
 
 const MIN_SCALE = 0.55, MAX_SCALE = 2.8, LOCK_SCALE = 2;
 
+// 팀 별자리 선은 팀마다 살짝 다른 방향/세기로 휘어지게 그려, 서로 다른 팀의 선분이
+// 우연히 같은 직선 위에 겹치더라도 곡률이 갈라놓아 절대 겹쳐 보이지 않게 한다
+// (교차하는 것은 괜찮고, 완전히 포개지는 것만 막으면 된다는 요구사항).
+function teamBow(teamIdx: number, segIdx: number): number {
+  const dir = teamIdx % 2 === 0 ? 1 : -1;
+  return dir * (1.4 + (teamIdx % 4) * 0.5) * (1 + (segIdx % 3) * 0.2);
+}
+
 function centerMessage(text: string, spinning=false) {
   return (
     <div style={{ position:"relative", height:"100%" }}>
@@ -357,10 +365,17 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
           position:"absolute", inset:0, width:"100%", height:"100%", pointerEvents:"none",
           opacity: selId!==null ? 0.15 : 1, transition:"opacity .6s ease",
         }}>
-          {teamLines.map(t=>t.segs.map((s,i)=>(
-            <line key={`${t.id}-${i}`} x1={s.x1} y1={s.y1} x2={s.x2} y2={s.y2}
-              stroke={t.line} strokeWidth={1} vectorEffect="non-scaling-stroke" strokeDasharray="3 5"/>
-          )))}
+          {teamLines.map((t,k)=>t.segs.map((s,i)=>{
+            const mx = (s.x1+s.x2)/2, my = (s.y1+s.y2)/2;
+            const dx = s.x2-s.x1, dy = s.y2-s.y1;
+            const len = Math.hypot(dx,dy) || 1;
+            const bow = teamBow(k,i);
+            const cx = mx - (dy/len)*bow, cy = my + (dx/len)*bow;
+            return (
+              <path key={`${t.id}-${i}`} d={`M ${s.x1} ${s.y1} Q ${cx} ${cy} ${s.x2} ${s.y2}`}
+                fill="none" stroke={t.line} strokeWidth={1} vectorEffect="non-scaling-stroke" strokeDasharray="3 5"/>
+            );
+          }))}
         </svg>
         {starMarkers.map(({ user, layout })=>{
           const hovered = hoverId===user.id, isSel = selId===user.id;
