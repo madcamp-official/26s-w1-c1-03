@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { RefreshCw, Lock, Search, X } from "lucide-react";
-import { listStars, getStar, listMyTeams, getTeam, ApiError } from "../../api";
+import { listStars, getStar, listActiveTeams, ApiError } from "../../api";
 import type { User } from "../../types";
 import { starToUser, topTitles } from "../../lib/starMapping";
 import { brightnessOf, gradeForStats, gradeForBrightness, spectrumPct, surfaceTempOf, SPECTRUM_GRADIENT } from "../../lib/brightness";
-import { starAppearanceFor, galaxyPositions, teamLineColorFor } from "../../lib/starLayout";
+import { starAppearanceFor, galaxyPositions, teamLineColorFor, UNREGISTERED_TINT } from "../../lib/starLayout";
 import type { TeamCluster } from "../../lib/starLayout";
 import { useIsMobile } from "../../lib/useIsMobile";
 import { SPACE } from "../../design-system/space";
@@ -82,24 +82,19 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
 
   const [clock, setClock] = useState("");
 
+  // includeUnregistered: 은하 화면은 한 번도 로그인/비밀번호 변경을 하지 않은 계정도 회색 별로
+  // 함께 보여줘야 하므로(다른 화면은 그대로 기존 목록만 받는다) true로 요청한다.
   useEffect(()=>{
-    listStars()
+    listStars(true)
       .then(list=>setStars(list.map(starToUser)))
       .catch(e=>setError(e instanceof ApiError ? e.message : "관측 데이터를 불러오지 못했습니다."));
   },[]);
 
-  // 내가 속한 팀 중 마감(projectDeadline)이 지나지 않은 팀만 클러스터/별자리 선의 대상이다.
-  // 평가 완료 여부와는 무관하며, 기한이 끝난 팀은 묶지 않는다.
+  // 마감(projectDeadline)이 지나지 않은(=진행 중인) 모든 팀이 클러스터/별자리 선의 대상이다 —
+  // 내 소속 여부와 무관하며(비소속자에게도 보여야 함), 평가 완료 여부와도 무관하다.
   useEffect(()=>{
-    listMyTeams()
-      .then(async list=>{
-        const now = Date.now();
-        const active = list.filter(t=>new Date(t.projectDeadline).getTime() > now);
-        const details = await Promise.all(active.map(t=>getTeam(t.id).catch(()=>null)));
-        setTeams(details
-          .filter((d): d is NonNullable<typeof d> => d!==null)
-          .map(d=>({ id:d.team.id, name:d.team.name, memberIds:d.members.map(m=>m.userId) })));
-      })
+    listActiveTeams()
+      .then(list=>setTeams(list.map(d=>({ id:d.team.id, name:d.team.name, memberIds:d.members.map(m=>m.userId) }))))
       .catch(()=>setTeams([]));
   },[]);
 
@@ -121,10 +116,12 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
     return stars.map(u=>{
       const p = pos.get(u.id)!;
       // 밝기 등급 색(청/백/황/적) — 잠긴 별은 능력치를 모르므로 기존 id 기반 색으로 둔다.
+      // 가입(로그인 후 비밀번호 변경)을 마치지 않은 계정은 등급과 무관하게 탁한 회색으로 그린다.
       const grade = u.isUnlocked ? gradeForStats(u.stats) : null;
+      const tint = u.registered===false ? UNREGISTERED_TINT : (grade ?? undefined);
       return {
         user: u, x: p.x, y: p.y,
-        layout: { ...starAppearanceFor(u.id, grade ?? undefined), left:`${p.x.toFixed(2)}%`, top:`${p.y.toFixed(2)}%` },
+        layout: { ...starAppearanceFor(u.id, tint), left:`${p.x.toFixed(2)}%`, top:`${p.y.toFixed(2)}%` },
       };
     });
   },[stars, sortedTeams]);
@@ -170,11 +167,13 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
   },[sortedTeams]);
 
   // 검색: 부분 일치("홍"→홍길동·홍준표, "홍길"→홍길동). 비우면 전체 명단.
+  // 가입 전 계정은 클릭(관측)이 불가능하므로 명단/검색에는 올리지 않고 별 지도에서 회색 점으로만 보인다.
+  const registeredMarkers = useMemo(()=>starMarkers.filter(s=>s.user.registered!==false),[starMarkers]);
   const roster = useMemo(()=>{
     const q = query.trim().toLowerCase();
-    const list = q ? starMarkers.filter(s=>s.user.name.toLowerCase().includes(q)) : starMarkers;
+    const list = q ? registeredMarkers.filter(s=>s.user.name.toLowerCase().includes(q)) : registeredMarkers;
     return [...list].sort((a,b)=>a.user.name.localeCompare(b.user.name, "ko"));
-  },[starMarkers, query]);
+  },[registeredMarkers, query]);
 
   const selStar = starMarkers.find(s=>s.user.id===selId) ?? null;
   const locked = selId!==null && lockStage>=2;
@@ -372,13 +371,13 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
               key={user.id}
               onMouseEnter={()=>setHoverId(user.id)}
               onMouseLeave={()=>setHoverId(null)}
-              onClick={(e)=>{ e.stopPropagation(); selectStar(user); }}
+              onClick={(e)=>{ e.stopPropagation(); if (user.registered===false) return; selectStar(user); }}
               style={{
                 position:"absolute", left:layout.left, top:layout.top,
                 transform:"translate(-50%,-50%)",
                 opacity: selId!==null && !isSel ? 0.22 : 1,
                 transition:"opacity .6s ease",
-                cursor:"pointer",
+                cursor: user.registered===false ? "default" : "pointer",
               }}
             >
               {/* halo */}
@@ -425,8 +424,11 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
                 position:"absolute", top:"100%", left:"50%", transform:"translateX(-50%)", marginTop:6,
                 whiteSpace:"nowrap", textAlign:"center", opacity: emphasize?1:0, transition:"opacity .3s ease", pointerEvents:"none",
               }}>
-                <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"1.5px", color:SPACE.accentTeal }}>MDM-{String(user.id).padStart(3,"0")}</div>
-                <div style={{ fontFamily:FONT_BODY, fontSize:11, color:SPACE.starWhite2, marginTop:1 }}>{user.name}</div>
+                {/* 가입 전 계정은 관측 대상이 아니므로(식별 코드 의미 없음) 이름만 보여준다. */}
+                {user.registered!==false && (
+                  <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"1.5px", color:SPACE.accentTeal }}>MDM-{String(user.id).padStart(3,"0")}</div>
+                )}
+                <div style={{ fontFamily:FONT_BODY, fontSize:11, color: user.registered===false ? SPACE.label : SPACE.starWhite2, marginTop:1 }}>{user.name}</div>
               </div>
             </div>
           );
@@ -441,7 +443,7 @@ export function GalaxyScreen({ onEval }: { onEval:()=>void }) {
       {/* 관측 패널(우측 340px)이 열리면 오른쪽 HUD가 가려지므로 패널 폭만큼 왼쪽으로 비켜준다 */}
       <div style={{ position:"absolute", top:20, right: !isMobile && showPanel ? 396 : 24, zIndex:2, pointerEvents:"none", textAlign:"right", transition:"right 1s cubic-bezier(.25,.9,.25,1)" }}>
         <div style={{ fontFamily:FONT_HUD, fontSize:10, letterSpacing:"2px", color:SPACE.accentSky }}>GALAXY</div>
-        <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"1.5px", color:SPACE.label, marginTop:2 }}>{stars.length} MEMBERS</div>
+        <div style={{ fontFamily:FONT_HUD, fontSize:9, letterSpacing:"1.5px", color:SPACE.label, marginTop:2 }}>{registeredMarkers.length} MEMBERS</div>
         {/* 팀 별자리 색 범례 — 어떤 점선이 어느 팀인지 구분한다. */}
         {teamLines.length>0 && (
           <div style={{ marginTop:10, display:"flex", flexDirection:"column", gap:4, alignItems:"flex-end" }}>

@@ -15,9 +15,11 @@ import com.madmon.main.user.entity.User;
 import com.madmon.main.user.entity.UserStats;
 import com.madmon.main.user.repository.UserRepository;
 import com.madmon.main.user.repository.UserStatsRepository;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,11 +41,28 @@ public class StarService {
 
     // 목록의 잠금 여부는 별마다 다른 게 아니라 "보는 사람이 자기 평가를 끝냈는가"로 결정되므로,
     // 조회당 한 번만 계산해 모든 별에 동일하게 적용한다.
-    public List<StarSummaryResponse> getStars(Long viewerId) {
+    //
+    // includeUnregistered: 은하 화면 전용 옵션. 아직 한 번도 로그인/비밀번호 변경을 하지 않은
+    // (=UserStats가 없는) 계정까지 이름/사진만 담은 채로 포함시킨다. AI 분석·스탯 비교 등
+    // 다른 화면은 이 옵션 없이 기존과 동일하게 호출하므로 영향받지 않는다.
+    public List<StarSummaryResponse> getStars(Long viewerId, boolean includeUnregistered) {
         LockStatus lockStatus = evaluateLockStatus(viewerId);
-        return userStatsRepository.findAllWithUser().stream()
+        List<UserStats> onboarded = userStatsRepository.findAllWithUser();
+        List<StarSummaryResponse> result = new ArrayList<>(onboarded.stream()
                 .map(stats -> toSummary(stats, lockStatus))
-                .toList();
+                .toList());
+
+        if (includeUnregistered) {
+            Set<Long> onboardedIds = onboarded.stream()
+                    .map(stats -> stats.getUser().getId())
+                    .collect(Collectors.toSet());
+            userRepository.findAll().stream()
+                    .filter(user -> !onboardedIds.contains(user.getId()))
+                    .map(this::toUnregisteredSummary)
+                    .forEach(result::add);
+        }
+
+        return result;
     }
 
     public StarDetailResponse getStarDetail(Long viewerId, Long targetUserId) {
@@ -135,7 +154,17 @@ public class StarService {
                 representativeTitleNames(user.getId()),
                 lockStatus.unlocked() ? UserStatsResponse.from(stats) : null,
                 lockStatus.unlocked(),
-                lockStatus.remainingCount()
+                lockStatus.remainingCount(),
+                user.isPasswordChanged()
+        );
+    }
+
+    // 아직 한 번도 로그인 후 비밀번호를 바꾸지 않은(=가입을 마치지 않은) 계정. 능력치/칭호가
+    // 아예 없으므로 이름·사진만 담아 은하에 회색 별로만 표시되게 한다.
+    private StarSummaryResponse toUnregisteredSummary(User user) {
+        return new StarSummaryResponse(
+                user.getId(), user.getName(), user.getProfileImageUrl(),
+                List.of(), null, false, 0, false
         );
     }
 

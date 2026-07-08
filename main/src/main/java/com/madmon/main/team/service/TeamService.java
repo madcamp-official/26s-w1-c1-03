@@ -76,11 +76,24 @@ public class TeamService {
         Team team = getTeam(teamId);
         validateActiveMembership(teamId, userId);
 
-        List<TeamMember> members = teamMemberRepository.findAllByTeamIdAndLeftAtIsNull(teamId);
+        return toDetail(team);
+    }
+
+    // 은하 화면의 팀 별자리 클러스터/선은 소속 여부와 무관하게 "진행 중인(마감 전) 모든 팀"을
+    // 똑같이 보여줘야 하므로, getMyTeams/getTeamDetail과 달리 멤버십 검증 없이 전체를 내려준다.
+    public List<TeamDetailResponse> getActiveTeams() {
+        Instant now = Instant.now();
+        return teamRepository.findAll().stream()
+                .filter(team -> now.isBefore(team.getProjectDeadline()))
+                .map(this::toDetail)
+                .toList();
+    }
+
+    private TeamDetailResponse toDetail(Team team) {
+        List<TeamMember> members = teamMemberRepository.findAllByTeamIdAndLeftAtIsNull(team.getId());
         List<TeamMemberResponse> memberResponses = members.stream()
                 .map(member -> TeamMemberResponse.of(member, member.getUser().getId().equals(team.getOwner().getId())))
                 .toList();
-
         return new TeamDetailResponse(TeamResponse.of(team, members.size()), memberResponses);
     }
 

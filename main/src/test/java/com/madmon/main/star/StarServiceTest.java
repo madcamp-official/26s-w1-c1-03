@@ -72,7 +72,7 @@ class StarServiceTest {
                 "star-u2", "hash", "미완료유저", null, null, null, null, null, null, null, null, false
         ));
 
-        List<StarSummaryResponse> stars = starService.getStars(onboarded.getId());
+        List<StarSummaryResponse> stars = starService.getStars(onboarded.getId(), false);
 
         assertEquals(1, stars.size());
         assertEquals(onboarded.getId(), stars.get(0).userId());
@@ -124,7 +124,7 @@ class StarServiceTest {
         teamMemberRepository.save(TeamMember.join(team, teammate));
         Thread.sleep(DEADLINE_BUFFER_MS + 200);
 
-        List<StarSummaryResponse> stars = starService.getStars(viewer.getId());
+        List<StarSummaryResponse> stars = starService.getStars(viewer.getId(), false);
 
         assertEquals(2, stars.size());
         for (StarSummaryResponse star : stars) {
@@ -195,7 +195,7 @@ class StarServiceTest {
         userTitleStatsRepository.save(UserTitleStats.of(target, titleA, 3));
         userTitleStatsRepository.save(UserTitleStats.of(target, titleB, 3));
 
-        List<StarSummaryResponse> stars = starService.getStars(evaluator.getId());
+        List<StarSummaryResponse> stars = starService.getStars(evaluator.getId(), false);
         StarSummaryResponse targetStar = stars.stream()
                 .filter(star -> star.userId().equals(target.getId()))
                 .findFirst()

@@ -10,6 +10,7 @@ public record StarSummaryResponse(
         List<String> representativeTitles,
         UserStatsResponse stats,
         boolean isUnlocked,
-        int remainingCount
+        int remainingCount,
+        boolean registered
 ) {
 }

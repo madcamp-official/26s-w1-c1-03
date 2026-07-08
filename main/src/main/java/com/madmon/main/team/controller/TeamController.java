@@ -47,6 +47,12 @@ public class TeamController {
         return ApiResponse.success(teamService.getMyTeams(authenticatedUser.id()));
     }
 
+    // 은하 화면 전용: 내 소속 여부와 무관하게 마감이 지나지 않은(=진행 중인) 모든 팀을 보여준다.
+    @GetMapping("/active")
+    public ApiResponse<List<TeamDetailResponse>> getActiveTeams() {
+        return ApiResponse.success(teamService.getActiveTeams());
+    }
+
     @GetMapping("/{teamId}")
     public ApiResponse<TeamDetailResponse> getTeamDetail(
             @AuthenticationPrincipal AuthenticatedUser authenticatedUser,

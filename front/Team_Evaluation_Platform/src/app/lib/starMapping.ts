@@ -49,6 +49,7 @@ export function starToUser(c: StarSummaryDto | StarDetailDto): User {
     rarity: c.stats ? rarityFromPower(totalPower(stats)) : "common",
     isUnlocked: "isUnlocked" in c ? c.isUnlocked : undefined,
     remainingCount: "remainingCount" in c ? c.remainingCount : undefined,
+    registered: "registered" in c ? c.registered : undefined,
   };
 }
 // 별 목록(listStars)에 잠긴 별이 하나라도 섞여 있으면 "평가 미완료" 상태로 본다.

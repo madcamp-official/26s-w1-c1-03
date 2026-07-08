@@ -219,6 +219,11 @@ export function getTeam(teamId: number): Promise<TeamDetailDto> {
   return request<TeamDetailDto>(`/teams/${teamId}`, { method: "GET" });
 }
 
+// 은하 화면 전용: 내 소속 여부와 무관하게 마감이 지나지 않은(=진행 중인) 모든 팀을 보여준다.
+export function listActiveTeams(): Promise<TeamDetailDto[]> {
+  return request<TeamDetailDto[]>("/teams/active", { method: "GET" });
+}
+
 export function createTeam(name: string, projectDeadline: string): Promise<TeamSummaryDto> {
   return request<TeamSummaryDto>("/teams", { method: "POST", body: JSON.stringify({ name, projectDeadline }) });
 }
@@ -291,6 +296,7 @@ export interface StarSummaryDto {
   stats: UserStatsDto | null;
   isUnlocked: boolean;
   remainingCount: number;
+  registered: boolean;
 }
 
 export interface StarDetailDto extends StarSummaryDto {
@@ -298,8 +304,11 @@ export interface StarDetailDto extends StarSummaryDto {
   titles: StarTitleVoteDto[] | null;
 }
 
-export function listStars(): Promise<StarSummaryDto[]> {
-  return request<StarSummaryDto[]>("/stars", { method: "GET" });
+// includeUnregistered: 은하 화면 전용 — 한 번도 로그인/비밀번호 변경을 하지 않은 계정까지
+// 함께 내려받는다. 다른 화면(AI 분석, 스탯 비교 등)은 인자 없이 호출해 기존과 동일하게 동작한다.
+export function listStars(includeUnregistered = false): Promise<StarSummaryDto[]> {
+  const qs = includeUnregistered ? "?includeUnregistered=true" : "";
+  return request<StarSummaryDto[]>(`/stars${qs}`, { method: "GET" });
 }
 
 export function getStar(userId: number): Promise<StarDetailDto> {

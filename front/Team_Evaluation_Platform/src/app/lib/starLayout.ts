@@ -14,6 +14,10 @@ export interface StarAppearance {
   breathe: string;
 }
 
+// 한 번도 로그인/비밀번호 변경을 하지 않은(=가입을 마치지 않은) 계정의 별 색 — 능력치도
+// 등급도 없으니 다른 별들과 뚜렷이 구분되는 탁한 회색으로 그린다.
+export const UNREGISTERED_TINT = { color: "#5b6472", glowC: "91,100,114" };
+
 // 크기/반짝임처럼 "그 사람 고유의" 외형 — 배치와 무관하게 id로만 결정된다.
 // tint를 주면 색만 그 값(예: 밝기 등급 색)으로 바꾸고, 없으면 기존 id 기반 색을 쓴다.
 export function starAppearanceFor(id: number, tint?: { color: string; glowC: string }): StarAppearance {
