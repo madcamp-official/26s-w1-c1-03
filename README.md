@@ -116,7 +116,7 @@
 * [x] 평가 완료 시에만 별 상세 및 AI 기능 열람 가능(잠금 기능)
 * [ ] AI 질문 및 답변 기록 조회 — 백엔드 세션 조회 API는 있으나 프론트 UI 미노출
 * [x] AI 응답 스트리밍 및 로딩 애니메이션
-* [ ] AI 요청 횟수 제한(Rate Limiting)
+* [x] AI 요청 횟수 제한(Rate Limiting) — 사용자당 분당 5회로 제한 (Bucket4j 인메모리, `POST /chat/sessions/{id}/messages`에 적용, 초과 시 429 `CHAT_RATE_LIMIT_EXCEEDED`)
 * [x] 프로필 사진 기본 아바타 제공
 * [ ] 팀 탈퇴 및 팀 관리 기능 — 백엔드 API(`DELETE /teams/{id}/members/me`)는 있으나 화면에 버튼 미노출
 * [x] 대표 칭호 및 능력치 캐싱을 통한 조회 성능 향상 (`UserTitleStats` 등 증분 캐시 테이블로 구현)
@@ -332,10 +332,12 @@ GET /api/chat/sessions/{sessionId}
 POST /api/chat/sessions/{sessionId}/messages
   Request   { content }
   Response  { id, role, content, createdAt }   # AI(assistant) 메시지만 반환
-  Errors    CHAT_LOCKED, RESOURCE_NOT_FOUND, OPENAI_REQUEST_FAILED
+  Errors    CHAT_LOCKED, RESOURCE_NOT_FOUND, OPENAI_REQUEST_FAILED, CHAT_RATE_LIMIT_EXCEEDED(429)
 ```
 
 별 상세와 동일한 잠금 정책이 세션 생성/조회/메시지 전송 전체에 적용된다.
+
+**Rate Limiting**: `POST /api/chat/sessions/{sessionId}/messages`는 사용자 1명당 분당 5회로 제한된다(Bucket4j 인메모리 토큰 버킷, 서버 단일 인스턴스 기준). 초과 시 `429 CHAT_RATE_LIMIT_EXCEEDED`.
 
 ### 칭호 (Title)
 

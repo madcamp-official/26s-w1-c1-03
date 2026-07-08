@@ -88,7 +88,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void 카드_1개로_세션을_생성하면_기본_제목이_붙는다() {
+    void 별_1개로_세션을_생성하면_기본_제목이_붙는다() {
         User asker = createOnboardedUser("chat-asker1", "질문자1");
         User target = createOnboardedUser("chat-target2", "타겟2");
 
@@ -100,7 +100,7 @@ class ChatServiceTest {
     }
 
     @Test
-    void 카드_여러개로_세션을_생성하면_전체_카드가_연결된다() {
+    void 별_여러개로_세션을_생성하면_전체_별이_연결된다() {
         User asker = createOnboardedUser("chat-asker2", "질문자2");
         User target1 = createOnboardedUser("chat-target3", "타겟3");
         User target2 = createOnboardedUser("chat-target4", "타겟4");
@@ -166,6 +166,44 @@ class ChatServiceTest {
                 () -> chatService.sendMessage(asker.getId(), session.id(), new SendMessageRequest("질문")));
 
         assertEquals(ErrorCode.CHAT_LOCKED, exception.getErrorCode());
+    }
+
+    @Test
+    void 분당_5회를_초과한_메시지_전송은_거부된다() {
+        User asker = createOnboardedUser("chat-asker7", "질문자7");
+        User target = createOnboardedUser("chat-target10", "타겟10");
+        when(openAiClient.createChatCompletion(anyList())).thenReturn("응답");
+
+        ChatSessionResponse session = chatService.createSession(asker.getId(), new CreateSessionRequest(List.of(target.getId()), null));
+        for (int i = 0; i < 5; i++) {
+            chatService.sendMessage(asker.getId(), session.id(), new SendMessageRequest("질문 " + i));
+        }
+
+        BusinessException exception = assertThrows(BusinessException.class,
+                () -> chatService.sendMessage(asker.getId(), session.id(), new SendMessageRequest("6번째 질문")));
+
+        assertEquals(ErrorCode.CHAT_RATE_LIMIT_EXCEEDED, exception.getErrorCode());
+    }
+
+    @Test
+    void 사용자별로_요청_제한이_독립적으로_적용된다() {
+        User askerA = createOnboardedUser("chat-asker8", "질문자8");
+        User askerB = createOnboardedUser("chat-asker9", "질문자9");
+        User target = createOnboardedUser("chat-target11", "타겟11");
+        when(openAiClient.createChatCompletion(anyList())).thenReturn("응답");
+
+        ChatSessionResponse sessionA = chatService.createSession(askerA.getId(), new CreateSessionRequest(List.of(target.getId()), null));
+        for (int i = 0; i < 5; i++) {
+            chatService.sendMessage(askerA.getId(), sessionA.id(), new SendMessageRequest("질문 " + i));
+        }
+        assertThrows(BusinessException.class,
+                () -> chatService.sendMessage(askerA.getId(), sessionA.id(), new SendMessageRequest("6번째 질문")));
+
+        // askerA가 한도를 소진해도 askerB는 자신의 한도로 정상 요청할 수 있다.
+        ChatSessionResponse sessionB = chatService.createSession(askerB.getId(), new CreateSessionRequest(List.of(target.getId()), null));
+        ChatMessageResponse response = chatService.sendMessage(askerB.getId(), sessionB.id(), new SendMessageRequest("질문"));
+
+        assertEquals(ChatMessageRole.ASSISTANT, response.role());
     }
 
     @Test

@@ -1,5 +1,5 @@
 // ─── Observatory design tokens (design.md 세계관: 별/관측소) ──────────────────
-// 기존 DS(tokens.ts)는 아직 이 스타일로 옮기지 않은 화면(팀 관리/카드 비교 등)이
+// 기존 DS(tokens.ts)는 아직 이 스타일로 옮기지 않은 화면(팀 관리/별 비교 등)이
 // 계속 쓰므로 건드리지 않고, 이 파일에 새 팔레트를 추가로 둔다.
 export const SPACE = {
   bg: "linear-gradient(160deg, #020617 0%, #081126 55%, #0B1736 100%)",

@@ -8,7 +8,7 @@ interface Series { name: string; color: string; stats: Stats; }
 // design.md §80: 육각 레이더를 별자리로 재해석 — 흐린 그리드 3겹 + 꼭짓점은 빛나는 별,
 // 데이터 선은 하나씩 순차적으로 그려지는 애니메이션(stroke-dashoffset), 내부 채움은 은은하게.
 //
-// series가 주어지면(카드 비교 화면) 여러 사람의 다각형을 겹쳐 그리는 비교 모드로 동작한다 —
+// series가 주어지면(별 비교 화면) 여러 사람의 다각형을 겹쳐 그리는 비교 모드로 동작한다 —
 // 이땐 한 사람 값이 아니라 여러 값을 동시에 보여줘야 하므로 순차 드로잉 애니메이션 없이
 // 정적으로 그리고, 값 라벨 대신 하단에 이름 범례를 붙인다.
 export function ConstellationChart({ stats, series, size=280, animate=true }: { stats?:Stats; series?:Series[]; size?:number; animate?:boolean }) {
@@ -20,7 +20,7 @@ export function ConstellationChart({ stats, series, size=280, animate=true }: { 
   const compareMode = !!series;
 
   // 스탯 라벨 호버/탭 시 설명 툴팁 — 이 차트가 스탯이 보이는 유일한 자리인 화면
-  // (은하 관측 패널/내 프로필/카드 비교)에서도 스탯 의미를 확인할 수 있게 한다.
+  // (은하 관측 패널/내 프로필/별 비교)에서도 스탯 의미를 확인할 수 있게 한다.
   const [tip, setTip] = useState<{ i:number; rect:TooltipRect }|null>(null);
   useEffect(()=>{
     if (!tip) return;

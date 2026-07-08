@@ -46,6 +46,7 @@ public class ChatService {
     private final UserStatsRepository userStatsRepository;
     private final StarService starService;
     private final OpenAiClient openAiClient;
+    private final ChatRateLimiter chatRateLimiter;
 
     @Transactional
     public ChatSessionResponse createSession(Long userId, CreateSessionRequest request) {
@@ -96,6 +97,9 @@ public class ChatService {
     @Transactional
     public ChatMessageResponse sendMessage(Long userId, Long sessionId, SendMessageRequest request) {
         requireUnlocked(userId);
+        if (!chatRateLimiter.tryConsume(userId)) {
+            throw new BusinessException(ErrorCode.CHAT_RATE_LIMIT_EXCEEDED);
+        }
         ChatSession session = getOwnedSession(userId, sessionId);
 
         chatMessageRepository.save(ChatMessage.create(session, ChatMessageRole.USER, request.content()));
