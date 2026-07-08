@@ -12,7 +12,7 @@ echo "======================================"
 cd "$PROJECT_DIR"
 
 echo "[1/5] Pull latest source..."
-git pull origin main
+git pull origin restart
 
 echo "[2/5] Move to backend..."
 cd "$BACKEND_DIR"
